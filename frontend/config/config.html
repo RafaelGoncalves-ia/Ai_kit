@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Configurações KIT IA</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header>
+    <h2>Configurações Globais do KIT-IA</h2>
+</header>
+
+<main id="globalConfig">
+    <section>
+        <h3>Modelos</h3>
+        <label for="aiModel">Modelo IA:</label>
+        <select id="aiModel"></select>
+    </section>
+
+    <section>
+        <h3>Voz / Microfone</h3>
+        <label><input type="checkbox" id="useXTTS"> Ativar XTTS</label>
+        <label><input type="checkbox" id="microphone"> Microfone</label>
+        <label><input type="checkbox" id="mute"> Mudo</label>
+    </section>
+
+    <section>
+        <h3>Skills</h3>
+        <div id="skillsList" class="skillsList"></div>
+    </section>
+
+    <section>
+        <h3>Informações</h3>
+        <p id="version">Versão: 1.0.0</p>
+        <p id="status">Status: carregando...</p>
+    </section>
+</main>
+
+<footer>
+    <button id="saveBtn">💾 Salvar</button>
+</footer>
+
+<script src="config.js"></script>
+</body>
+</html>

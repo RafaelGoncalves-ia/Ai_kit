@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Kit IA</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ================= HEADER ================= -->
+  <header>
+    <img id="kitIcon" src="assets/avatar/idle.png" alt="Kit IA">
+    <h1>Kit IA</h1>
+    <button id="configBtn" title="Configurações">⚙️</button>
+  </header>
+
+  <!-- ================= CHAT BOX ================= -->
+  <main id="chatContainer">
+    <div id="chatBox"></div>
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer>
+    <input id="input" type="text" placeholder="Digite um comando ou mensagem...">
+    <button id="micBtn" title="Falar com a IA">🎤</button>
+    <button id="sendBtn" title="Enviar">💬</button>
+  </footer>
+
+  <!-- ================= TEMPLATE DE MENSAGEM ================= -->
+  <template id="messageTemplate">
+    <div class="message">
+      <span class="author"></span>
+      <p class="text"></p>
+    </div>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>

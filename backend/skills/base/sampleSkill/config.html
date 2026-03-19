@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Configuração Sample Skill</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Configuração da Sample Skill</h1>
+    <label>
+        Ativar Skill:
+        <input type="checkbox" id="activeCheckbox" checked>
+    </label>
+    <br>
+    <label>
+        Número de exemplo:
+        <input type="number" id="exampleNumber" value="5" min="0" max="10">
+    </label>
+    <br>
+    <button id="saveBtn">Salvar Configurações</button>
+
+    <script>
+        const checkbox = document.getElementById('activeCheckbox');
+        const numberInput = document.getElementById('exampleNumber');
+        const saveBtn = document.getElementById('saveBtn');
+
+        saveBtn.onclick = () => {
+            const settings = {
+                active: checkbox.checked,
+                exampleNumber: Number(numberInput.value)
+            };
+            alert("Configurações salvas (exemplo): " + JSON.stringify(settings));
+        };
+    </script>
+</body>
+</html>

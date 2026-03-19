@@ -1,0 +1,162 @@
+/* ================= RESET BÁSICO ================= */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background: #121212;
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ================= HEADER ================= */
+header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 60px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  background: #181818;
+  z-index: 1000;
+}
+
+header img {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+}
+
+header h1 {
+  font-size: 1.2rem;
+  margin-left: 10px;
+  flex: 1;
+}
+
+header button {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+/* ================= CHAT BOX ================= */
+#chatContainer {
+  flex: 1;
+  margin-top: 70px;
+  margin-bottom: 80px;
+  display: flex;
+  justify-content: center;
+}
+
+#chatBox {
+  width: 90%;
+  max-width: 500px;
+  padding: 15px;
+  background: #1e1e1e;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+/* Mensagens */
+.message {
+  max-width: 70%;
+  word-wrap: break-word;
+  padding: 8px 12px;
+}
+
+.user-msg {
+  align-self: flex-end;
+  background: #4a90e2;
+  border-radius: 12px 12px 0 12px;
+}
+
+.ai-msg {
+  align-self: flex-start;
+  background: #333;
+  border-radius: 12px 12px 12px 0;
+}
+
+/* ================= FOOTER ================= */
+footer {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 0;
+  background: #181818;
+  z-index: 1000;
+}
+
+/* Campo de texto */
+footer input {
+  flex: 1;
+  max-width: 60%;
+  padding: 10px 15px;
+  border-radius: 25px;
+  border: none;
+  outline: none;
+  font-size: 1rem;
+  background: #222;
+  color: #fff;
+}
+
+/* Botões circulares */
+footer button {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  background: #0d47a1;
+  color: #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+footer button:hover {
+  background: #1565c0;
+}
+
+/* Microfone separado */
+#micBtn {
+  background: #0d47a1;
+}
+
+#micBtn:hover {
+  background: #0d47a1;
+}
+
+/* ================= RESPONSIVO ================= */
+@media (max-width: 480px) {
+  footer input {
+    max-width: 70%;
+    font-size: 0.9rem;
+  }
+  footer button {
+    width: 45px;
+    height: 45px;
+    font-size: 1rem;
+  }
+}
