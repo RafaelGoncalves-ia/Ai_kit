@@ -6,8 +6,9 @@
 // - executar skills
 // - servir como ponte entre brain e skills
 
+import fs from "fs"
 import path from "path"
-import { pathToFileURL } from "url"
+import { pathToFileURL, fileURLToPath } from "url"
 
 import registry from "../skills/registry.js"
 import logger from "../utils/logger.js"
@@ -38,9 +39,22 @@ export class SkillManager {
   // LOAD SKILLS
   // ======================
   async loadSkills() {
+    const __dirname = path.dirname(fileURLToPath(import.meta.url))
     for (const skillPath of registry) {
       try {
-        const fullPath = path.resolve(`backend/skills/${skillPath}/index.js`)
+        const skillDir = path.resolve(__dirname, '../skills', skillPath)
+        const indexPath = path.join(skillDir, "index.js")
+        const skillPathFile = path.join(skillDir, "skill.js")
+
+        let fullPath
+        if (fs.existsSync(indexPath)) {
+          fullPath = indexPath
+        } else if (fs.existsSync(skillPathFile)) {
+          fullPath = skillPathFile
+        } else {
+          throw new Error(`Skill não encontrada em ${skillDir} (index.js ou skill.js)`)
+        }
+
         const fileUrl = pathToFileURL(fullPath).href
 
         const module = await import(fileUrl)

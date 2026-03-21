@@ -8,6 +8,8 @@ export default [
   // ======================
   "base/ai.chat",
   "base/tts",
+  "base/xtts",
+  "base/sampleSkill",
 
   // ======================
   // BEHAVIOR

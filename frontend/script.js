@@ -11,7 +11,7 @@ const micBtn = document.getElementById("micBtn")
 const kitIcon = document.getElementById("kitIcon")
 const messageTemplate = document.getElementById("messageTemplate")
 
-const API_URL = "http://localhost:3000/chat"
+const API_URL = "http://localhost:3001/chat"
 
 // ======================
 // FUNÇÃO PARA RENDERIZAR MENSAGEM

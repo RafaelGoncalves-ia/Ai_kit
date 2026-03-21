@@ -1,4 +1,16 @@
+# Node
 node_modules/
 .env
+
+# Python / XTTS
+venv/
+__pycache__/
+*.pyc
+
+# Logs
+logs/
 *.log
+
+# OS
 .DS_Store
+Thumbs.db

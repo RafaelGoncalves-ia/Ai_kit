@@ -1,10 +1,25 @@
+:root {
+    --bg: #0f1114;
+    --card: #1f2433;
+    --cardBorder: #2e3a53;
+    --text: #e9ecff;
+    --muted: #9eb0d9;
+    --accent: #33b5ff;
+    --accentHover: #1b96e1;
+    --highlight: #62e6a0;
+}
+
+* {
+    box-sizing: border-box;
+}
+
 body {
-    font-family: sans-serif;
-    background: #121212;
-    color: #fff;
     margin: 0;
     padding: 0;
     min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(160deg, #0a0f1b 2%, #141a2b 100%);
+    color: var(--text);
 }
 
 header {
@@ -12,108 +27,189 @@ header {
     top: 0;
     left: 0;
     width: 100%;
-    height: 60px;
-    background: #181818;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    border-bottom: 1px solid #333;
+    padding: 5px 10px;
+    background: rgba(19, 23, 38, 0.95);
+    border-bottom: 1px solid #2e3a53;
+    z-index: 100;
+    min-height: 40px;
 }
 
 header h2 {
-    font-size: 1.2rem;
+    margin: 0;
+    font-size: 0.85rem;
+    letter-spacing: 0.03em;
+}
+
+header p {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 0.72rem;
 }
 
 main {
-    margin-top: 70px;
-    margin-bottom: 70px;
-    width: 90%;
-    max-width: 600px;
-    margin-left: auto;
-    margin-right: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+    max-width: 1120px;
+    margin: 120px auto 94px;
+    padding: 0 20px 18px;
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 16px;
 }
 
-.skill-section {
-    background: #1e1e1e;
-    padding: 15px;
-    border-radius: 10px;
+.card {
+    grid-column: span 12;
+    border: 1px solid var(--cardBorder);
+    border-radius: 14px;
+    background: var(--card);
+    box-shadow: 0 14px 32px rgba(0,0,0,0.24);
+    padding: 16px;
+}
+
+.card h2 {
+    margin: 0 0 10px;
+    color: #fff;
+    font-size: 1.1rem;
+}
+
+.formRow {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.formRow label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    min-width: 190px;
+}
+
+.formRow select,
+.formRow input[type="checkbox"] {
+    min-width: 180px;
+}
+
+select {
+    min-width: 100px;
+    padding: 8px 10px;
+    color: #e8ecff;
+    background: #1b2236;
+    border: 1px solid #2f3a56;
+    border-radius: 8px;
+    outline: none;
+}
+
+.skillsList {
+    display: grid;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.skillItem {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #1a2134;
+    border: 1px solid #2d3a52;
+    border-radius: 10px;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.skillItem:hover {
+    transform: translateY(-1px);
+    background: #1f2a44;
+}
+
+.skillItem span {
+    color: #e5e9fe;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.skillItem button {
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    background: linear-gradient(120deg, var(--accent), #1d93d6);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.skillItem button:hover {
+    background: linear-gradient(120deg, #2a97e9, #1380bf);
+    transform: translateY(-1px);
+}
+
+.statusGrid {
+    margin-top: 8px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 10px;
 }
 
-.skill-section h3 {
-    margin-bottom: 10px;
-    color: #4a90e2;
-}
-
-label {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.95rem;
-}
-
-label input,
-label select {
-    margin-left: 10px;
-    padding: 5px 10px;
-    border-radius: 5px;
-    border: none;
-    outline: none;
-    background: #222;
-    color: #fff;
-    min-width: 80px;
+.statusBadge {
+    border-radius: 10px;
+    padding: 10px 12px;
+    border: 1px solid #2e3a52;
+    background: rgba(14, 19, 36, 0.9);
+    color: #cff6e2;
 }
 
 footer {
     position: fixed;
     bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 0;
     width: 100%;
-    max-width: 600px;
-    background: #181818;
+    padding: 12px 20px;
+    background: rgba(18, 23, 38, 0.97);
+    border-top: 1px solid #2e3a53;
     display: flex;
     justify-content: center;
-    padding: 10px 0;
-    border-top: 1px solid #333;
+    z-index: 50;
 }
 
-footer button {
-    background: #0d47a1;
+#saveBtn {
     border: none;
+    border-radius: 12px;
+    background: var(--accent);
     color: #fff;
-    padding: 10px 20px;
-    border-radius: 25px;
-    cursor: pointer;
+    padding: 12px 24px;
     font-size: 1rem;
-    transition: background 0.2s;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.14s ease, filter 0.14s ease;
 }
 
-footer button:hover {
-    background: #1565c0;
+#saveBtn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
 }
 
-/* Responsivo */
-@media (max-width: 480px) {
+@media (min-width: 780px) {
+    #modelCard { grid-column: 1 / span 4; }
+    #voiceCard { grid-column: 5 / span 4; }
+    #skillsCard { grid-column: 1 / span 8; }
+    #infoCard { grid-column: 9 / span 4; }
+}
+
+@media (max-width: 779px) {
     main {
-        width: 95%;
+        grid-template-columns: 1fr;
     }
 
-    label {
+    .formRow {
         flex-direction: column;
-        align-items: flex-start;
-        gap: 5px;
+        align-items: stretch;
     }
 
-    label input,
-    label select {
+    .formRow label {
         width: 100%;
-        min-width: 0;
     }
 }

@@ -2,22 +2,188 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Configuração Sample Skill</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Configuração - Sample Skill</title>
+    <link rel="stylesheet" href="../../../frontend/style.css">
+    <style>
+        .config-container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+
+        .config-section {
+            background: var(--card-bg, #fff);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        .form-group input[type="number"],
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .btn-primary {
+            background: var(--primary, #007acc);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .status-message {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
 </head>
 <body>
-    <h1>Configuração da Sample Skill</h1>
-    <label>
-        Ativar Skill:
-        <input type="checkbox" id="activeCheckbox" checked>
-    </label>
-    <br>
-    <label>
-        Número de exemplo:
-        <input type="number" id="exampleNumber" value="5" min="0" max="10">
-    </label>
-    <br>
-    <button id="saveBtn">Salvar Configurações</button>
+    <div class="config-container">
+        <header>
+            <h1>⚙️ Configuração da Sample Skill</h1>
+            <p>Esta é uma skill de exemplo para demonstração das funcionalidades</p>
+        </header>
+
+        <section class="config-section">
+            <h2>Configurações Gerais</h2>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="activeCheckbox">
+                    Ativar Sample Skill
+                </label>
+                <small>Habilita ou desabilita esta skill no sistema</small>
+            </div>
+
+            <div class="form-group">
+                <label for="exampleNumber">Número de Exemplo:</label>
+                <input type="number" id="exampleNumber" value="5" min="0" max="10">
+                <small>Um número de exemplo para demonstração (0-10)</small>
+            </div>
+
+            <div class="form-group">
+                <label for="exampleOption">Opção de Exemplo:</label>
+                <select id="exampleOption">
+                    <option value="true">Ativado</option>
+                    <option value="false">Desativado</option>
+                </select>
+                <small>Uma opção booleana de exemplo</small>
+            </div>
+        </section>
+
+        <section class="config-section">
+            <h2>Informações da Skill</h2>
+            <div class="form-group">
+                <strong>Nome:</strong> Sample Skill<br>
+                <strong>Versão:</strong> 1.0.0<br>
+                <strong>Descrição:</strong> Skill de exemplo para demonstração<br>
+                <strong>Autor:</strong> Sistema AI Kit
+            </div>
+        </section>
+
+        <footer>
+            <button id="saveBtn" class="btn-primary">💾 Salvar Configurações</button>
+            <div id="statusMessage" class="status-message"></div>
+        </footer>
+    </div>
+
+    <script>
+        // Carregar configurações atuais
+        async function loadConfig() {
+            try {
+                // Simular carregamento (em produção, viria do backend)
+                const config = {
+                    active: false,
+                    exampleNumber: 5,
+                    exampleOption: true
+                };
+
+                document.getElementById('activeCheckbox').checked = config.active;
+                document.getElementById('exampleNumber').value = config.exampleNumber;
+                document.getElementById('exampleOption').value = config.exampleOption.toString();
+            } catch (err) {
+                console.error('Erro ao carregar configuração:', err);
+            }
+        }
+
+        // Salvar configurações
+        async function saveConfig() {
+            const statusMessage = document.getElementById('statusMessage');
+
+            try {
+                const config = {
+                    active: document.getElementById('activeCheckbox').checked,
+                    exampleNumber: parseInt(document.getElementById('exampleNumber').value),
+                    exampleOption: document.getElementById('exampleOption').value === 'true'
+                };
+
+                // Simular salvamento (em produção, enviaria para o backend)
+                console.log('Salvando configuração:', config);
+
+                // Mostrar mensagem de sucesso
+                statusMessage.textContent = 'Configurações salvas com sucesso!';
+                statusMessage.className = 'status-message status-success';
+                statusMessage.style.display = 'block';
+
+                // Esconder após 3 segundos
+                setTimeout(() => {
+                    statusMessage.style.display = 'none';
+                }, 3000);
+
+            } catch (err) {
+                console.error('Erro ao salvar:', err);
+                statusMessage.textContent = 'Erro ao salvar configurações!';
+                statusMessage.className = 'status-message status-error';
+                statusMessage.style.display = 'block';
+            }
+        }
+
+        // Event listeners
+        document.getElementById('saveBtn').addEventListener('click', saveConfig);
+
+        // Carregar configuração ao abrir
+        loadConfig();
+    </script>
+</body>
+</html>
 
     <script>
         const checkbox = document.getElementById('activeCheckbox');

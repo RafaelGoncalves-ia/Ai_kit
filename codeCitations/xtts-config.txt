@@ -1,0 +1,9 @@
+# Configuração XTTS
+# Caminho para o venv do XTTS
+XTTS_VENV=C:\GitHub\XTTS\venv
+
+# Porta do servidor XTTS (padrão: 5005)
+XTTS_PORT=5005
+
+# Comando Python (padrão: python)
+XTTS_PYTHON=python

@@ -1,6 +1,8 @@
 import express from "express"
 import cors from "cors"
 import dotenv from "dotenv"
+import path from "path"
+import { fileURLToPath } from "url"
 import logger from "./utils/logger.js"
 
 // ======================
@@ -24,6 +26,7 @@ import skillsRegistry from "./skills/registry.js"
 // =====================
 import createChatRoutes from "./routes/chat.js"
 import createSkillsRoutes from "./routes/skills.js"
+import createConfigRoutes from "./routes/config.js"
 
 dotenv.config()
 
@@ -35,6 +38,19 @@ const PORT = process.env.PORT || 3000
 
 app.use(cors())
 app.use(express.json())
+
+// ======================
+// RAIZ DO PROJETO
+// ======================
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const projectRoot = path.resolve(__dirname, '..')
+const frontendDir = path.join(projectRoot, 'frontend')
+
+// ======================
+// SERVIR ARQUIVOS ESTÁTICOS DO FRONTEND
+// ======================
+app.use(express.static(frontendDir))
 
 // ======================
 // CONTEXTO GLOBAL
@@ -68,21 +84,20 @@ context.core.brain = createBrain(context)
 // ======================
 // CARREGAR SKILLS
 // ======================
-context.core.skillManager.loadSkills(skillsRegistry)
+context.core.skillManager.loadSkills()
 context.core.skillManager.initAll(context)
 
 // ======================
 // ROTAS
 // ======================
 app.use("/chat", createChatRoutes(context))
-app.use("/skills", createSkillsRoutes(context))
+// skills/config exportam routers diretamente, nao funcoes
+app.use("/skills", createSkillsRoutes)
+app.use("/config", createConfigRoutes)
 
 // Rota simples para checagem
 app.get("/", (req, res) => {
-  res.json({
-    status: "ok",
-    message: "Kit-IA backend rodando 🚀"
-  })
+  res.sendFile(path.join(frontendDir, 'index.html'))
 })
 
 // ======================

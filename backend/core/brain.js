@@ -58,11 +58,32 @@ export default function createBrain(context) {
     }
 
     // TTS se habilitado
-    if (output.speak && context.services.tts) {
-      try {
-        await context.services.tts.speak(output.text)
-      } catch (err) {
-        console.error("Erro no TTS:", err)
+    if (output.speak) {
+      // Primeiro tenta XTTS via skill
+      const xttsSkill = context.core.skillManager.get("xtts")
+      if (xttsSkill && typeof xttsSkill.onAIResponse === "function") {
+        try {
+          await xttsSkill.onAIResponse(context, output.text)
+        } catch (err) {
+          console.error("Erro no XTTS, usando TTS padrão:", err)
+          // Fallback para TTS padrão
+          if (context.services.tts) {
+            try {
+              await context.services.tts.speak(output.text)
+            } catch (ttsErr) {
+              console.error("Erro no TTS padrão:", ttsErr)
+            }
+          }
+        }
+      } else {
+        // XTTS não disponível, usa TTS padrão
+        if (context.services.tts) {
+          try {
+            await context.services.tts.speak(output.text)
+          } catch (err) {
+            console.error("Erro no TTS:", err)
+          }
+        }
       }
     }
 
