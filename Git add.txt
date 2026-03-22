@@ -1,0 +1,5 @@
+F:
+cd F:\AI\Ai_kit
+git add .
+git commit -m "adicionar um comentario"
+git push

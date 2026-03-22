@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const activeSkillsCount = document.getElementById("activeSkillsCount");
     const reloadBtn = document.getElementById("reloadBtn");
     const saveBtn = document.getElementById("saveBtn");
+    const logsBtn = document.getElementById("logsBtn");
 
     // Estado da aplicação
     let currentConfig = {};
@@ -219,6 +220,9 @@ Configuração: ${skill.configPath ? 'Disponível' : 'Não disponível'}
     // ==========================
     reloadBtn.addEventListener("click", loadConfig);
     saveBtn.addEventListener("click", saveConfig);
+    logsBtn.addEventListener("click", () => {
+        window.open("http://localhost:3002/", "_blank");
+    });
 
     // Auto-indicação de mudanças não salvas
     aiModelSelect.addEventListener("change", () => {

@@ -7,7 +7,6 @@
 const chatBox = document.getElementById("chatBox")
 const input = document.getElementById("input")
 const sendBtn = document.getElementById("sendBtn")
-const micBtn = document.getElementById("micBtn")
 const kitIcon = document.getElementById("kitIcon")
 const messageTemplate = document.getElementById("messageTemplate")
 
@@ -92,11 +91,3 @@ configBtn.addEventListener("click", () => {
   // Abre a página de configuração em nova aba/janela
   window.open("config/config.html", "_blank", "width=600,height=700");
 });
-
-// ======================
-// MICROFONE (placeholder)
-// ======================
-micBtn.addEventListener("click", () => {
-  console.log("Microfone ativado (placeholder)")
-  // futuramente integração com SpeechRecognition
-})

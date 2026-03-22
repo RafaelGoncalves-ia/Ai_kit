@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Kit - Logs</title>
+
+<style>
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #0f1115;
+        color: #e6e6e6;
+        display: flex;
+        height: 100vh;
+    }
+
+    .sidebar {
+        width: 220px;
+        background: #151922;
+        padding: 15px;
+        border-right: 1px solid #222;
+    }
+
+    .sidebar h2 {
+        font-size: 16px;
+        margin-bottom: 15px;
+        color: #7aa2ff;
+    }
+
+    .btn {
+        display: block;
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 10px;
+        background: #1f2430;
+        border: 1px solid #2a2f3a;
+        color: #ddd;
+        cursor: pointer;
+        border-radius: 6px;
+        text-align: left;
+    }
+
+    .btn:hover {
+        background: #2a3142;
+    }
+
+    .btn.active {
+        background: #2f66ff;
+        color: white;
+    }
+
+    .content {
+        flex: 1;
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .header {
+        font-size: 14px;
+        margin-bottom: 10px;
+        color: #aaa;
+    }
+
+    .log-box {
+        flex: 1;
+        background: #0b0d12;
+        border: 1px solid #222;
+        border-radius: 8px;
+        padding: 10px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        font-family: monospace;
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
+    .footer {
+        margin-top: 10px;
+        font-size: 12px;
+        color: #666;
+    }
+
+    .status {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        margin-left: 10px;
+    }
+
+    .ok { background: #1f6f3f; color: #9dffbf; }
+    .err { background: #6f1f1f; color: #ff9d9d; }
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+    <h2>📊 Logs</h2>
+
+    <button class="btn active" onclick="selectLog('stt')">🎙 STT</button>
+    <button class="btn" onclick="selectLog('xtts')">🗣 XTTS</button>
+    <button class="btn" onclick="selectLog('backend')">🧠 Backend (3001)</button>
+    <button class="btn" onclick="selectLog('ollama')">🤖 Ollama</button>
+
+    <div class="footer">
+        Auto refresh: 2s
+    </div>
+</div>
+
+<div class="content">
+    <div class="header">
+        Log ativo: <span id="logName">STT</span>
+        <span id="status" class="status ok">ONLINE</span>
+    </div>
+
+    <div id="logBox" class="log-box">Carregando logs...</div>
+</div>
+
+<script>
+let currentLog = "stt";
+let interval = null;
+
+function setActiveButton(type) {
+    document.querySelectorAll(".btn").forEach(b => b.classList.remove("active"));
+    event.target.classList.add("active");
+}
+
+function selectLog(type) {
+    currentLog = type;
+
+    const names = {
+        stt: "STT",
+        xtts: "XTTS",
+        backend: "Backend (3001)",
+        ollama: "Ollama"
+    };
+
+    document.getElementById("logName").innerText = names[type];
+
+    loadLog();
+    restartAutoRefresh();
+}
+
+async function loadLog() {
+    try {
+        const res = await fetch(`http://localhost:3001/logs/${currentLog}`);
+        const text = await res.text();
+
+        document.getElementById("logBox").innerText = text;
+
+        document.getElementById("status").innerText = "ONLINE";
+        document.getElementById("status").className = "status ok";
+    } catch (err) {
+        document.getElementById("logBox").innerText = "Erro ao carregar logs...";
+
+        document.getElementById("status").innerText = "OFFLINE";
+        document.getElementById("status").className = "status err";
+    }
+}
+
+function restartAutoRefresh() {
+    if (interval) clearInterval(interval);
+    interval = setInterval(loadLog, 2000);
+}
+
+// init
+loadLog();
+interval = setInterval(loadLog, 2000);
+</script>
+
+</body>
+</html>

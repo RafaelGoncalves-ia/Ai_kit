@@ -33,6 +33,13 @@ try:
         print("[XTTS] PyTorch < 2.6 detectado, carregando sem safe_globals...")
         tts = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2")
     
+    # 🔥 GARANTE GPU
+    if torch.cuda.is_available():
+        print("[XTTS] Usando GPU")
+        tts = tts.to("cuda")
+    else:
+        print("[XTTS] Usando CPU")
+    
     ready = True
     print("[XTTS] Pronto!")
 except Exception as e:

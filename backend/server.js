@@ -2,6 +2,7 @@ import express from "express"
 import cors from "cors"
 import dotenv from "dotenv"
 import path from "path"
+import fs from "fs"
 import { fileURLToPath } from "url"
 import logger from "./utils/logger.js"
 
@@ -23,10 +24,11 @@ import skillsRegistry from "./skills/registry.js"
 
 // ======================
 // IMPORT ROUTES
-// =====================
+// ======================
 import createChatRoutes from "./routes/chat.js"
 import createSkillsRoutes from "./routes/skills.js"
 import createConfigRoutes from "./routes/config.js"
+import sttRoute from "./routes/stt.js"
 
 dotenv.config()
 
@@ -38,17 +40,20 @@ const PORT = process.env.PORT || 3000
 
 app.use(cors())
 app.use(express.json())
+app.use("/stt", sttRoute)
 
 // ======================
-// RAIZ DO PROJETO
+// PATHS
 // ======================
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const projectRoot = path.resolve(__dirname, '..')
-const frontendDir = path.join(projectRoot, 'frontend')
+const projectRoot = path.resolve(__dirname, "..")
+const frontendDir = path.join(projectRoot, "frontend")
+
+const LOG_PATH = "F:/AI/Ai_kit/logs"
 
 // ======================
-// SERVIR ARQUIVOS ESTÁTICOS DO FRONTEND
+// STATIC FRONTEND
 // ======================
 app.use(express.static(frontendDir))
 
@@ -68,13 +73,13 @@ const context = {
 }
 
 // ======================
-// INICIALIZAÇÃO SERVICES
+// SERVICES
 // ======================
 context.services.ai = createAIService(context)
 context.services.tts = createTTSService(context)
 
 // ======================
-// INICIALIZAÇÃO CORE
+// CORE
 // ======================
 context.core.commandEngine = createCommandEngine(context)
 context.core.scheduler = createScheduler(context)
@@ -82,22 +87,38 @@ context.core.skillManager = createSkillManager(context)
 context.core.brain = createBrain(context)
 
 // ======================
-// CARREGAR SKILLS
+// SKILLS
 // ======================
 context.core.skillManager.loadSkills()
 context.core.skillManager.initAll(context)
 
 // ======================
-// ROTAS
+// ROUTES
 // ======================
 app.use("/chat", createChatRoutes(context))
-// skills/config exportam routers diretamente, nao funcoes
 app.use("/skills", createSkillsRoutes)
 app.use("/config", createConfigRoutes)
 
-// Rota simples para checagem
+// ======================
+// HOME
+// ======================
 app.get("/", (req, res) => {
-  res.sendFile(path.join(frontendDir, 'index.html'))
+  res.sendFile(path.join(frontendDir, "index.html"))
+})
+
+// ======================
+// LOGS (CORRIGIDO E ÚNICO)
+// ======================
+app.get("/logs/:name", (req, res) => {
+  const fileName = `${req.params.name}.log`
+  const filePath = path.join(LOG_PATH, fileName)
+
+  try {
+    const data = fs.readFileSync(filePath, "utf8")
+    res.send(data)
+  } catch (err) {
+    res.status(200).send(`LOG NÃO ENCONTRADO: ${fileName}`)
+  }
 })
 
 // ======================
