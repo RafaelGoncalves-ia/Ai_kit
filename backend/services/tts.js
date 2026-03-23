@@ -2,7 +2,7 @@
 // Versão base (local, leve)
 // - Usa engine nativa do sistema operacional
 // - Futuramente pode ser substituído por XTTS via Skill
-
+import { speak as speakXTTS } from "./xttsClient.js";
 import { exec } from "child_process"
 import os from "os"
 
@@ -19,7 +19,8 @@ export default function createTTSService(context) {
   // ======================
   function speak(text) {
     return new Promise((resolve, reject) => {
-      if (!enabled || !text) return resolve()
+        
+    if (!enabled || !text) return resolve()
 
       let command = ""
 

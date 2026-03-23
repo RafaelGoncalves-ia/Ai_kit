@@ -1,29 +1,27 @@
-// Serviço de IA (Ollama)
-// - Lista modelos disponíveis
-// - Permite trocar modelo em tempo real
-// - Faz chat
-
-import fetch from "node-fetch"
+import fetch from "node-fetch";
+import { getMemoryContext, saveMemory } from "../core/memory/memoryManager.js";
+import { captureScreen } from "./vision.js";
 
 export default function createAIService(context) {
-  const OLLAMA_URL = context.config.system?.ollamaUrl || "http://localhost:11434"
+  const OLLAMA_URL =
+    context.config.system?.ollamaUrl || "http://localhost:11434";
 
   let currentModel =
     context.config.system?.defaultModel ||
-    "huihui_ai/qwen2.5-abliterate:14b"
+    "huihui_ai/qwen3.5-abliterated:4b";
 
   // ======================
   // LISTAR MODELOS
   // ======================
   async function listModels() {
     try {
-      const res = await fetch(`${OLLAMA_URL}/api/tags`)
-      const data = await res.json()
+      const res = await fetch(`${OLLAMA_URL}/api/tags`);
+      const data = await res.json();
 
-      return data.models?.map((m) => m.name) || []
+      return data.models?.map((m) => m.name) || [];
     } catch (err) {
-      console.error("Erro ao listar modelos:", err)
-      return []
+      console.error("Erro ao listar modelos:", err);
+      return [];
     }
   }
 
@@ -31,43 +29,81 @@ export default function createAIService(context) {
   // DEFINIR MODELO
   // ======================
   function setModel(modelName) {
-    currentModel = modelName
+    currentModel = modelName;
   }
 
   function getModel() {
-    return currentModel
+    return currentModel;
+  }
+
+  // ======================
+  // DETECTAR VISÃO
+  // ======================
+  function detectVisionCommand(text) {
+    const triggers = ["olha", "ve", "ver", "analisa", "tela"];
+
+    return triggers.some((t) => text.toLowerCase().includes(t));
   }
 
   // ======================
   // CHAT
   // ======================
-  async function chat(prompt) {
+  async function chat(userMessage) {
     try {
-      const res = await fetch(`${OLLAMA_URL}/api/generate`, {
+      const memoryContext = getMemoryContext();
+
+      const finalPrompt = `
+${memoryContext}
+
+Usuário: ${userMessage}
+`;
+
+      let images = [];
+
+      // 👁️ visão
+      if (detectVisionCommand(userMessage)) {
+        console.log("[VISION] capturando tela...");
+        const img = await captureScreen();
+        images.push(img);
+      }
+
+      const res = await fetch(`${OLLAMA_URL}/api/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
           model: currentModel,
-          prompt: prompt,
-          stream: false
+          messages: [
+            {
+              role: "user",
+              content: finalPrompt
+            }
+          ],
+          images
         })
-      })
+      });
 
-      const data = await res.json()
+      const data = await res.json();
+
+      const responseText =
+        data.message?.content || "Erro ao responder.";
+
+      // 🧠 salva memória
+      saveMemory(`Usuário: ${userMessage}`);
+      saveMemory(`IA: ${responseText}`);
 
       return {
-        text: data.response || "Erro ao responder.",
-        speak: true // padrão ligado (depois vamos controlar por skill)
-      }
+        text: responseText,
+        speak: true
+      };
     } catch (err) {
-      console.error("Erro no chat IA:", err)
+      console.error("Erro no chat IA:", err);
 
       return {
         text: "Deu erro ao falar com a IA.",
         speak: false
-      }
+      };
     }
   }
 
@@ -76,5 +112,5 @@ export default function createAIService(context) {
     listModels,
     setModel,
     getModel
-  }
+  };
 }

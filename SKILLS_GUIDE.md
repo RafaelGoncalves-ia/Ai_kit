@@ -1,104 +1,166 @@
-# Guia para Criar Skills Customizadas - AI Kit
+Guia para Criar Skills Customizadas - AI Kit
 
-Este guia explica como criar suas próprias skills para o AI Kit, permitindo estender as funcionalidades do sistema.
+Este guia explica como criar skills para o AI Kit com base na arquitetura atual (Services + Core + Skills), incluindo suporte a memória, visão e voz.
 
-## Estrutura de uma Skill
+🧩 Estrutura de uma Skill
 
-Cada skill é um diretório dentro de `backend/skills/` com a seguinte estrutura:
+Cada skill deve ser criada dentro de:
 
-```
 backend/skills/
 ├── base/
 │   └── minhaSkill/
 │       ├── index.js          # Arquivo principal da skill
 │       ├── config.html       # (Opcional) Interface de configuração
 │       └── README.md         # (Opcional) Documentação
-```
+📦 Arquivo index.js
 
-## Arquivo index.js
+A skill deve exportar um objeto padrão:
 
-O arquivo principal deve exportar um objeto com as seguintes propriedades:
-
-```javascript
 export default {
-    name: "Minha Skill",                    // Nome da skill
-    description: "Descrição do que faz",    // Descrição
-    version: "1.0.0",                       // Versão
-    active: true,                           // Se inicia ativa
-    configPath: "./config.html",            // Caminho para config (opcional)
+    name: "Minha Skill",
+    description: "Descrição do que faz",
+    version: "1.0.0",
+    active: true,
+    configPath: "./config.html",
 
-    settings: {                             // Configurações padrão
-        opcao1: true,
-        opcao2: "valor"
+    settings: {
+        enabled: true
     },
 
-    init(context) {                         // Chamado ao inicializar
+    init(context) {
         console.log("Skill inicializada!");
     },
 
-    // Hooks opcionais
-    onUserInput(context, input) {           // Quando usuário fala
-        // Lógica aqui
+    onUserInput(context, input) {
+        // Intercepta entrada do usuário
     },
 
-    onAIResponse(context, response) {       // Após resposta da IA
-        // Lógica aqui
+    onAIResponse(context, response) {
+        // Intercepta resposta da IA
     },
 
-    execute(context, input) {               // Execução manual
-        // Lógica principal
+    async execute(context, input) {
+        // Execução manual (API ou trigger)
     }
 }
-```
+⚙️ Context (IMPORTANTE)
 
-## Registrando a Skill
+O context é o núcleo da integração.
 
-1. **Adicionar ao registry**: Edite `backend/skills/registry.js` e adicione o caminho:
-   ```javascript
-   export default [
-     // ... outras skills
-     "base/minhaSkill"
-   ]
-   ```
+Serviços disponíveis:
+context.services.ai        // IA (Ollama)
+context.services.tts       // TTS (auto fallback XTTS → sistema)
+context.services.system    // Sistema (execuções locais)
+context.services.vision    // Captura de tela (se implementado)
+Core:
+context.core.skillManager
+context.core.brain
+Config:
+context.config
+🧠 Memória (Nova funcionalidade)
 
-2. **Adicionar à configuração**: Edite `backend/config/skills.json`:
-   ```json
-   {
-     "base/minhaSkill": false
-   }
-   ```
+A memória é gerenciada fora das skills, mas pode ser usada dentro delas.
 
-3. **Criar interface de configuração** (opcional): Crie `config.html` no diretório da skill.
+Uso:
+import { saveMemory, getMemoryContext } from "../../core/memory/memoryManager.js";
 
-## Exemplo Completo
+// salvar
+saveMemory("Usuário gosta de azul");
 
-Veja `backend/skills/base/sampleSkill/` para um exemplo funcional.
+// ler
+const memory = getMemoryContext();
 
-## Hooks Disponíveis
+👉 Use com moderação (evitar spam de memória).
 
-- `init(context)`: Chamado na inicialização
-- `onUserInput(context, input)`: Quando o usuário envia uma mensagem
-- `onAIResponse(context, response)`: Após a IA responder
-- `execute(context, input)`: Para execução manual via API
+👁️ Visão (Screen Analysis)
 
-## Context Object
+Se sua skill precisar analisar a tela:
 
-O `context` fornece acesso a:
-- `context.services.ai`: Serviço de IA
-- `context.services.tts`: Serviço de TTS
-- `context.core.skillManager`: Gerenciador de skills
-- `context.config`: Configurações globais
+const img = await context.services.vision.captureScreen();
 
-## Dicas
+Exemplo de uso:
 
-- Use `console.log()` para debug
-- Skills podem ser ativadas/desativadas dinamicamente
-- Interfaces de configuração são abertas em popups
-- Mantenha skills modulares e reutilizáveis
+const response = await context.services.ai.chat({
+    text: "O que você vê?",
+    images: [img]
+});
+🔊 Voz (TTS + XTTS automático)
 
-## Distribuição
+Sempre use:
 
-Para distribuir skills:
-1. Compacte o diretório da skill
-2. Forneça instruções de instalação
-3. Outros usuários podem adicionar ao registry e config
+await context.services.tts.speak("Mensagem aqui");
+
+👉 O sistema automaticamente:
+
+usa XTTS se estiver ativo
+fallback para TTS do sistema
+🧠 Boas práticas (CRÍTICO)
+✔️ 1. Skill NÃO deve:
+chamar API direto do Ollama
+implementar lógica de TTS
+duplicar lógica de visão
+
+👉 Use sempre context.services
+
+✔️ 2. Skill deve:
+decidir quando agir
+não como executar
+✔️ 3. Evite bloquear fluxo
+
+Errado:
+
+await context.services.tts.speak("..."); // trava fluxo
+
+Melhor:
+
+context.services.tts.speak("...");
+🔁 Fluxo de execução
+Usuário → commandEngine → skillManager → Skills → Services → IA
+🧪 Exemplo real (Skill de visão)
+export default {
+    name: "Vision Helper",
+    active: true,
+
+    async onUserInput(context, input) {
+        if (input.toLowerCase().includes("olha")) {
+            
+            context.services.tts.speak("Deixa eu ver isso 👀");
+
+            const img = await context.services.vision.captureScreen();
+
+            const res = await context.services.ai.chat({
+                text: "Descreva essa tela",
+                images: [img]
+            });
+
+            return res;
+        }
+    }
+}
+🧾 Registrando a Skill
+1. Registry
+// backend/skills/registry.js
+
+export default [
+  "base/minhaSkill"
+]
+2. Config
+// backend/config/skills.json
+
+{
+  "base/minhaSkill": true
+}
+🎛️ Interface (Opcional)
+
+Crie:
+
+config.html
+
+👉 aberta via frontend para configurar a skill.
+
+🚀 Boas ideias de Skills
+🎭 Personalidade (humor/ironia)
+🧠 Memória personalizada
+👁️ Assistente de tela
+🎮 Interação com stream
+🔔 Reações automáticas
