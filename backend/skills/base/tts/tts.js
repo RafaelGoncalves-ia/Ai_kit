@@ -10,9 +10,7 @@ export default {
   init(context) {
     const { commandEngine } = context.core
 
-    // ======================
     // COMANDO: ativar voz
-    // ======================
     commandEngine.register({
       name: "ativar voz",
 
@@ -30,9 +28,7 @@ export default {
       }
     })
 
-    // ======================
     // COMANDO: desativar voz
-    // ======================
     commandEngine.register({
       name: "desativar voz",
 
@@ -50,9 +46,7 @@ export default {
       }
     })
 
-    // ======================
     // COMANDO: status voz
-    // ======================
     commandEngine.register({
       name: "status voz",
 
@@ -73,9 +67,7 @@ export default {
     })
   },
 
-  // ======================
   // HOOK: depois da resposta
-  // ======================
   async after(ctx, response) {
     // força speak = false se TTS estiver desativado
     if (!ctx.services.tts.isEnabled()) {

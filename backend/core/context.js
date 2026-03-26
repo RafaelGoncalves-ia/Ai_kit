@@ -10,19 +10,13 @@ import path from "path"
 export function createContext() {
   const context = {}
 
-  // ======================
   // CONFIGURAÇÕES
-  // ======================
   context.config = loadConfigs()
 
-  // ======================
   // SERVIÇOS (vazio por enquanto)
-  // ======================
   context.services = {}
 
-  // ======================
   // CORE (será preenchido depois)
-  // ======================
   context.core = {
     brain: null,
     skillManager: null,
@@ -33,9 +27,7 @@ export function createContext() {
   return context
 }
 
-// ======================
 // CARREGAR CONFIGS
-// ======================
 function loadConfigs() {
   const configPath = path.resolve("backend/config")
 

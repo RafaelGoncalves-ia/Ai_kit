@@ -2,7 +2,6 @@
   "base/ai.chat": true,
   "base/tts": true,
   "base/xtts": true,
-  "base/sampleSkill": false,
   "behavior/randomTalk": false,
   "master/commentActivity": false
 }

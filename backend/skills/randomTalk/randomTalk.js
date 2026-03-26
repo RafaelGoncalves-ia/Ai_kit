@@ -9,9 +9,7 @@ export default {
 
     if (!scheduler) return
 
-    // ======================
     // TAREFA AGENDADA
-    // ======================
     scheduler.register({
       name: "randomTalk",
 

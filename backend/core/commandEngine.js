@@ -4,9 +4,7 @@
 export default function createCommandEngine(context) {
   const commands = []
 
-  // ======================
   // REGISTRAR COMANDO
-  // ======================
   function register(command) {
     /**
      * Estrutura esperada:
@@ -19,9 +17,7 @@ export default function createCommandEngine(context) {
     commands.push(command)
   }
 
-  // ======================
   // PROCESSAR TEXTO
-  // ======================
   async function process(text) {
     for (const cmd of commands) {
       try {
@@ -37,9 +33,7 @@ export default function createCommandEngine(context) {
     return null
   }
 
-  // ======================
   // DEBUG / LISTAGEM
-  // ======================
   function list() {
     return commands.map((c) => c.name)
   }

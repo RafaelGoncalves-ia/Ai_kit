@@ -10,9 +10,7 @@ export default {
   init(context) {
     const { commandEngine } = context.core
 
-    // ======================
     // COMANDO: trocar modelo
-    // ======================
     commandEngine.register({
       name: "trocar modelo",
 
@@ -39,9 +37,7 @@ export default {
       }
     })
 
-    // ======================
     // COMANDO: listar modelos
-    // ======================
     commandEngine.register({
       name: "listar modelos",
 
@@ -67,16 +63,12 @@ export default {
     })
   },
 
-  // ======================
   // HOOK: antes da IA (futuro)
-  // ======================
   async before(ctx, input) {
     return input
   },
 
-  // ======================
   // HOOK: depois da IA (futuro)
-  // ======================
   async after(ctx, response) {
     return response
   }

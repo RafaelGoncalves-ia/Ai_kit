@@ -16,9 +16,7 @@ export default {
 
     if (!scheduler) return
 
-    // ======================
     // JOB PRINCIPAL
-    // ======================
     scheduler.register({
       name: "commentActivity",
       interval: 1000 * 60 * 5, // a cada 5 minutos

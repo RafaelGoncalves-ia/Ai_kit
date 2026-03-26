@@ -1,23 +1,29 @@
 import fetch from "node-fetch";
-import { getMemoryContext, saveMemory } from "../core/memory/memoryManager.js";
-import { captureScreen } from "./vision.js";
 
 export default function createAIService(context) {
-  const OLLAMA_URL =
-    context.config.system?.ollamaUrl || "http://localhost:11434";
-
-  let currentModel =
-    context.config.system?.defaultModel ||
+  const OLLAMA_URL = context.config.system?.ollamaUrl || "http://localhost:11434";
+  
+  let currentModel = 
+    context.config.system?.defaultModel || 
     "huihui_ai/qwen3.5-abliterated:4b";
 
-  // ======================
-  // LISTAR MODELOS
-  // ======================
+  /**
+   * Limpa texto para TTS
+   */
+  function cleanTextForSpeech(text) {
+    return text
+      .replace(/\*\*/g, "")
+      .replace(/\*/g, "")
+      .replace(/#/g, "")
+      .replace(/`/g, "")
+      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "")
+      .trim();
+  }
+
   async function listModels() {
     try {
       const res = await fetch(`${OLLAMA_URL}/api/tags`);
       const data = await res.json();
-
       return data.models?.map((m) => m.name) || [];
     } catch (err) {
       console.error("Erro ao listar modelos:", err);
@@ -25,9 +31,6 @@ export default function createAIService(context) {
     }
   }
 
-  // ======================
-  // DEFINIR MODELO
-  // ======================
   function setModel(modelName) {
     currentModel = modelName;
   }
@@ -36,81 +39,43 @@ export default function createAIService(context) {
     return currentModel;
   }
 
-  // ======================
-  // DETECTAR VISÃO
-  // ======================
-  function detectVisionCommand(text) {
-    const triggers = ["olha", "ve", "ver", "analisa", "tela"];
-
-    return triggers.some((t) => text.toLowerCase().includes(t));
-  }
-
-  // ======================
-  // CHAT
-  // ======================
-  async function chat(userMessage) {
+  /**
+   * CHAT LIMPO (sem memória, sem visão)
+   */
+  async function chat(prompt, options = {}) {
     try {
-      const memoryContext = getMemoryContext();
-
-      const finalPrompt = `
-${memoryContext}
-
-Usuário: ${userMessage}
-`;
-
-      let images = [];
-
-      // 👁️ visão
-      if (detectVisionCommand(userMessage)) {
-        console.log("[VISION] capturando tela...");
-        const img = await captureScreen();
-        images.push(img);
-      }
-
       const res = await fetch(`${OLLAMA_URL}/api/chat`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: currentModel,
+          stream: false,
           messages: [
             {
               role: "user",
-              content: finalPrompt
+              content: prompt,
+              images: options.images?.length ? options.images : undefined
             }
-          ],
-          images
+          ]
         })
       });
 
+      if (!res.ok) throw new Error(`Erro Ollama: ${res.status}`);
+
       const data = await res.json();
+      const responseText = data.message?.content || "Sem resposta.";
 
-      const responseText =
-        data.message?.content || "Erro ao responder.";
-
-      // 🧠 salva memória
-      saveMemory(`Usuário: ${userMessage}`);
-      saveMemory(`IA: ${responseText}`);
-
-      return {
+      return { 
         text: responseText,
+        speakText: cleanTextForSpeech(responseText),
         speak: true
       };
-    } catch (err) {
-      console.error("Erro no chat IA:", err);
 
-      return {
-        text: "Deu erro ao falar com a IA.",
-        speak: false
-      };
+    } catch (err) {
+      console.error("Erro no chat:", err);
+      return { text: "Erro técnico no chat.", speak: false };
     }
   }
 
-  return {
-    chat,
-    listModels,
-    setModel,
-    getModel
-  };
+  return { chat, listModels, setModel, getModel };
 }

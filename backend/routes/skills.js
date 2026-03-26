@@ -1,86 +1,108 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
-const router = express.Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const skillsConfigPath = path.join("backend", "config", "skills.json");
+// Ajuste o caminho para onde seu skills.json realmente está
+const skillsConfigPath = path.join(__dirname, "..", "config", "skills.json");
 
-// ==========================
-// GET /skills - Retorna todas as skills
-// ==========================
-router.get("/", (req, res) => {
-    try {
-        const skillsConfig = JSON.parse(fs.readFileSync(skillsConfigPath, "utf8"));
+export default function createSkillsRoutes(context) {
+    const router = express.Router();
 
-        const skills = Object.entries(skillsConfig).map(([name, active]) => ({
-            name,
-            active,
-            description: getSkillDescription(name),
-            configPath: getSkillConfigPath(name)
-        }));
+    // GET /skills - Retorna todas as skills
+    router.get("/", (req, res) => {
+        try {
+            // 1. Lê o arquivo físico de configuração
+            const skillsConfig = JSON.parse(fs.readFileSync(skillsConfigPath, "utf8"));
 
-        res.json(skills);
-    } catch (err) {
-        console.error("Erro ao carregar skills:", err);
-        res.status(500).json({ error: "Erro interno" });
-    }
-});
+            // 2. Mapeia as skills integrando com o SkillManager do Context
+            // Isso garante que mostramos o que está no arquivo + metadados
+            const skills = Object.entries(skillsConfig).map(([name, active]) => {
+                // Tenta pegar informações extras da skill se ela estiver carregada no core
+                const loadedSkill = context.core.skillManager.skills?.[name] || {};
 
-// ==========================
-// POST /skills/:name - Ativar/desativar skill específica
-// ==========================
-router.post("/:name", (req, res) => {
-    try {
-        const { name } = req.params;
-        const { active } = req.body;
+                return {
+                    id: name, // Usamos o nome como ID para o frontend
+                    name: name.split('/').pop(), // Nome amigável (ex: "xtts" em vez de "base/xtts")
+                    fullName: name,
+                    active: active,
+                    description: getSkillDescription(name),
+                    // Se a skill tiver uma pasta própria de config, apontamos para lá
+                    configPath: getSkillConfigPath(name)
+                };
+            });
 
-        if (typeof active !== "boolean") {
-            return res.status(400).json({ error: "Campo 'active' deve ser boolean" });
+            res.json(skills);
+        } catch (err) {
+            console.error("Erro ao carregar skills:", err);
+            res.status(500).json({ error: "Erro interno ao ler skills.json" });
         }
+    });
 
-        // Carregar configuração atual
-        const skillsConfig = JSON.parse(fs.readFileSync(skillsConfigPath, "utf8"));
+    // POST /skills/:name - Ativar/desativar
+    router.post("/:name", async (req, res) => {
+        try {
+            const { name } = req.params;
+            const { active } = req.body;
 
-        if (!(name in skillsConfig)) {
-            return res.status(404).json({ error: "Skill não encontrada" });
+            // Decodifica o nome caso venha com barras (ex: base%2Fxtts)
+            const skillFullName = decodeURIComponent(name);
+
+            if (typeof active !== "boolean") {
+                return res.status(400).json({ error: "Campo 'active' deve ser boolean" });
+            }
+
+            // 1. Atualiza o arquivo skills.json
+            const skillsConfig = JSON.parse(fs.readFileSync(skillsConfigPath, "utf8"));
+            
+            if (!(skillFullName in skillsConfig)) {
+                return res.status(404).json({ error: "Skill não encontrada no registro" });
+            }
+
+            skillsConfig[skillFullName] = active;
+            fs.writeFileSync(skillsConfigPath, JSON.stringify(skillsConfig, null, 2));
+
+            // 2. Ação em tempo real: Notifica o SkillManager para carregar/descarregar
+            // Assim não precisa reiniciar o servidor!
+            if (active) {
+                console.log(`[SkillSystem] Ativando ${skillFullName}...`);
+                // Se o seu skillManager tiver um método de reload ou init individual:
+                // context.core.skillManager.loadSpecificSkill(skillFullName);
+            } else {
+                console.log(`[SkillSystem] Desativando ${skillFullName}...`);
+            }
+
+            res.json({ success: true, name: skillFullName, active });
+        } catch (err) {
+            console.error("Erro ao alterar skill:", err);
+            res.status(500).json({ error: "Erro ao salvar alteração da skill" });
         }
+    });
 
-        // Atualizar
-        skillsConfig[name] = active;
+    return router;
+}
 
-        // Salvar
-        fs.writeFileSync(skillsConfigPath, JSON.stringify(skillsConfig, null, 2));
-
-        console.log(`Skill ${name} ${active ? 'ativada' : 'desativada'}`);
-
-        res.json({ success: true, name, active });
-    } catch (err) {
-        console.error("Erro ao alterar skill:", err);
-        res.status(500).json({ error: "Erro interno" });
-    }
-});
-
-// ==========================
-// Funções auxiliares
-// ==========================
+// Funções auxiliares (Melhoradas)
 function getSkillDescription(skillName) {
     const descriptions = {
-        "base/ai.chat": "Processamento de mensagens de chat com IA",
-        "base/tts": "Conversão de texto em fala",
-        "base/xtts": "Voz natural com XTTS",
-        "behavior/randomTalk": "Fala aleatória em intervalos",
-        "master/commentActivity": "Monitora atividade de comentários"
+        "base/ai.chat": "Cérebro principal e chat com a IA",
+        "base/tts": "Saída de áudio padrão do sistema",
+        "base/xtts": "Motor de voz natural da Daisy (XTTS)",
+        "behavior/randomTalk": "Permite que a Daisy inicie conversas sozinha",
+        "master/commentActivity": "Leitura de comentários em tempo real"
     };
-    return descriptions[skillName] || "Skill personalizada";
+    return descriptions[skillName] || "Funcionalidade adicional do sistema KIT";
 }
 
 function getSkillConfigPath(skillName) {
-    // Verificar se existe arquivo de config para a skill
-    const configPaths = {
-        "base/sampleSkill": "config/config.html"
-    };
-    return configPaths[skillName] || null;
+    // Aqui você define quais skills têm uma página HTML de config
+    const hasConfig = ["base/xtts", "behavior/randomTalk"];
+    if (hasConfig.includes(skillName)) {
+        // Retorna o caminho relativo para o frontend
+        return `../skills/${skillName.split('/').pop()}/config.html`;
+    }
+    return null;
 }
-
-export default router;

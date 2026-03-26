@@ -1,105 +1,75 @@
-// Rota de configurações
-// Gerencia configurações globais do sistema
-
 import express from "express";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
-const router = express.Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Caminhos dos arquivos de configuração
-const configDir = path.resolve("backend/config");
-const skillsConfigPath = path.join(configDir, "skills.json");
+// Caminho para o skills.json (ajustado para subir da pasta routes)
+const skillsConfigPath = path.join(__dirname, "..", "config", "skills.json");
 
-// ==========================
-// GET /config - Retorna configuração atual
-// ==========================
-router.get("/", async (req, res) => {
-    try {
-        // Carregar skills
-        const skillsConfig = JSON.parse(fs.readFileSync(skillsConfigPath, "utf8"));
+export default function createConfigRoutes(context) {
+    const router = express.Router();
 
-        // Carregar configuração do .env ou defaults
-        const config = {
-            version: "1.0.0",
-            aiModel: process.env.DEFAULT_MODEL || "llama3",
-            xttsEnabled: process.env.XTTS_ENABLED === "true",
-            microphoneEnabled: false,
-            muted: false,
-            skills: Object.entries(skillsConfig).map(([name, active]) => ({
-                name,
-                active,
-                description: getSkillDescription(name),
-                configPath: getSkillConfigPath(name)
-            }))
-        };
+    // GET /config - Retorna configuração atual
+    router.get("/", async (req, res) => {
+        try {
+            const skillsConfig = JSON.parse(fs.readFileSync(skillsConfigPath, "utf8"));
 
-        res.json(config);
-    } catch (err) {
-        console.error("Erro ao carregar configuração:", err);
-        res.status(500).json({ error: "Erro interno" });
-    }
-});
+            // Pegamos os valores atuais direto do objeto context (memória do servidor)
+            const config = {
+                version: "1.1.0",
+                aiModel: context.config.system.defaultModel,
+                xttsEnabled: context.core.skillManager.skills?.["base/xtts"]?.active || false,
+                microphoneEnabled: context.core.skillManager.skills?.["base/stt"]?.active || false,
+                muted: context.config.system.muted || false,
+                // Opcional: listar skills aqui também se o frontend pedir
+                skills: Object.entries(skillsConfig).map(([name, active]) => ({
+                    name,
+                    active
+                }))
+            };
 
-// ==========================
-// POST /config - Salva configuração
-// ==========================
-router.post("/", async (req, res) => {
-    try {
-        const { aiModel, xttsEnabled, microphoneEnabled, muted } = req.body;
+            res.json(config);
+        } catch (err) {
+            console.error("Erro ao carregar configuração:", err);
+            res.status(500).json({ error: "Erro ao ler configurações" });
+        }
+    });
 
-        // Aqui você pode salvar no .env ou em um arquivo de config
-        // Por enquanto, apenas valida e retorna sucesso
+    // POST /config - Salva e aplica configuração
+    router.post("/", async (req, res) => {
+        try {
+            const { aiModel, xttsEnabled, microphoneEnabled, muted } = req.body;
 
-        console.log("Configuração recebida:", { aiModel, xttsEnabled, microphoneEnabled, muted });
+            // 1. Atualiza o Cérebro (IA) em tempo real
+            if (aiModel) {
+                console.log(`[Config] Trocando modelo para: ${aiModel}`);
+                context.config.system.defaultModel = aiModel;
+                // Se o seu serviço de AI precisar ser reiniciado ou avisado:
+                // context.services.ai.updateModel(aiModel);
+            }
 
-        res.json({ success: true });
-    } catch (err) {
-        console.error("Erro ao salvar configuração:", err);
-        res.status(500).json({ error: "Erro interno" });
-    }
-});
+            // 2. Atualiza Status de Voz e Microfone no SkillManager
+            // Isso envia o comando de ligar/desligar para as skills base
+            if (context.core.skillManager) {
+                if (xttsEnabled !== undefined) {
+                    await context.core.skillManager.toggleSkill("base/xtts", xttsEnabled);
+                }
+                if (microphoneEnabled !== undefined) {
+                    await context.core.skillManager.toggleSkill("base/stt", microphoneEnabled);
+                }
+            }
 
-// ==========================
-// GET /models - Lista modelos disponíveis
-// ==========================
-router.get("/models", async (req, res) => {
-    try {
-        // Simular lista de modelos (deve vir do serviço de IA)
-        const models = [
-            { name: "llama3", size: "8B" },
-            { name: "llama3:70b", size: "70B" },
-            { name: "codellama", size: "13B" },
-            { name: "mistral", size: "7B" }
-        ];
+            context.config.system.muted = muted;
 
-        res.json({ models });
-    } catch (err) {
-        console.error("Erro ao listar modelos:", err);
-        res.status(500).json({ error: "Erro interno" });
-    }
-});
+            res.json({ success: true, message: "Configurações aplicadas com sucesso" });
+        } catch (err) {
+            console.error("Erro ao salvar configuração:", err);
+            res.status(500).json({ error: "Erro ao aplicar configurações" });
+        }
+    });
 
-// ==========================
-// Funções auxiliares
-// ==========================
-function getSkillDescription(skillName) {
-    const descriptions = {
-        "base/ai.chat": "Processamento de mensagens de chat com IA",
-        "base/tts": "Conversão de texto em fala",
-        "base/xtts": "Voz natural com XTTS",
-        "behavior/randomTalk": "Fala aleatória em intervalos",
-        "master/commentActivity": "Monitora atividade de comentários"
-    };
-    return descriptions[skillName] || "Skill personalizada";
+    return router;
 }
-
-function getSkillConfigPath(skillName) {
-    // Verificar se existe arquivo de config para a skill
-    const configPaths = {
-        "base/sampleSkill": "config/config.html"
-    };
-    return configPaths[skillName] || null;
-}
-
-export default router;

@@ -22,7 +22,7 @@ Para rodar o Kit IA, você precisa instalar alguns softwares fora do projeto:
    - Certifique-se de ter o servidor Ollama rodando local ou em rede.
    - O modelo recomendado para teste inicial:
      ```
-     huihui_ai/qwen2.5-abliterate:14b
+     huihui_ai/qwen3-vl-abliterated:4b
      ```
 
 3. **XTTS** (opcional)

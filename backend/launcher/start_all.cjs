@@ -23,6 +23,6 @@ start("node", ["server.js"], "..");
 // abre dashboard automaticamente
 setTimeout(() => {
   require("child_process").exec(
-    "start http://localhost:3002/AiKitDashboard.html"
+    "start http://localhost:3001/index.html"
   );
 }, 2000);

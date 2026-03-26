@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Memory Manager</title>
+</head>
+<body>
+  <h2>Memórias</h2>
+  <div id="list"></div>
+
+  <script>
+    async function load() {
+      const res = await fetch("/memory");
+      const data = await res.json();
+
+      const el = document.getElementById("list");
+      el.innerHTML = "";
+
+      data.forEach(m => {
+        const div = document.createElement("div");
+        div.innerHTML = `
+          <b>${m.key}</b>: ${m.value}
+          <button onclick="del(${m.id})">🗑</button>
+        `;
+        el.appendChild(div);
+      });
+    }
+
+    async function del(id) {
+      await fetch("/memory/" + id, { method: "DELETE" });
+      load();
+    }
+
+    load();
+  </script>
+</body>
+</html>

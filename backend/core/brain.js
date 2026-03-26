@@ -1,27 +1,40 @@
-// Cérebro principal da aplicação
-// Decide o fluxo:
-// 1. Verifica comandos
-// 2. Usa IA (chat)
-// 3. Dispara TTS (se ativo)
+/**
+ * Brain (VERSÃO SIMPLIFICADA)
+ * Responsável apenas por gerar resposta do modelo (LLM)
+ * Toda lógica de decisão agora fica no Orchestrator
+ */
 
 export default function createBrain(context) {
+
   // ======================
-  // PROCESSAR INPUT
+  // GERAR RESPOSTA IA
   // ======================
-  async function processInput(input) {
+  async function generate(input, options = {}) {
     const text = normalize(input)
 
-    // 1. Tenta comandos primeiro
-    const commandResult = await context.core.commandEngine.process(text)
-
-    if (commandResult) {
-      return handleOutput(commandResult)
+    if (!text) {
+      return {
+        text: "",
+        usage: null
+      }
     }
 
-    // 2. Fallback → IA
-    const aiResponse = await context.services.ai.chat(text)
+    try {
+      const response = await context.services.ai.chat(text, options)
 
-    return handleOutput(aiResponse)
+      return {
+        text: response?.text || "",
+        usage: response?.usage || null
+      }
+
+    } catch (err) {
+      console.error("Erro no brain.generate:", err)
+
+      return {
+        text: "Deu ruim aqui... tenta de novo.",
+        usage: null
+      }
+    }
   }
 
   // ======================
@@ -29,68 +42,10 @@ export default function createBrain(context) {
   // ======================
   function normalize(text) {
     if (!text) return ""
-    return text.toLowerCase().trim()
-  }
-
-  // ======================
-  // SAÍDA PADRÃO
-  // ======================
-  async function handleOutput(response) {
-    /**
-     * Formato padrão esperado:
-     * {
-     *   text: "resposta da IA",
-     *   speak: true/false (opcional)
-     * }
-     */
-
-    if (!response) {
-      return {
-        text: "Não entendi direito...",
-        speak: false
-      }
-    }
-
-    // garante formato
-    const output = {
-      text: response.text || "",
-      speak: response.speak ?? false
-    }
-
-    // TTS se habilitado
-    if (output.speak) {
-      // Primeiro tenta XTTS via skill
-      const xttsSkill = context.core.skillManager.get("xtts")
-      if (xttsSkill && typeof xttsSkill.onAIResponse === "function") {
-        try {
-          await xttsSkill.onAIResponse(context, output.text)
-        } catch (err) {
-          console.error("Erro no XTTS, usando TTS padrão:", err)
-          // Fallback para TTS padrão
-          if (context.services.tts) {
-            try {
-              await context.services.tts.speak(output.text)
-            } catch (ttsErr) {
-              console.error("Erro no TTS padrão:", ttsErr)
-            }
-          }
-        }
-      } else {
-        // XTTS não disponível, usa TTS padrão
-        if (context.services.tts) {
-          try {
-            await context.services.tts.speak(output.text)
-          } catch (err) {
-            console.error("Erro no TTS:", err)
-          }
-        }
-      }
-    }
-
-    return output
+    return text.trim()
   }
 
   return {
-    processInput
+    generate
   }
 }

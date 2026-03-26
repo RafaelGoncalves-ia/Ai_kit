@@ -1,181 +1,241 @@
-// Gerenciador central de Skills
-// Responsável por:
-// - carregar skills do registry
-// - aplicar config (ativar/desativar)
-// - validar dependências
-// - executar skills
-// - servir como ponte entre brain e skills
+// Gerenciador central de Skills - AI KIT
 
-import fs from "fs"
-import path from "path"
-import { pathToFileURL, fileURLToPath } from "url"
-
-import registry from "../skills/registry.js"
-import logger from "../utils/logger.js"
+import fs from "fs";
+import path from "path";
+import { pathToFileURL, fileURLToPath } from "url";
+import logger from "../utils/logger.js";
 
 export class SkillManager {
   constructor(context) {
-    this.context = context
-
-    this.skills = new Map()        // todas carregadas
-    this.enabledSkills = new Map() // apenas ativas
+    this.context = context;
+    this.skills = new Map();
+    this.enabledSkills = new Map();
   }
 
-  // ======================
   // INIT
-  // ======================
   async init() {
-    logger.info("Inicializando SkillManager...")
-    
-    await this.loadSkills()
-    this.applyConfig()
-    this.validateDependencies()
+    logger.info("Inicializando SkillManager (Modo Dinâmico)...");
 
-    logger.info(`Skills carregadas: ${this.skills.size}`)
-    logger.info(`Skills ativas: ${this.enabledSkills.size}`)
+    await this.loadSkills();
+    this.applyConfig();
+    this.validateDependencies();
+
+    logger.info(
+      `Busca concluída. Disponíveis: ${this.skills.size} | Ativas: ${this.enabledSkills.size}`
+    );
   }
 
-  // ======================
-  // LOAD SKILLS
-  // ======================
+  // LOAD SKILLS (AUTO-SCAN FLEXÍVEL)
   async loadSkills() {
-    const __dirname = path.dirname(fileURLToPath(import.meta.url))
-    for (const skillPath of registry) {
-      try {
-        const skillDir = path.resolve(__dirname, '../skills', skillPath)
-        const indexPath = path.join(skillDir, "index.js")
-        const skillPathFile = path.join(skillDir, "skill.js")
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const skillsRoot = path.resolve(__dirname, "../skills");
 
-        let fullPath
-        if (fs.existsSync(indexPath)) {
-          fullPath = indexPath
-        } else if (fs.existsSync(skillPathFile)) {
-          fullPath = skillPathFile
-        } else {
-          throw new Error(`Skill não encontrada em ${skillDir} (index.js ou skill.js)`)
-        }
+    const categories = fs.readdirSync(skillsRoot);
 
-        const fileUrl = pathToFileURL(fullPath).href
+    for (const category of categories) {
+      const categoryPath = path.join(skillsRoot, category);
 
-        const module = await import(fileUrl)
-        const skill = module.default
+      if (!fs.statSync(categoryPath).isDirectory()) continue;
 
-        if (!skill || !skill.name) {
-          logger.warn(`Skill inválida em ${skillPath}`)
-          continue
-        }
+      // 🔥 CASO 1: skill direta (ex: skills/needs/index.js)
+      const directIndex = path.join(categoryPath, "index.js");
+      const directSkill = path.join(categoryPath, "skill.js");
 
-        // referência ao contexto
-        skill.context = this.context
+      if (fs.existsSync(directIndex) || fs.existsSync(directSkill)) {
+        await this.loadSkillFromPath(categoryPath, category);
+      }
 
-        this.skills.set(skill.name, skill)
+      // 🔥 CASO 2: subpastas (ex: skills/base/ai.chat)
+      const folders = fs.readdirSync(categoryPath);
 
-        logger.debug(`Skill carregada: ${skill.name}`)
-      } catch (err) {
-        logger.error(`Erro ao carregar skill: ${skillPath}`, err)
+      for (const folder of folders) {
+        const skillDir = path.join(categoryPath, folder);
+
+        if (!fs.statSync(skillDir).isDirectory()) continue;
+
+        await this.loadSkillFromPath(skillDir, folder);
       }
     }
   }
 
-  // ======================
+  // LOAD INDIVIDUAL SKILL
+  async loadSkillFromPath(skillDir, folderName) {
+    try {
+      const indexPath = path.join(skillDir, "index.js");
+      const skillPathFile = path.join(skillDir, "skill.js");
+
+      const fullPath = fs.existsSync(indexPath)
+        ? indexPath
+        : fs.existsSync(skillPathFile)
+        ? skillPathFile
+        : null;
+
+      if (!fullPath) return;
+
+      const fileUrl = pathToFileURL(fullPath).href;
+      const module = await import(fileUrl);
+      const skill = module.default;
+
+      if (!skill || !skill.name) {
+        logger.warn(`Skill inválida em: ${folderName}`);
+        return;
+      }
+
+      // evita duplicação
+      if (this.skills.has(skill.name)) {
+        logger.warn(`Skill duplicada ignorada: ${skill.name}`);
+        return;
+      }
+
+      skill.context = this.context;
+      skill.__initialized = false;
+
+      this.skills.set(skill.name, skill);
+
+      logger.debug(`Skill carregada: ${skill.name}`);
+    } catch (err) {
+      logger.error(`Erro ao carregar skill [${folderName}]:`, err.message);
+    }
+  }
+
   // APPLY CONFIG
-  // ======================
   applyConfig() {
-    const config = this.context.config.skills || {}
+    const config = this.context.config.skills || {};
 
     for (const [name, skill] of this.skills.entries()) {
-      const enabled = config[name]
+      const isEnabled = config[name] !== false;
 
-      if (enabled === false) {
-        logger.info(`Skill desativada via config: ${name}`)
-        continue
+      if (isEnabled) {
+        skill.enabled = true;
+        this.enabledSkills.set(name, skill);
+      } else {
+        skill.enabled = false;
+        logger.info(`Skill desativada: ${name}`);
       }
-
-      skill.enabled = true
-      this.enabledSkills.set(name, skill)
     }
   }
 
-  // ======================
+  // TOGGLE SKILL
+  async toggleSkill(name, active) {
+    try {
+      const skill = this.skills.get(name);
+
+      if (!skill) {
+        logger.warn(`Skill não encontrada: ${name}`);
+        return false;
+      }
+
+      if (active) {
+        skill.enabled = true;
+        this.enabledSkills.set(name, skill);
+
+        if (typeof skill.init === "function" && !skill.__initialized) {
+          await skill.init(this.context);
+          skill.__initialized = true;
+        }
+      } else {
+        skill.enabled = false;
+        this.enabledSkills.delete(name);
+
+        if (typeof skill.shutdown === "function") {
+          await skill.shutdown(this.context);
+        }
+
+        skill.__initialized = false;
+      }
+
+      logger.info(`Skill ${name} ${active ? "ON" : "OFF"}`);
+      return true;
+    } catch (err) {
+      logger.error(`Erro toggle skill ${name}:`, err);
+      return false;
+    }
+  }
+
   // DEPENDENCIES
-  // ======================
   validateDependencies() {
     for (const [name, skill] of this.enabledSkills.entries()) {
-      if (!skill.dependsOn) continue
+      if (!skill.dependsOn) continue;
 
       for (const dep of skill.dependsOn) {
         if (!this.enabledSkills.has(dep)) {
-          logger.warn(`Skill ${name} depende de ${dep} que não está ativa`)
+          logger.warn(
+            `Skill [${name}] depende de [${dep}] que está inativa`
+          );
         }
       }
     }
   }
 
-  // ======================
-  // GET
-  // ======================
+  // INIT ALL
+  async initAll() {
+    await this.init();
+
+    if (!this.context.scheduler) {
+      throw new Error("Scheduler não encontrado no context");
+    }
+
+    if (!this.context.state) {
+      throw new Error("StateManager não encontrado no context");
+    }
+
+    for (const skill of this.enabledSkills.values()) {
+      try {
+        if (typeof skill.init === "function" && !skill.__initialized) {
+          await skill.init(this.context);
+          skill.__initialized = true;
+
+          logger.debug(`Skill inicializada: ${skill.name}`);
+        }
+      } catch (err) {
+        logger.error(`Erro ao iniciar skill ${skill.name}:`, err);
+      }
+    }
+  }
+
+  // UTILS
   get(name) {
-    return this.enabledSkills.get(name)
+    return this.enabledSkills.get(name);
   }
 
   getAll() {
-    return Array.from(this.enabledSkills.values())
+    return Array.from(this.enabledSkills.values());
   }
 
-  // ======================
-  // EXECUTE
-  // ======================
   async run(name, input = {}) {
-    const skill = this.get(name)
+    const skill = this.get(name);
 
-    if (!skill) {
-      logger.warn(`Skill não encontrada ou desativada: ${name}`)
-      return null
-    }
-
-    if (typeof skill.execute !== "function") {
-      logger.warn(`Skill ${name} não possui execute()`)
-      return null
-    }
+    if (!skill || typeof skill.execute !== "function") return null;
 
     try {
       return await skill.execute({
         input,
         context: this.context,
         services: this.context.services,
-        skills: this // permite encadeamento
-      })
+        skills: this,
+      });
     } catch (err) {
-      logger.error(`Erro ao executar skill: ${name}`, err)
-      return null
+      logger.error(`Erro na skill ${name}:`, err);
+      return null;
     }
   }
 
-  // ======================
-  // COMMANDS (coleta global)
-  // ======================
   getAllCommands() {
-    const commands = []
+    const commands = [];
 
     for (const skill of this.enabledSkills.values()) {
       if (skill.commands) {
         commands.push({
           skill: skill.name,
-          commands: skill.commands
-        })
+          commands: skill.commands,
+        });
       }
     }
 
-    return commands
+    return commands;
   }
 }
 
-// Compatibilidade com import padrão em server.js
 export default function createSkillManager(context) {
-  return new SkillManager(context)
-}
-
-// Alias de método esperado por server.js (inicializar após carregar skills)
-SkillManager.prototype.initAll = async function () {
-  await this.init()
+  return new SkillManager(context);
 }

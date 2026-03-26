@@ -1,247 +1,123 @@
-document.addEventListener("DOMContentLoaded", async () => {
-    // Elementos do DOM
-    const aiModelSelect = document.getElementById("aiModel");
-    const useXTTS = document.getElementById("useXTTS");
-    const microphone = document.getElementById("microphone");
-    const mute = document.getElementById("mute");
-    const skillsGrid = document.getElementById("skillsGrid");
-    const statusIndicator = document.querySelector(".status-indicator");
-    const statusText = document.getElementById("statusText");
-    const versionSpan = document.getElementById("version");
-    const backendStatus = document.getElementById("backendStatus");
-    const activeSkillsCount = document.getElementById("activeSkillsCount");
-    const reloadBtn = document.getElementById("reloadBtn");
-    const saveBtn = document.getElementById("saveBtn");
-    const logsBtn = document.getElementById("logsBtn");
+const API_BASE = "http://localhost:3001";
 
-    // Estado da aplicação
-    let currentConfig = {};
-
-    // ==========================
-    // Função para atualizar status visual
-    // ==========================
-    function updateStatus(online, message) {
-        statusIndicator.className = `status-indicator ${online ? 'status-online' : 'status-offline'}`;
-        statusText.textContent = message;
-    }
-
-    // ==========================
-    // Função para carregar configuração do backend
-    // ==========================
-    async function loadConfig() {
-        try {
-            updateStatus(false, "Carregando configuração...");
-
-            // Carregar modelos disponíveis
-            const modelsRes = await fetch("http://localhost:3001/models");
-            const modelsData = await modelsRes.json();
-
-            // Carregar configuração atual
-            const configRes = await fetch("http://localhost:3001/config");
-            const configData = await configRes.json();
-
-            currentConfig = configData;
-
-            // Preencher modelos IA
-            aiModelSelect.innerHTML = "";
-            modelsData.models.forEach(model => {
-                const opt = document.createElement("option");
-                opt.value = model.name;
-                opt.textContent = `${model.name} (${model.size})`;
-                if (model.name === configData.aiModel) opt.selected = true;
-                aiModelSelect.appendChild(opt);
-            });
-
-            // Preencher configurações de voz
-            useXTTS.checked = configData.xttsEnabled || false;
-            microphone.checked = configData.microphoneEnabled || false;
-            mute.checked = configData.muted || false;
-
-            // Carregar e exibir skills
-            await loadSkills();
-
-            // Atualizar informações do sistema
-            versionSpan.textContent = configData.version || "1.0.0";
-            backendStatus.textContent = "Online";
-            activeSkillsCount.textContent = configData.skills ? configData.skills.filter(s => s.active).length : 0;
-
-            updateStatus(true, "Configuração carregada");
-        } catch (err) {
-            console.error("Erro ao carregar configuração:", err);
-            updateStatus(false, "Erro ao conectar com o backend");
-        }
-    }
-
-    // ==========================
-    // Função para carregar skills
-    // ==========================
-    async function loadSkills() {
-        try {
-            const res = await fetch("http://localhost:3001/skills");
-            const skills = await res.json();
-
-            skillsGrid.innerHTML = "";
-
-            if (skills.length === 0) {
-                skillsGrid.innerHTML = '<div class="skill-card"><div>Nenhuma skill encontrada</div></div>';
-                return;
-            }
-
-            skills.forEach(skill => {
-                const skillCard = document.createElement("div");
-                skillCard.className = "skill-card";
-
-                skillCard.innerHTML = `
-                    <div class="skill-header">
-                        <span class="skill-name">${skill.name}</span>
-                        <label class="switch">
-                            <input type="checkbox" ${skill.active ? 'checked' : ''} data-skill="${skill.name}">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div class="skill-description">${skill.description || 'Sem descrição'}</div>
-                    <div class="skill-actions">
-                        ${skill.configPath ? `<button class="btn-secondary" data-config="${skill.configPath}">⚙️ Configurar</button>` : ''}
-                        <button class="btn-primary" data-info="${skill.name}">ℹ️ Info</button>
-                    </div>
-                `;
-
-                // Event listeners
-                const checkbox = skillCard.querySelector('input[type="checkbox"]');
-                checkbox.addEventListener("change", () => toggleSkill(skill.name, checkbox.checked));
-
-                const configBtn = skillCard.querySelector('[data-config]');
-                if (configBtn) {
-                    configBtn.addEventListener("click", () => openSkillConfig(skill));
-                }
-
-                const infoBtn = skillCard.querySelector('[data-info]');
-                infoBtn.addEventListener("click", () => showSkillInfo(skill));
-
-                skillsGrid.appendChild(skillCard);
-            });
-        } catch (err) {
-            console.error("Erro ao carregar skills:", err);
-            skillsGrid.innerHTML = '<div class="skill-card"><div>Erro ao carregar skills</div></div>';
-        }
-    }
-
-    // ==========================
-    // Toggle skill ativo/inativo
-    // ==========================
-    async function toggleSkill(name, active) {
-        try {
-            const res = await fetch(`http://localhost:3001/skills/${name}`, {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({ active })
-            });
-
-            if (res.ok) {
-                updateStatus(true, `Skill ${name} ${active ? 'ativada' : 'desativada'}`);
-                await loadConfig(); // Recarregar para atualizar contadores
-            } else {
-                throw new Error("Erro na resposta do servidor");
-            }
-        } catch (err) {
-            console.error("Erro ao alterar skill:", err);
-            updateStatus(false, `Erro ao alterar skill ${name}`);
-            // Reverter checkbox
-            event.target.checked = !active;
-        }
-    }
-
-    // ==========================
-    // Abrir configuração da skill
-    // ==========================
-    function openSkillConfig(skill) {
-        if (!skill.configPath) {
-            alert("Esta skill não possui configurações personalizadas.");
-            return;
-        }
-
-        // Abrir em nova janela/aba
-        const configWindow = window.open(skill.configPath, `config_${skill.name}`, "width=600,height=700,scrollbars=yes,resizable=yes");
-        if (!configWindow) {
-            alert("Popup bloqueado! Permita popups para esta página.");
-        }
-    }
-
-    // ==========================
-    // Mostrar informações da skill
-    // ==========================
-    function showSkillInfo(skill) {
-        const info = `
-Nome: ${skill.name}
-Descrição: ${skill.description || 'N/A'}
-Status: ${skill.active ? 'Ativa' : 'Inativa'}
-Configuração: ${skill.configPath ? 'Disponível' : 'Não disponível'}
-        `;
-
-        alert(info);
-    }
-
-    // ==========================
-    // Salvar configurações globais
-    // ==========================
-    async function saveConfig() {
-        const payload = {
-            aiModel: aiModelSelect.value,
-            xttsEnabled: useXTTS.checked,
-            microphoneEnabled: microphone.checked,
-            muted: mute.checked
-        };
-
-        try {
-            updateStatus(false, "Salvando...");
-
-            const res = await fetch("http://localhost:3001/config", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify(payload)
-            });
-
-            if (res.ok) {
-                updateStatus(true, "Configurações salvas com sucesso!");
-                currentConfig = { ...currentConfig, ...payload };
-                saveBtn.style.background = "";
-                saveBtn.textContent = "💾 Salvar";
-            } else {
-                throw new Error("Erro na resposta do servidor");
-            }
-        } catch (err) {
-            console.error("Erro ao salvar:", err);
-            updateStatus(false, "Erro ao salvar configurações");
-        }
-    }
-
-    // ==========================
-    // Event listeners
-    // ==========================
-    reloadBtn.addEventListener("click", loadConfig);
-    saveBtn.addEventListener("click", saveConfig);
-    logsBtn.addEventListener("click", () => {
-        window.open("http://localhost:3002/", "_blank");
-    });
-
-    // Auto-indicação de mudanças não salvas
-    aiModelSelect.addEventListener("change", () => {
-        saveBtn.style.background = "#ffc107";
-        saveBtn.textContent = "💾 Salvar (alterado)";
-    });
-
-    [useXTTS, microphone, mute].forEach(checkbox => {
-        checkbox.addEventListener("change", () => {
-            saveBtn.style.background = "#ffc107";
-            saveBtn.textContent = "💾 Salvar (alterado)";
-        });
-    });
-
-    // ==========================
-    // Inicialização
-    // ==========================
+document.addEventListener("DOMContentLoaded", () => {
     loadConfig();
-
-    // Recarregar automaticamente a cada 30 segundos
-    setInterval(loadConfig, 30000);
+    checkHealth();
+    setInterval(checkHealth, 10000); // Checa saúde a cada 10s
 });
+
+async function checkHealth() {
+    const services = [
+        { name: "Node Backend", url: `http://localhost:3001/status` },
+        // Tentamos a raiz '/' em vez de '/status' se o servidor não tiver a rota
+        { name: "XTTS Server", url: `http://localhost:5005/` }, 
+        { name: "STT Server", url: `http://localhost:5006/` } 
+    ];
+
+    for (const service of services) {
+        try {
+            // Usamos 'no-cors' ou apenas checamos se houve resposta
+            const res = await fetch(service.url, { 
+                mode: 'no-cors', // Importante para evitar erros de CORS ao apenas checar saúde
+                signal: AbortSignal.timeout(2000) 
+            });
+            
+            // Se não deu erro de conexão, consideramos online
+            const card = document.querySelector(`[data-server="${service.name}"] .status-led`);
+            if (card) {
+                card.className = 'status-led online';
+            }
+        } catch (e) {
+            const card = document.querySelector(`[data-server="${service.name}"] .status-led`);
+            if (card) {
+                card.className = 'status-led offline';
+            }
+        }
+    }
+}
+
+async function loadConfig() {
+    try {
+        // Carregar Modelos
+        const mRes = await fetch(`${API_BASE}/models`);
+        const mData = await mRes.json();
+        const select = document.getElementById("aiModel");
+        select.innerHTML = mData.models.map(m => 
+            `<option value="${m.name}">${m.name} ${m.size ? `(${m.size})` : ''}</option>`
+        ).join('');
+
+        // Carregar Config Geral
+        const cRes = await fetch(`${API_BASE}/config`);
+        const config = await cRes.json();
+        document.getElementById("aiModel").value = config.aiModel;
+        document.getElementById("useXTTS").checked = config.xttsEnabled;
+        document.getElementById("microphone").checked = config.microphoneEnabled;
+
+        // Carregar Skills
+        await loadSkills();
+        
+        document.getElementById("statusText").textContent = "Sistema Sincronizado";
+    } catch (err) {
+        document.getElementById("statusText").textContent = "Erro ao conectar ao Backend";
+    }
+}
+
+async function loadSkills() {
+    const res = await fetch(`${API_BASE}/skills`);
+    const skills = await res.json();
+    const grid = document.getElementById("skillsGrid");
+    grid.innerHTML = "";
+
+    let activeCount = 0;
+    skills.forEach(skill => {
+        if(skill.active) activeCount++;
+        const card = document.createElement("div");
+        card.className = "skill-card";
+        card.innerHTML = `
+            <div class="skill-header">
+                <strong>${skill.name}</strong>
+                <label class="switch">
+                    <input type="checkbox" ${skill.active ? 'checked' : ''} onchange="toggleSkill('${skill.name}', this.checked)">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <p>${skill.description || 'Sem descrição'}</p>
+            <button class="btn-log-small" onclick="window.open('../skills/${skill.name}/config.html')">⚙️ Configurar</button>
+        `;
+        grid.appendChild(card);
+    });
+    document.getElementById("activeSkillsCount").textContent = activeCount;
+}
+
+async function toggleSkill(name, active) {
+    await fetch(`${API_BASE}/skills/${name}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ active })
+    });
+    document.getElementById("statusText").textContent = `Skill ${name} alterada`;
+}
+
+document.getElementById("saveBtn").addEventListener("click", async () => {
+    const payload = {
+        aiModel: document.getElementById("aiModel").value,
+        xttsEnabled: document.getElementById("useXTTS").checked,
+        microphoneEnabled: document.getElementById("microphone").checked
+    };
+    
+    const res = await fetch(`${API_BASE}/config`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+    });
+
+    if(res.ok) {
+        const btn = document.getElementById("saveBtn");
+        btn.textContent = "✅ Salvo!";
+        setTimeout(() => btn.textContent = "💾 Salvar Configurações", 2000);
+    }
+});
+
+function openLog(port) {
+    window.open(`http://localhost:3002/logs?port=${port}`, '_blank');
+}
