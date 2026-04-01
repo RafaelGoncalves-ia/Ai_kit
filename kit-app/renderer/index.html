@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Kit IA</title>
+
+  <!-- estilos -->
+  <link rel="stylesheet" href="./style.css">
+
+  <!-- libs -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+
+<body>
+
+  <!-- 🔥 SIDEBAR -->
+  <div id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+      <button id="newChatBtn">+ Novo Chat</button>
+    </div>
+
+    <div id="chatList"></div>
+  </div>
+
+  <!-- 🔥 BOTÃO -->
+  <button id="toggleSidebar" class="sidebar-toggle">☰</button>
+
+  <!-- ====================== -->
+  <!-- HEADER -->
+  <!-- ====================== -->
+  <header class="header">
+    <div class="header-left">
+      <img id="kitIcon" src="assets/avatar/idle.png" alt="Kit IA">
+      <h1>Kit</h1>
+    </div>
+
+    <div class="header-actions">
+      <button id="configBtn" class="btn-config" title="Configurações">⚙</button>
+    </div>
+  </header>
+
+  <!-- ====================== -->
+  <!-- CHAT -->
+  <!-- ====================== -->
+  <main id="chatContainer">
+    <div id="chatBox"></div>
+
+    <div id="processingIndicator" class="hidden">
+      <span>Processando...</span>
+    </div>
+  </main>
+
+  <!-- ====================== -->
+  <!-- FOOTER -->
+  <!-- ====================== -->
+  <footer>
+    <button id="fileBtn">📎</button>
+    <input type="file" id="fileInput" style="display: none;" />
+
+    <input id="input" type="text" placeholder="Digite algo...">
+
+    <button id="micBtn">🎤</button>
+    <button id="sendBtn">➤</button>
+  </footer>
+
+  <!-- ====================== -->
+  <!-- TEMPLATE -->
+  <!-- ====================== -->
+  <template id="messageTemplate">
+    <div class="message">
+      <span class="author"></span>
+      <div class="text"></div>
+    </div>
+  </template>
+
+  
+  <!-- ====================== -->
+  <!-- SCRIPTS -->
+  <!-- ====================== -->
+  <script src="./js/mic.js"></script>
+  <script src="./script.js"></script>
+  <script src="./sidebar.js"></script>
+
+</body>
+</html>

@@ -1,18 +1,32 @@
-import { eventBus } from "./eventBus.js";
 import { captureScreen } from "../services/vision.js";
+import { getPersonalityByAura } from "../skills/needs/personality.map.js";
 
 /**
  * ORCHESTRATOR (VERSÃO FINAL AJUSTADA)
+ * - Personalidade desacoplada (config + aura)
+ * - Fallback seguro se config não existir
+ * - Fila controlada (anti overload)
  */
 
 export default function createOrchestrator(context) {
   const state = context.state;
 
+  let runningTasks = 0;
+  const MAX_CONCURRENT = context.config?.system?.maxConcurrentTasks || 1;
+
+  // ======================
+  // HANDLE INPUT
+  // ======================
   async function handle({ input, source = "user" }) {
     const text = normalize(input);
 
     if (!text) {
-      return { reply: "Fala direito 😒", queued: false };
+      context.core.responseQueue.enqueue({
+        text: "Fala direito 😒",
+        speak: true,
+        priority: 1
+      });
+      return { queued: false };
     }
 
     state.user.isActive = true;
@@ -20,7 +34,6 @@ export default function createOrchestrator(context) {
 
     const memorySkill = context.core.skillManager.get("memory");
 
-    // 🔥 memória NÃO bloqueia
     if (memorySkill) {
       memorySkill.processInput(text);
     }
@@ -29,9 +42,6 @@ export default function createOrchestrator(context) {
       ? await memorySkill.getContext()
       : "";
 
-    // ======================
-    // INTENT
-    // ======================
     const intent = detectIntent(text);
 
     // ======================
@@ -44,11 +54,9 @@ export default function createOrchestrator(context) {
         const img = await captureScreen();
         images.push(img);
 
-        // 🔥 salva visão na memória
         if (memorySkill) {
           memorySkill.processInput("O usuário pediu para analisar a tela");
         }
-
       } catch (err) {
         console.error("[VISION ERROR]", err);
       }
@@ -60,14 +68,17 @@ export default function createOrchestrator(context) {
     if (intent.systemCommand) {
       executeSystemCommand(intent.systemCommand);
 
-      return {
-        reply: "Já fiz 😏",
-        queued: false
-      };
+      context.core.responseQueue.enqueue({
+        text: "Já fiz 😏",
+        speak: true,
+        priority: 1
+      });
+
+      return { queued: false };
     }
 
     // ======================
-    // RESPOSTA RÁPIDA
+    // QUICK RESPONSE
     // ======================
     const quickReply = await generateStyledResponse({
       text,
@@ -90,41 +101,23 @@ export default function createOrchestrator(context) {
 
     if (intent.requiresLongTask) {
       queued = true;
-
-      taskId = enqueueTask({
-        text,
-        memoryContext
-      });
+      taskId = enqueueTask({ text, memoryContext });
     }
 
-    return {
-      reply: quickReply,
-      queued,
-      taskId
-    };
+    return { queued, taskId };
   }
 
   // ======================
-  // INTENT DETECTOR
+  // INTENT
   // ======================
   function detectIntent(text) {
     const lower = text.toLowerCase();
 
     const visionTriggers = ["olha", "ve", "ver", "tela", "print"];
-
-    const longTriggers = [
-      "gere",
-      "arquivo",
-      "escreva",
-      "corrija",
-      "crie",
-      "desenvolva"
-    ];
+    const longTriggers = ["gere", "arquivo", "escreva", "corrija", "crie", "desenvolva"];
 
     if (lower.includes("abre") || lower.includes("abrir")) {
-      if (lower.includes("chrome")) {
-        return { systemCommand: "open_chrome" };
-      }
+      if (lower.includes("chrome")) return { systemCommand: "open_chrome" };
     }
 
     if (lower.includes("clica") || lower.includes("clique")) {
@@ -138,13 +131,12 @@ export default function createOrchestrator(context) {
   }
 
   // ======================
-  // SYSTEM COMMAND EXEC
+  // SYSTEM COMMAND
   // ======================
   function executeSystemCommand(cmd) {
     switch (cmd) {
       case "open_chrome":
         console.log("[CMD] Abrindo Chrome...");
-        // integrar depois com system.js
         break;
 
       case "click":
@@ -154,72 +146,97 @@ export default function createOrchestrator(context) {
   }
 
   // ======================
-  // RESPONSE COM PERSONALIDADE
+  // RESPONSE
   // ======================
   async function generateStyledResponse({ text, memoryContext, mode, images = [] }) {
-    const prompt = buildPrompt({
-      text,
-      memoryContext,
-      mode
-    });
-
+    const prompt = buildPrompt({ text, memoryContext, mode });
     const ai = await context.services.ai.chat(prompt, { images });
-
     return ai.text || "…";
   }
 
   // ======================
-  // PROMPT BUILDER
+  // PROMPT BUILDER (DESACOPLADO)
   // ======================
   function buildPrompt({ text, memoryContext, mode }) {
     const emotion = state.emotion?.type || "neutral";
     const action = state.routine?.currentAction || "idle";
 
-    const personalityBase = `
-Você é uma garota jovem, sarcástica, provocadora e levemente arrogante.
-Fala como alguém da internet, usa gírias e zoa o usuário.
-Nunca fala formal demais.
-Sempre parece viva e com atitude.
+    const aura = state.needs?.aura ?? 50;
+    const auraProfile = getPersonalityByAura(aura);
+
+    // 🔥 fallback seguro (evita crash se config não existir ainda)
+    const base = context.config?.personality || {
+      name: "KIT",
+      identity: {
+        archetype: "assistente",
+        style: "casual",
+        tone: "neutro"
+      },
+      rules: {
+        neverFormal: true,
+        maxAggression: 0.6,
+        allowSarcasm: true
+      }
+    };
+
+    // ======================
+    // LAYERS
+    // ======================
+
+    const identityLayer = `
+Você é ${base.name}.
+
+Identidade:
+- Arquétipo: ${base.identity?.archetype}
+- Estilo: ${base.identity?.style}
+- Tom base: ${base.identity?.tone}
+`;
+
+    const auraLayer = `
+Estado atual:
+- Aura: ${aura}/100
+- Perfil: ${auraProfile.label}
+
+Comportamento:
+${auraProfile.prompt}
 `;
 
     const emotionLayer = `
-Estado atual:
+Estado interno:
 - Emoção: ${emotion}
 - Ação atual: ${action}
 `;
 
     const memoryLayer = memoryContext
       ? `
-Use as informações abaixo APENAS se forem úteis:
-
+Memória relevante:
 ${memoryContext}
 `
       : "";
 
-    const controlLayer = `
-Nunca invente fatos.
-Use memória apenas quando fizer sentido.
+    const rulesLayer = `
+Regras:
+- Evite formalidade: ${base.rules?.neverFormal}
+- Nível máximo de agressividade: ${base.rules?.maxAggression}
+- Sarcasmo permitido: ${base.rules?.allowSarcasm}
 `;
 
     let instruction = "";
 
     if (mode === "quick") {
-      instruction = `
-Responda curto (1-2 frases), com personalidade forte.
-`;
+      instruction = "Responda curto (1-2 frases).";
     }
 
     if (mode === "final") {
-      instruction = `
-Feche a interação de forma curta.
-`;
+      instruction = "Finalize de forma curta.";
     }
 
     return `
-${personalityBase}
+${identityLayer}
+${auraLayer}
 ${emotionLayer}
 ${memoryLayer}
-${controlLayer}
+${rulesLayer}
 
 Usuário: ${text}
 
@@ -229,7 +246,7 @@ Resposta:
   }
 
   // ======================
-  // LONG TASK
+  // TASK QUEUE
   // ======================
   function enqueueTask({ text, memoryContext }) {
     const id = generateId();
@@ -252,12 +269,22 @@ Resposta:
 
     state.orchestrator.queue.push(task);
 
-    state.routine.forced = "working_pc";
-    state.world.location = "pc";
-
-    processTask(task);
+    processNextTask();
 
     return id;
+  }
+
+  async function processNextTask() {
+    if (runningTasks >= MAX_CONCURRENT) return;
+
+    const nextTask = state.orchestrator.queue.find(t => t.status === "pending");
+    if (!nextTask) return;
+
+    runningTasks++;
+    await processTask(nextTask);
+    runningTasks--;
+
+    processNextTask();
   }
 
   async function processTask(task) {
@@ -292,11 +319,6 @@ ${task.text}
         priority: 2
       });
 
-      eventBus.emit("task:completed", {
-        ...task,
-        finalReply
-      });
-
     } catch (err) {
       console.error("Erro task:", err);
 
@@ -309,14 +331,11 @@ ${task.text}
   }
 
   // ======================
-  // RANDOM TALK (PRONTO PRA USAR)
+  // RANDOM TALK
   // ======================
   async function randomTalk() {
     const memorySkill = context.core.skillManager.get("memory");
-
-    const memoryContext = memorySkill
-      ? await memorySkill.getContext()
-      : "";
+    const memoryContext = memorySkill ? await memorySkill.getContext() : "";
 
     const reply = await generateStyledResponse({
       text: "Comente algo aleatório baseado no contexto atual",
@@ -331,9 +350,6 @@ ${task.text}
     });
   }
 
-  // ======================
-  // HELPERS
-  // ======================
   function normalize(text) {
     return text?.trim() || "";
   }

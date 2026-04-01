@@ -1,22 +1,27 @@
 /**
- * Regras de variação natural dos Needs (por tick)
+ * Aplica a variação natural dos needs por tick
+ * deltaTime em segundos
  */
+export function applyDecay(needs, deltaTime = 1) {
+  const decayRates = {
+    energy: -0.05, // por segundo
+    hunger: -0.03,
+    mood: -0.02,
+    aura: -0.01,       // aura só muda via interações
+  };
 
-export function applyDecay(needs, deltaTime) {
-  // deltaTime em segundos
-  const decay = { ...needs };
+  const newNeeds = {};
 
-  // energia cai devagar
-  decay.energy -= 0.5 * deltaTime;
+  for (const key in needs) {
+    const current = needs[key];
+    const rate = decayRates[key] ?? 0;
 
-  // fome sobe
-  decay.hunger += 0.7 * deltaTime;
+    // Garante que current é um número válido
+    const baseValue = typeof current === "number" ? current : 50;
 
-  // mood cai se nada interessante acontece
-  decay.mood -= 0.3 * deltaTime;
+    // Aplica decay sem sobrescrever valores válidos com null/undefined
+    newNeeds[key] = baseValue + rate * deltaTime;
+  }
 
-  // aura cai lentamente sem interação
-  decay.aura -= 0.1 * deltaTime;
-
-  return decay;
+  return newNeeds;
 }

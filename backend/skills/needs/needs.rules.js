@@ -1,19 +1,15 @@
 /**
  * Regras que convertem Needs em efeitos reais
  */
-
 export function evaluateNeeds(needs) {
-  const effects = {
-    emotionHint: null,
-    actionHint: null,
-  };
+  const effects = { emotionHint: null, actionHint: null };
 
   if (needs.energy < 20) {
     effects.emotionHint = "sleepy";
     effects.actionHint = "sleep";
   }
 
-  if (needs.hunger > 70) {
+  if (needs.hunger < 30) {
     effects.emotionHint = "annoyed";
     effects.actionHint = "eat";
   }

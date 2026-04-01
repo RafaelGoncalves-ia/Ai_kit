@@ -6,70 +6,170 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Caminho para o skills.json (ajustado para subir da pasta routes)
-const skillsConfigPath = path.join(__dirname, "..", "config", "skills.json");
+// ======================
+// PATHS
+// ======================
+const configDir = path.join(__dirname, "..", "config");
+const mainConfigPath = path.join(configDir, "config.json");
+const skillsConfigPath = path.join(configDir, "skills.json");
 
+// ======================
+// DEFAULT CONFIG
+// ======================
+const DEFAULT_CONFIG = {
+  version: "2.0.0",
+
+  system: {
+    aiModel: "huihui_ai/qwen3-vl-abliterated:4b",
+    muted: false
+  },
+
+  voice: {
+    xttsEnabled: false,
+    microphoneEnabled: false
+  },
+
+  identity: {
+    name: "KIT",
+    description: "Assistente inteligente local",
+    personality: "Sarcástica, rápida e eficiente"
+  }
+};
+
+// ======================
+// UTIL
+// ======================
+function ensureConfigFile() {
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+  }
+
+  if (!fs.existsSync(mainConfigPath)) {
+    fs.writeFileSync(
+      mainConfigPath,
+      JSON.stringify(DEFAULT_CONFIG, null, 2)
+    );
+  }
+}
+
+function readConfig() {
+  ensureConfigFile();
+  return JSON.parse(fs.readFileSync(mainConfigPath, "utf8"));
+}
+
+function saveConfig(config) {
+  fs.writeFileSync(
+    mainConfigPath,
+    JSON.stringify(config, null, 2)
+  );
+}
+
+// ======================
+// ROUTES
+// ======================
 export default function createConfigRoutes(context) {
-    const router = express.Router();
+  const router = express.Router();
 
-    // GET /config - Retorna configuração atual
-    router.get("/", async (req, res) => {
-        try {
-            const skillsConfig = JSON.parse(fs.readFileSync(skillsConfigPath, "utf8"));
+  // ======================
+  // GET /config
+  // ======================
+  router.get("/", async (req, res) => {
+    try {
+      const config = readConfig();
 
-            // Pegamos os valores atuais direto do objeto context (memória do servidor)
-            const config = {
-                version: "1.1.0",
-                aiModel: context.config.system.defaultModel,
-                xttsEnabled: context.core.skillManager.skills?.["base/xtts"]?.active || false,
-                microphoneEnabled: context.core.skillManager.skills?.["base/stt"]?.active || false,
-                muted: context.config.system.muted || false,
-                // Opcional: listar skills aqui também se o frontend pedir
-                skills: Object.entries(skillsConfig).map(([name, active]) => ({
-                    name,
-                    active
-                }))
-            };
+      // sincroniza com runtime
+      config.system.aiModel = context.config.system.defaultModel;
+      config.system.muted = context.config.system.muted || false;
 
-            res.json(config);
-        } catch (err) {
-            console.error("Erro ao carregar configuração:", err);
-            res.status(500).json({ error: "Erro ao ler configurações" });
+      // skills
+      let skills = [];
+      if (fs.existsSync(skillsConfigPath)) {
+        const raw = JSON.parse(fs.readFileSync(skillsConfigPath, "utf8"));
+        skills = Object.entries(raw).map(([name, active]) => ({
+          name,
+          active
+        }));
+      }
+
+      res.json({
+        ...config,
+        skills
+      });
+
+    } catch (err) {
+      console.error("Erro ao carregar config:", err);
+      res.status(500).json({ error: "Erro ao ler config" });
+    }
+  });
+
+  // ======================
+  // POST /config
+  // ======================
+  router.post("/", async (req, res) => {
+    try {
+      const current = readConfig();
+
+      const {
+        aiModel,
+        xttsEnabled,
+        microphoneEnabled,
+        muted,
+        identity
+      } = req.body;
+
+      // ======================
+      // SYSTEM
+      // ======================
+      if (aiModel) {
+        context.config.system.defaultModel = aiModel;
+        current.system.aiModel = aiModel;
+      }
+
+      if (muted !== undefined) {
+        context.config.system.muted = muted;
+        current.system.muted = muted;
+      }
+
+      // ======================
+      // VOICE
+      // ======================
+      if (context.core.skillManager) {
+        if (xttsEnabled !== undefined) {
+          await context.core.skillManager.toggleSkill("base/xtts", xttsEnabled);
+          current.voice.xttsEnabled = xttsEnabled;
         }
-    });
 
-    // POST /config - Salva e aplica configuração
-    router.post("/", async (req, res) => {
-        try {
-            const { aiModel, xttsEnabled, microphoneEnabled, muted } = req.body;
-
-            // 1. Atualiza o Cérebro (IA) em tempo real
-            if (aiModel) {
-                console.log(`[Config] Trocando modelo para: ${aiModel}`);
-                context.config.system.defaultModel = aiModel;
-                // Se o seu serviço de AI precisar ser reiniciado ou avisado:
-                // context.services.ai.updateModel(aiModel);
-            }
-
-            // 2. Atualiza Status de Voz e Microfone no SkillManager
-            // Isso envia o comando de ligar/desligar para as skills base
-            if (context.core.skillManager) {
-                if (xttsEnabled !== undefined) {
-                    await context.core.skillManager.toggleSkill("base/xtts", xttsEnabled);
-                }
-                if (microphoneEnabled !== undefined) {
-                    await context.core.skillManager.toggleSkill("base/stt", microphoneEnabled);
-                }
-            }
-
-            context.config.system.muted = muted;
-
-            res.json({ success: true, message: "Configurações aplicadas com sucesso" });
-        } catch (err) {
-            console.error("Erro ao salvar configuração:", err);
-            res.status(500).json({ error: "Erro ao aplicar configurações" });
+        if (microphoneEnabled !== undefined) {
+          await context.core.skillManager.toggleSkill("base/stt", microphoneEnabled);
+          current.voice.microphoneEnabled = microphoneEnabled;
         }
-    });
+      }
 
-    return router;
+      // ======================
+      // IDENTITY (🔥 NOVO)
+      // ======================
+      if (identity) {
+        current.identity = {
+          ...current.identity,
+          ...identity
+        };
+      }
+
+      // ======================
+      // SAVE
+      // ======================
+      saveConfig(current);
+
+      res.json({
+        success: true,
+        config: current
+      });
+
+    } catch (err) {
+      console.error("Erro ao salvar config:", err);
+      res.status(500).json({ error: "Erro ao salvar config" });
+    }
+  });
+
+  return router;
 }

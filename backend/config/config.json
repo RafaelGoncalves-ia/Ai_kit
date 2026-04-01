@@ -1,0 +1,16 @@
+{
+  "version": "2.0.0",
+  "system": {
+    "aiModel": "huihui_ai/qwen3-vl-abliterated:4b",
+    "muted": false
+  },
+  "voice": {
+    "xttsEnabled": false,
+    "microphoneEnabled": false
+  },
+  "identity": {
+    "name": "KIT",
+    "description": "Assistente inteligente local",
+    "personality": "Sarcástica, rápida e eficiente"
+  }
+}

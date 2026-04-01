@@ -1,35 +1,42 @@
+import { addMessage } from "../utils/conversationStore.js";
+
 /**
- * RESPONSE QUEUE
+ * RESPONSE QUEUE (VERSÃO OTIMIZADA)
  *
- * Responsável por:
- * - Fila de falas
- * - Prioridade
- * - Evitar sobreposição
+ * - Remove dependência de global.sendSSE ❌
+ * - Usa apenas eventBus (fluxo padrão) ✅
+ * - Evita duplicação de eventos
+ * - Mantém TTS desacoplado
  */
 
 export default function createResponseQueue(context) {
   const queue = [];
   let isSpeaking = false;
 
-  // ======================
-  // ADD
-  // ======================
   function enqueue({ text, speak = true, priority = 0 }) {
+    const messageId = Date.now() + "-" + Math.random();
+
+    // 🔥 salva no histórico
+    addMessage({
+      id: messageId,
+      role: "assistant",
+      text
+    });
+
     queue.push({
+      id: messageId,
       text,
       speak,
       priority,
       createdAt: Date.now()
     });
 
+    // 🔥 prioridade (maior primeiro)
     queue.sort((a, b) => b.priority - a.priority);
 
     processQueue();
   }
 
-  // ======================
-  // PROCESS
-  // ======================
   async function processQueue() {
     if (isSpeaking) return;
     if (!queue.length) return;
@@ -40,14 +47,22 @@ export default function createResponseQueue(context) {
     isSpeaking = true;
 
     try {
-      // 🔥 evita falar textos grandes
+      // 🔊 TTS (não bloqueia resposta lógica)
       if (item.speak && item.text.length < 300) {
-        console.log("[QUEUE] enviando para TTS...");
-
-        // 🔥 AGORA SEMPRE usa o TTS central
+        console.log("[QUEUE] TTS...");
         if (context.services.tts) {
           await context.services.tts.speak(item.text);
         }
+      }
+
+      // 🔥 ENVIO ÚNICO VIA EVENTBUS (PADRÃO GLOBAL)
+      if (context.core?.eventBus) {
+        context.core.eventBus.emit("task:completed", {
+          payload: {
+            id: item.id,
+            result: item.text
+          }
+        });
       }
 
     } catch (err) {

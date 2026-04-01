@@ -2,6 +2,10 @@
   "base/ai.chat": true,
   "base/tts": true,
   "base/xtts": true,
-  "behavior/randomTalk": false,
-  "master/commentActivity": false
+  "commentActivity": false,
+  "memory": true,
+  "randomTalk": false,
+  "personality": true,
+  "needs": true,
+  "runtime": true
 }

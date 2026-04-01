@@ -1,0 +1,40 @@
+{
+  "needs": {
+    "energy": 50.45000000000168,
+    "hunger": 17.269999999999328,
+    "mood": 77.18000000000227,
+    "aura": 44.090000000001176
+  },
+  "emotion": {
+    "type": "neutral",
+    "intensity": 0.5,
+    "lastUpdate": 1775028129179
+  },
+  "routine": {
+    "currentAction": "idle",
+    "startedAt": 1775029105991,
+    "duration": 60000,
+    "forced": null,
+    "lockedUntil": 0
+  },
+  "world": {
+    "location": "room",
+    "isMoving": false
+  },
+  "user": {
+    "isActive": false,
+    "lastSeen": 1775028129179
+  },
+  "orchestrator": {
+    "currentTask": null,
+    "queue": [],
+    "isProcessing": false
+  },
+  "system": {
+    "lastTick": 1775029137750
+  },
+  "needsEffects": {
+    "emotionHint": "annoyed",
+    "actionHint": "eat"
+  }
+}

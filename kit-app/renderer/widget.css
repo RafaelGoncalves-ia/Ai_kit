@@ -1,0 +1,82 @@
+body {
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  /* Garante que o corpo não capture cliques fora da .box */
+  pointer-events: none; 
+}
+
+.box {
+  display: flex;
+  align-items: center;
+  background: rgba(31, 31, 31, 0.95); /* Leve transparência */
+  backdrop-filter: blur(10px); /* Efeito de vidro fosco */
+  border-radius: 25px;
+  padding: 8px 15px;
+  margin: 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: auto; /* Reativa cliques apenas na caixa */
+  
+  /* IMPORTANTE: Permite arrastar o widget pela tela */
+  -webkit-app-region: drag; 
+}
+
+input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: white;
+  font-size: 14px;
+  padding: 8px;
+  /* Impede que o arraste interfira na digitação */
+  -webkit-app-region: no-drag; 
+}
+
+button {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 5px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: no-drag;
+}
+
+button:hover {
+  color: #0078d4; /* Cor de destaque ao passar o mouse */
+  transform: scale(1.1);
+}
+
+button:active {
+  transform: scale(0.95);
+}
+
+/* Feedback visual para o botão de mídia (+) */
+#plus {
+  font-weight: bold;
+  font-size: 20px;
+}
+
+/* Feedback visual para gravação */
+#mic.recording {
+  color: #ff4444;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; text-shadow: 0 0 0px red; }
+  50% { opacity: 0.6; text-shadow: 0 0 10px red; }
+  100% { opacity: 1; text-shadow: 0 0 0px red; }
+}
+
+/* Scrollbar invisível para o input se o texto for longo */
+input::-webkit-scrollbar {
+  display: none;
+}

@@ -1,0 +1,267 @@
+/* ======================
+ROOT
+===================== */
+:root {
+  --bg-dark: #121212;
+  --bg-card: #1e1e1e;
+  --bg-hover: #252525;
+  --accent-blue: #0d47a1;
+  --accent-soft: #58a6ff;
+  --text-white: #ffffff;
+  --text-gray: #b0b0b0;
+  --online: #4caf50;
+  --offline: #757575;
+  --border: #333;
+  --success: #238636;
+  --danger: #f85149;
+}
+
+/* ======================
+RESET
+===================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: var(--bg-dark);
+  color: var(--text-white);
+  padding: 20px;
+}
+
+/* ======================
+HEADER
+===================== */
+.topbar, .config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--border);
+}
+
+#statusText {
+  color: var(--text-gray);
+  font-size: 0.85rem;
+}
+
+/* ======================
+TABS
+===================== */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.tab {
+  flex: 1;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-gray);
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-white);
+}
+
+.tab.active {
+  background: var(--bg-card);
+  color: var(--accent-soft);
+  border-bottom: 2px solid var(--accent-blue);
+}
+
+/* ======================
+CONTENT / SECTIONS
+===================== */
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+.config-section {
+  background: var(--bg-card);
+  padding: 20px;
+  border-radius: 12px;
+}
+
+/* ======================
+CARDS
+===================== */
+.card, .status-card, .skill-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 10px;
+}
+
+.status-grid, #skillsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 15px;
+}
+
+/* ======================
+FORM ELEMENTS
+===================== */
+label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-gray);
+  margin-bottom: 4px;
+}
+
+input, textarea, select {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 12px;
+  background: #252525;
+  color: var(--text-white);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+/* RANGE SLIDERS */
+input[type="range"] {
+  width: 100%;
+  margin: 5px 0 10px 0;
+}
+
+/* ======================
+STATUS CARDS (AURA, ENERGY, HUNGER, MOOD)
+===================== */
+.status-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-led {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+.online { background: var(--online); box-shadow: 0 0 8px var(--online); }
+.offline { background: var(--offline); }
+
+/* ======================
+SKILLS CARDS
+===================== */
+.skill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.skill-card p, .skill-card small {
+  font-size: 0.8rem;
+  color: var(--text-gray);
+  margin-bottom: 8px;
+  height: 35px;
+  overflow: hidden;
+}
+
+/* ======================
+SWITCHES
+===================== */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 18px;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #444; transition: .4s;
+  border-radius: 20px;
+}
+.slider:before {
+  position: absolute; content: ""; height: 12px; width: 12px;
+  left: 3px; bottom: 3px; background-color: white;
+  transition: .4s; border-radius: 50%;
+}
+input:checked + .slider { background-color: var(--accent-blue); }
+input:checked + .slider:before { transform: translateX(16px); }
+
+/* ======================
+BUTTONS
+===================== */
+#saveBtn, .btn-primary {
+  width: 100%;
+  background: var(--accent-blue);
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+#saveBtn:hover, .btn-primary:hover { background: var(--accent-soft); }
+
+/* ======================
+CURRENT ACTION / EMOTION / LOCATION
+===================== */
+.current-status {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.status-item {
+  background: #252525;
+  padding: 12px 15px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  min-width: 120px;
+  text-align: center;
+}
+
+.status-item span {
+  font-weight: bold;
+  display: block;
+  margin-top: 5px;
+  color: var(--accent-soft);
+}
+
+/* ======================
+SCROLLBAR
+===================== */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }

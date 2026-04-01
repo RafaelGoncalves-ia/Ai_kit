@@ -1,0 +1,221 @@
+/* ================= RESET ================= */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background: #121212;
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ================= HEADER ================= */
+header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 55px; /* 🔥 menor */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 15px;
+  background: #181818;
+  z-index: 1000;
+  border-bottom: 1px solid #333;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+header img {
+  width: 32px; /* 🔥 menor */
+  height: 32px;
+  border-radius: 50%;
+}
+
+header h1 {
+  font-size: 1rem;
+  margin-left: 8px;
+}
+
+.header-actions button {
+  font-size: 1.1rem;
+}
+
+/* ================= SIDEBAR ================= */
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 240px;
+  height: 100%;
+  background: #111;
+  padding: 10px;
+  transform: translateX(-100%);
+  transition: 0.25s;
+  z-index: 9999;
+}
+
+.sidebar.open {
+  transform: translateX(0);
+}
+
+.sidebar-header {
+  margin-bottom: 10px;
+}
+
+#newChatBtn {
+  width: 100%;
+  padding: 8px;
+  background: #0d47a1;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+/* ================= SIDEBAR CHAT ITEMS ================= */
+.chat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #222;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.chat-item:hover {
+  background: #222;
+}
+
+.chat-item.active {
+  background: #0d47a1;
+}
+
+.chat-item.selected {
+  background-color: #0d47a133; /* mais leve que active */
+}
+
+.chat-title {
+  flex: 1;
+  user-select: none;
+}
+
+.chat-delete {
+  color: #f44336;
+  cursor: pointer;
+  margin-left: 8px;
+  font-weight: bold;
+  display: none; /* só aparece ao hover */
+}
+
+.chat-item:hover .chat-delete {
+  display: inline;
+}
+
+.rename-input {
+  width: 80%;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid #333;
+  background: #222;
+  color: #fff;
+}
+/* BOTÃO SIDEBAR */
+.sidebar-toggle {
+  position: fixed;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10000;
+  background: #111;
+  color: #fff;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+}
+
+/* ================= CHAT ================= */
+#chatContainer {
+  flex: 1;
+  margin-top: 55px;
+  margin-bottom: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+}
+
+#chatBox {
+  width: 95%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ================= MENSAGENS ================= */
+.message {
+  max-width: 85%;
+  padding: 10px 15px;
+}
+
+.author {
+  font-size: 0.75rem;
+  margin-bottom: 4px;
+}
+
+.user-msg {
+  align-self: flex-end;
+  background: #0d47a1;
+  border-radius: 15px 15px 0 15px;
+}
+
+.ai-msg {
+  align-self: flex-start;
+  background: #2c2c2c;
+  border-radius: 15px 15px 15px 0;
+}
+
+/* ================= FOOTER ================= */
+footer {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  background: #181818;
+  padding: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+footer input {
+  flex: 1;
+  padding: 10px;
+  border-radius: 20px;
+  border: 1px solid #333;
+  background: #222;
+  color: #fff;
+}
+
+footer button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: #333;
+  color: #fff;
+  cursor: pointer;
+}
+
+#sendBtn { background: #333; }
+#micBtn { background: #333; }

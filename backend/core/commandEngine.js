@@ -1,10 +1,15 @@
-// Engine responsável por interpretar comandos de texto/voz
-// Todas as skills podem registrar comandos aqui
+// backend/core/commandEngine.js
+/**
+ * Engine responsável por interpretar comandos de texto/voz.
+ * Skills podem registrar comandos aqui.
+ */
 
 export default function createCommandEngine(context) {
-  const commands = []
+  const commands = [];
 
+  // ======================
   // REGISTRAR COMANDO
+  // ======================
   function register(command) {
     /**
      * Estrutura esperada:
@@ -14,33 +19,37 @@ export default function createCommandEngine(context) {
      *   execute: async (ctx, text) => {}
      * }
      */
-    commands.push(command)
+    if (!command || !command.name || typeof command.match !== "function") return;
+    commands.push(command);
   }
 
+  // ======================
   // PROCESSAR TEXTO
+  // ======================
   async function process(text) {
     for (const cmd of commands) {
       try {
         if (cmd.match(text)) {
-          return await cmd.execute(context, text)
+          return await cmd.execute(context, text);
         }
       } catch (err) {
-        console.error("Erro no comando:", cmd.name, err)
+        console.error("Erro no comando:", cmd.name, err);
       }
     }
-
     // fallback → IA responde normalmente
-    return null
+    return null;
   }
 
+  // ======================
   // DEBUG / LISTAGEM
+  // ======================
   function list() {
-    return commands.map((c) => c.name)
+    return commands.map(c => c.name);
   }
 
   return {
     register,
     process,
     list
-  }
+  };
 }

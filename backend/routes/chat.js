@@ -1,71 +1,88 @@
-import express from "express"
+import express from "express";
+import { addMessage } from "../utils/conversationStore.js";
+
+/**
+ * Chat Routes (API + SSE)
+ * - Limpa dependências de frontend legacy
+ * - Apenas dispara Orchestrator
+ * - Respostas são enviadas via eventBus / SSE
+ */
 
 export default function createChatRoutes(context) {
-  const router = express.Router()
+  const router = express.Router();
 
+  // ======================
   // POST /chat
+  // ======================
   router.post("/", async (req, res) => {
     try {
-      const { text } = req.body
+      const { text, file } = req.body;
 
-      if (!text || typeof text !== "string") {
+      if ((!text || typeof text !== "string") && !file) {
         return res.status(400).json({
-          error: "Texto inválido"
-        })
+          success: false,
+          error: "Texto ou arquivo obrigatório."
+        });
       }
 
-      const orchestrator = context.core.orchestrator
+      // 🔹 salva mensagem do usuário
+      addMessage({
+        role: "user",
+        text: text || `<Arquivo enviado: ${file}>`,
+        timestamp: new Date().toISOString()
+      });
 
+      const orchestrator = context.core.orchestrator;
       if (!orchestrator) {
         return res.status(500).json({
-          error: "Orchestrator não inicializado"
-        })
+          success: false,
+          error: "Orchestrator não inicializado."
+        });
       }
 
-      // PROCESSA INPUT
-      const result = await orchestrator.handle({
-        input: text,
-        context
-      })
+      // 🔥 dispara processamento no Orchestrator
+      await orchestrator.handle({
+        input: text || "",
+        filePath: file || null,
+        source: "user"
+      });
 
+      // resposta imediata sem conteúdo (a resposta real sai via SSE/eventBus)
       return res.json({
-        success: true,
-        ...result
-      })
+        success: true
+      });
 
     } catch (err) {
-      console.error("Erro na rota /chat:", err)
+      console.error("Erro crítico na rota /chat:", err);
 
       return res.status(500).json({
         success: false,
-        error: "Erro interno"
-      })
+        error: "Erro interno ao processar a mensagem de chat."
+      });
     }
-  })
+  });
 
+  // ======================
   // GET /chat/queue
-  // usado pelo frontend pra buscar respostas longas prontas
+  // ======================
   router.get("/queue", (req, res) => {
     try {
-      const queue = context.state.orchestrator.queue || []
-
-      // retorna apenas respostas prontas
-      const completed = queue.filter(q => q.status === "done")
+      const queue = (context.state?.orchestrator?.queue) || [];
+      const completed = queue.filter(q => q.status === "done");
 
       return res.json({
         success: true,
         data: completed
-      })
+      });
 
     } catch (err) {
-      console.error("Erro ao buscar fila:", err)
-
+      console.error("Erro ao buscar fila de processamento:", err);
       return res.status(500).json({
         success: false,
-        error: "Erro interno"
-      })
+        error: "Erro ao acessar fila de tarefas."
+      });
     }
-  })
+  });
 
-  return router
+  return router;
 }
