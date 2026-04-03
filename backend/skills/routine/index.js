@@ -1,12 +1,13 @@
-import { updateRoutine } from "./routine.engine.js";
+// skills/routine/index.js
+import updateRoutine from "./routine.update.js";
 
 /**
- * Skill Routine
+ * Registra a Skill Routine no scheduler
  */
 export default function registerRoutineSkill(scheduler) {
   scheduler.register({
     name: "routine",
-    priority: 2,
-    execute: updateRoutine,
+    priority: 2, // prioridade menor que Needs
+    execute: updateRoutine
   });
 }

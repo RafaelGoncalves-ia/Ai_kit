@@ -1,9 +1,10 @@
 {
   "needs": {
-    "energy": 50.45000000000168,
-    "hunger": 17.269999999999328,
-    "mood": 77.18000000000227,
-    "aura": 44.090000000001176
+    "energy": 99.95,
+    "hunger": 92.82999999999973,
+    "mood": 99.98,
+    "aura": 98.20999999999908,
+    "hygiene": 82.85999999999123
   },
   "emotion": {
     "type": "neutral",
@@ -11,14 +12,14 @@
     "lastUpdate": 1775028129179
   },
   "routine": {
-    "currentAction": "idle",
-    "startedAt": 1775029105991,
-    "duration": 60000,
+    "currentAction": "sleep",
+    "startedAt": 1775107248103,
+    "duration": 480000,
     "forced": null,
     "lockedUntil": 0
   },
   "world": {
-    "location": "room",
+    "location": "bed",
     "isMoving": false
   },
   "user": {
@@ -31,10 +32,15 @@
     "isProcessing": false
   },
   "system": {
-    "lastTick": 1775029137750
+    "lastTick": 1775107428471
   },
   "needsEffects": {
-    "emotionHint": "annoyed",
-    "actionHint": "eat"
-  }
+    "emotionHint": null,
+    "actionHint": null
+  },
+  "inventory": {
+    "decor": "small_cactus",
+    "outfit": "red_dress"
+  },
+  "tokens": 0
 }

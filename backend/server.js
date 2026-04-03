@@ -61,11 +61,9 @@ const context = {
     system: {
       ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434",
       defaultModel: process.env.DEFAULT_MODEL || "huihui_ai/qwen3-vl-abliterated:4b",
-      maxConcurrentTasks: 1 // 🔥 já integra com orchestrator
+      maxConcurrentTasks: 1
     },
     skills: {},
-
-    // 🔥 PERSONALIDADE EXTERNA (com fallback seguro)
     personality: loadConfig("personality.json")
   },
   state: kitState,
@@ -91,9 +89,6 @@ context.core.orchestrator = createOrchestrator(context);
 // INIT SKILLS & HISTÓRICO
 // ======================
 await context.core.skillManager.initAll();
-
-
-// Inicializa Needs + Routine com tick automático
 initSkills(context.scheduler);
 
 // ======================
@@ -103,7 +98,6 @@ let sseClients = [];
 
 function sendSSE(data) {
   const payload = `data: ${JSON.stringify(data)}\n\n`;
-
   sseClients = sseClients.filter(client => {
     try {
       client.res.write(payload);
@@ -114,16 +108,11 @@ function sendSSE(data) {
   });
 }
 
-// 🔥 TORNA GLOBAL (ESSENCIAL pro responseQueue)
 global.sendSSE = sendSSE;
 
-// 🔥 ESCUTA EVENTOS via eventBus
 context.core.eventBus.on("task:completed", (data) => {
   logger.info("📢 [SSE] Evento recebido via eventBus");
-  sendSSE({
-    type: "task:completed",
-    payload: data.payload || data
-  });
+  sendSSE({ type: "task:completed", payload: data.payload || data });
 });
 
 app.get("/events", (req, res) => {
@@ -135,7 +124,6 @@ app.get("/events", (req, res) => {
   const clientId = Date.now();
   const client = { id: clientId, res };
   sseClients.push(client);
-
   logger.info("🔌 SSE conectado:", clientId);
 
   req.on("close", () => {
@@ -174,15 +162,92 @@ app.use("/chat", createChatRoutes(context));
 app.use("/skills", createSkillsRoutes(context));
 app.use("/config", createConfigRoutes(context));
 
-// Retorna a última conversa
 app.get("/history", (req, res) => {
   const conversations = listConversations();
   if (!conversations.length) return res.json(null);
-
   const last = conversations[conversations.length - 1];
   const conv = loadConversationById(last.id);
   res.json(conv);
 });
+
+// ======================
+// SHOP ROUTER
+// ======================
+const shopRouter = express.Router();
+const statePath = path.join(process.cwd(), "backend/config/kitState.json");
+const catalogPath = path.join(process.cwd(), "backend/config/catalog.json");
+
+// GET /shop → retorna todos os itens da loja
+shopRouter.get("/", (req, res) => {
+  try {
+    const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
+    res.json(catalog);
+  } catch (err) {
+    console.error("Erro ao ler catálogo:", err);
+    res.status(500).json({ error: "Erro ao ler catálogo" });
+  }
+});
+
+// POST /shop/gift → comprar ou presentear item
+shopRouter.post("/gift", (req, res) => {
+  try {
+    // 🔹 lê o estado atual do arquivo
+    const state = JSON.parse(fs.readFileSync(statePath, "utf-8"));
+    const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
+
+    // 🔹 encontra o item pelo ID
+    const item = catalog.find(i => i.id === req.body.id);
+    if (!item) return res.status(404).json({ error: "Item não encontrado" });
+
+    const price = Number(item.valor) || 0;
+    if (state.tokens < price) return res.status(400).json({ error: "Tokens insuficientes" });
+
+    // 🔹 desconta tokens
+    state.tokens -= price;
+
+    // 🔹 consumível → aplica efeito nas necessidades
+    if (item.tipo === "consumivel") {
+      Object.keys(item.efeito || {}).forEach(key => {
+        if (state.needs[key] !== undefined) {
+          state.needs[key] += item.efeito[key];
+          if (state.needs[key] > 100) state.needs[key] = 100;
+          if (state.needs[key] < 0) state.needs[key] = 0;
+        }
+      });
+    }
+
+    // 🔹 skin (visual) → adiciona ao inventário
+    if (item.tipo === "skin") {
+      if (!state.inventory) state.inventory = {};
+      state.inventory[item.slot] = item.id;
+    }
+
+    // 🔹 ATUALIZA kitState em memória
+    Object.assign(kitState, state);
+
+    // 🔹 salva o estado atualizado no arquivo
+    fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+
+    console.log("✅ COMPRA OK:", item.id);
+
+    // 🔹 envia SSE (opcional)
+    if (global.sendSSE) {
+      global.sendSSE({
+        type: "state:update",
+        payload: state
+      });
+    }
+
+    res.json(state);
+
+  } catch (err) {
+    console.error("Erro /shop/gift:", err);
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+app.use("/shop", shopRouter);
+
 // ======================
 // LOGS
 // ======================

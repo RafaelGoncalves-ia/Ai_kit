@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer } = require("electron");
+const { ipcRenderer } = require("electron");
 
+contextBridge.exposeInMainWorld("kitAPI", {
+  openWindow: (url, options) => ipcRenderer.invoke("open-window", url, options)
+});
 contextBridge.exposeInMainWorld("kitAPI", {
   // --- Envios (Renderer -> Main) ---
   sendMessage: (msg) => ipcRenderer.send("send-message", msg),
@@ -25,7 +29,8 @@ contextBridge.exposeInMainWorld("kitAPI", {
     ipcRenderer.on("chat-message", subscription);
     return () => ipcRenderer.removeListener("chat-message", subscription);
   },
-
+  //
+  
   // Novo: Para animar o fechamento suave do balão antes de destruir a janela
   onBeforeClose: (callback) => {
     ipcRenderer.on("start-fade-out", () => callback());

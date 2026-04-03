@@ -1,4 +1,3 @@
-// main.js
 const { app, BrowserWindow, globalShortcut, ipcMain, screen, Notification } = require("electron");
 const path = require("path");
 const { EventSource } = require("eventsource");
@@ -132,7 +131,6 @@ function connectSSE() {
         if (data.type === "task:completed") {
           const msg = data.payload.result;
 
-          // 🔹 Notificação nativa
           const notification = new Notification({
             title: "Kit IA",
             body: msg,
@@ -149,14 +147,12 @@ function connectSSE() {
             }
           });
 
-          // 🔹 Notificação HTML
           createNotifyHTML({
             title: "Kit IA",
             message: msg,
             type: "info"
           });
 
-          // 🔹 Atualiza chat (se aberto)
           if (chatWindow) {
             chatWindow.webContents.send("chat-message", {
               author: "Kit IA",
@@ -227,7 +223,6 @@ app.whenReady().then(() => {
     }, 300);
   });
 
-  // 🔥 Atalho teste notify
   globalShortcut.register("CommandOrControl+Shift+N", () => {
     createNotifyHTML({
       title: "DEBUG",
@@ -235,6 +230,24 @@ app.whenReady().then(() => {
       type: "success"
     });
   });
+});
+
+// ======================
+// GENERIC WINDOW HANDLER
+// ======================
+ipcMain.handle("open-window", (event, url, options) => {
+  const win = new BrowserWindow({
+    width: options.width || 800,
+    height: options.height || 600,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      nodeIntegration: true,
+      contextIsolation: false
+    },
+    title: options.title || "Janela"
+  });
+
+  win.loadFile(path.join(__dirname, url));
 });
 
 // ======================

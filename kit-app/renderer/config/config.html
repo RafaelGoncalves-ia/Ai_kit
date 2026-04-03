@@ -13,20 +13,21 @@
 </header>
 
 <!-- ======================
-TABS
-===================== -->
+TABS PRINCIPAIS
+====================== -->
 <nav class="tabs">
   <button class="tab active" data-tab="system">Sistema</button>
   <button class="tab" data-tab="identity">Identidade</button>
   <button class="tab" data-tab="state">Estado</button>
   <button class="tab" data-tab="skills">Skills</button>
+  <button class="tab" data-tab="inventory">Inventário</button>
 </nav>
 
 <main>
 
 <!-- ======================
 SISTEMA
-===================== -->
+====================== -->
 <section id="system" class="tab-content active">
   <h2>Sistema</h2>
 
@@ -43,7 +44,7 @@ SISTEMA
 
 <!-- ======================
 IDENTIDADE
-===================== -->
+====================== -->
 <section id="identity" class="tab-content">
   <h2>Identidade</h2>
 
@@ -63,11 +64,11 @@ IDENTIDADE
 
 <!-- ======================
 ESTADO
-===================== -->
+====================== -->
 <section id="state" class="tab-content">
   <h2>Estado</h2>
 
-  <!-- Sliders de Needs -->
+  <!-- NEEDS -->
   <div class="card">
     <label>Aura: <span id="auraVal">50</span></label>
     <input type="range" id="aura" min="0" max="100">
@@ -82,9 +83,13 @@ ESTADO
 
     <label>Humor: <span id="moodVal">50</span></label>
     <input type="range" id="mood" min="0" max="100">
+
+    <!-- 🔥 NOVO -->
+    <label>Higiene: <span id="hygieneVal">50</span></label>
+    <input type="range" id="hygiene" min="0" max="100">
   </div>
 
-  <!-- Status Atual -->
+  <!-- STATUS -->
   <div class="card">
     <h3>Status Atual</h3>
     <div class="current-status">
@@ -103,12 +108,36 @@ ESTADO
 
 <!-- ======================
 SKILLS
-===================== -->
+====================== -->
 <section id="skills" class="tab-content">
   <h2>Skills</h2>
   <div id="skillsGrid"></div>
 </section>
 
+<!-- ======================
+INVENTÁRIO + SHOP
+====================== -->
+<section id="inventory" class="tab-content">
+  <h2>Loja & Personalização</h2>
+
+  <!-- TOKENS -->
+  <div class="config-section">
+    <h3>Saldo</h3>
+    <p id="userTokens">Tokens: 0</p>
+  </div>
+
+  <!-- INVENTÁRIO VISUAL (SKINS ATIVAS) -->
+  <div class="config-section">
+    <h3>Itens Ativos (Visual da Kit)</h3>
+    <div id="kitInventory" class="status-grid"></div>
+  </div>
+
+  <!-- SHOP -->
+  <div class="config-section">
+    <h3>Loja</h3>
+    <div id="shopList" class="status-grid"></div>
+  </div>
+</section>
 </main>
 
 <footer>
@@ -116,5 +145,6 @@ SKILLS
 </footer>
 
 <script src="./config.js"></script>
+<script src="./inventory.js"></script>
 </body>
 </html>

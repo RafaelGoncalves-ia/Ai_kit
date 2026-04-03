@@ -4,6 +4,7 @@ export const NEEDS_LIMITS = {
   hunger: { min: 0, max: 100 },
   mood: { min: 0, max: 100 },
   aura: { min: 0, max: 100 },
+  hygiene: { min: 0, max: 100 }, // novo
 };
 
 // garante que o valor fique dentro do limite

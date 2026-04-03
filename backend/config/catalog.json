@@ -1,0 +1,26 @@
+[
+  {
+    "id": "energy_drink_01",
+    "nome": "Energético",
+    "tipo": "consumivel",
+    "descricao": "Aumenta 20 de energia ao ser consumido.",
+    "efeito": { "energy": 20 },
+    "valor": 50
+  },
+  {
+    "id": "red_dress",
+    "nome": "Vestido Vermelho",
+    "tipo": "skin",
+    "slot": "outfit",
+    "descricao": "Uma roupa elegante para a Kit.",
+    "valor": 150
+  },
+  {
+    "id": "small_cactus",
+    "nome": "Cacto Pequeno",
+    "tipo": "skin",
+    "slot": "decor",
+    "descricao": "Decoração fofa para o quarto da Kit.",
+    "valor": 100
+  }
+]

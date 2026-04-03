@@ -23,5 +23,10 @@ export function evaluateNeeds(needs) {
     effects.emotionHint = "cold";
   }
 
+  if (needs.hygiene < 30) {
+    effects.emotionHint = "dirty";
+    effects.actionHint = "shower";
+  }
+
   return effects;
 }
