@@ -9,7 +9,11 @@ function applyCurrentAction(state) {
   const action = actions.find(a => a.name === state.routine.currentAction);
   if (!action) return;
 
-  action.effect(state);
+  if (typeof action.tickEffect === "function") {
+    action.tickEffect(state);
+  } else if (typeof action.effect === "function") {
+    action.effect(state);
+  }
 
   // aplica tokens
   state.tokens = (state.tokens || 0) + (action.tokens || 0);

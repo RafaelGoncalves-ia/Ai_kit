@@ -29,6 +29,10 @@ const DEFAULT_CONFIG = {
     microphoneEnabled: false
   },
 
+  skills: {
+    randomTalk: true
+  },
+
   identity: {
     name: "KIT",
     description: "Assistente inteligente local",
@@ -114,6 +118,7 @@ export default function createConfigRoutes(context) {
         xttsEnabled,
         microphoneEnabled,
         muted,
+        randomTalk,
         identity
       } = req.body;
 
@@ -128,6 +133,14 @@ export default function createConfigRoutes(context) {
       if (muted !== undefined) {
         context.config.system.muted = muted;
         current.system.muted = muted;
+      }
+
+      // ======================
+      // SKILLS
+      // ======================
+      if (randomTalk !== undefined) {
+        current.skills = current.skills || {};
+        current.skills.randomTalk = randomTalk;
       }
 
       // ======================

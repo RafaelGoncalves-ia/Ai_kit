@@ -5,8 +5,11 @@
     "muted": false
   },
   "voice": {
-    "xttsEnabled": false,
-    "microphoneEnabled": false
+    "xttsEnabled": true,
+    "microphoneEnabled": true
+  },
+  "skills": {
+    "randomTalk": true
   },
   "identity": {
     "name": "KIT",

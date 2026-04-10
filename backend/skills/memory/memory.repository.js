@@ -12,13 +12,13 @@ export function saveMemory({ type, key, value, relevance = 0.5 }) {
   const db = getDB();
 
   const stmt = db.prepare(`
-    INSERT INTO memory (type, content, created_at)
-    VALUES (?, ?, ?)
+    INSERT INTO memory (type, content, relevance, created_at)
+    VALUES (?, ?, ?, ?)
   `);
 
   const content = key ? `${key}: ${value}` : value;
 
-  stmt.run(type, content, Date.now());
+  stmt.run(type, content, relevance, Date.now());
 }
 
 /**
@@ -28,7 +28,7 @@ export function getRecentMemory(limit = 10) {
   const db = getDB();
 
   const stmt = db.prepare(`
-    SELECT content, type, created_at
+    SELECT content, type, relevance, created_at
     FROM memory
     ORDER BY created_at DESC
     LIMIT ?
@@ -44,12 +44,12 @@ export function getMemoryByType(type, limit = 10) {
   const db = getDB();
 
   const stmt = db.prepare(`
-    SELECT content
+    SELECT content, relevance
     FROM memory
     WHERE type = ?
-    ORDER BY created_at DESC
+    ORDER BY relevance DESC, created_at DESC
     LIMIT ?
   `);
 
-  return stmt.all(type, limit).map(r => r.content);
+  return stmt.all(type, limit).map(r => ({ content: r.content, relevance: r.relevance }));
 }

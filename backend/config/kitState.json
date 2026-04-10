@@ -1,19 +1,19 @@
 {
   "needs": {
-    "energy": 99.95,
-    "hunger": 92.82999999999973,
+    "energy": 86.84000000000128,
+    "hunger": 66.28999999998902,
     "mood": 99.98,
-    "aura": 98.20999999999908,
-    "hygiene": 82.85999999999123
+    "aura": 95.06904999999976,
+    "hygiene": 67.27999999996592
   },
   "emotion": {
     "type": "neutral",
     "intensity": 0.5,
-    "lastUpdate": 1775028129179
+    "lastUpdate": 1775527758203
   },
   "routine": {
     "currentAction": "sleep",
-    "startedAt": 1775107248103,
+    "startedAt": 1775846544287,
     "duration": 480000,
     "forced": null,
     "lockedUntil": 0
@@ -23,16 +23,31 @@
     "isMoving": false
   },
   "user": {
-    "isActive": false,
-    "lastSeen": 1775028129179
+    "isActive": true,
+    "lastSeen": 1775845737702
   },
   "orchestrator": {
-    "currentTask": null,
-    "queue": [],
-    "isProcessing": false
+    "queue": [
+      {
+        "id": "zcosp47tfcm",
+        "type": "long",
+        "text": "bom dia kit, crie um cronograma de postagens para a adsune a minha agencia de publicidade. focado em imobiliárias.",
+        "memoryContext": "Informações sobre o usuário (baseado em conversas anteriores, pode não ser 100% preciso):\n- nome: Rafael (confiança: 100%)\n- name: Kit (confiança: 90%)\n\nFatos mencionados:\n- agency_name: Adsune (relevância: 90%)\n\nTópicos discutidos:\n- focus_area: imobiliárias (relevância: 90%)\n\nHistórico recente relevante:\n- nome: Rafael\n- name: Kit\n- agency_name: Adsune\n- focus_area: imobiliárias",
+        "status": "done",
+        "createdAt": 1775653051960,
+        "result": "**Cronograma de Postagens para Adsune - Foco em Imobiliárias**  \n\nEste cronograma detalha a distribuição de posts para as próximas quatro semanas, com ênfase em estratégias de marketing digital direcionadas a imobiliárias. Cada semana aborda tópicos específicos, variando os tipos de conteúdo para garantir diversidade e alinhamento com as necessidades do público-alvo.  \n\n---\n\n### **Semana 1 (20 a 24 de outubro)**  \n- **Tópico**: Tendências digitais no mercado imobiliário (2023).  \n- **Tipo de Conteúdo**: Artigo de análise com dados e estatísticas.  \n- **Destaque**: Estratégias para o uso de redes sociais (Instagram, LinkedIn) e vídeos curtos para destacar características imobiliárias, com exemplos de métricas de engajamento.  \n\n---\n\n### **Semana 2 (27 a 31 de outubro)**  \n- **Tópico**: Caso de sucesso: Adsune e o aumento de 40% nas vendas de imóveis.  \n- **Tipo de Conteúdo**: Relatório de case study.  \n- **Destaque**: Comparação entre o desempenho pré e pós-campanha, incluindo a aplicação de estratégias personalizadas de conteúdo e marketing direto.  \n\n---\n\n### **Semana 3 (3 a 7 de novembro)**  \n- **Tópico**: O impacto do vídeo no marketing imobiliário.  \n- **Tipo de Conteúdo**: Infográfico e tutorial de vídeo.  \n- **Destaque**: Dicas para criar vídeos de 60 segundos que ressaltam características dos imóveis, com foco em elementos visuais e narrativa envolvente.  \n\n---\n\n### **Semana 4 (10 a 14 de novembro)**  \n- **Tópico**: SEO para sites de imobiliárias: Dicas para otimizar visibilidade no Google.  \n- **Tipo de Conteúdo**: Guia passo a passo.  \n- **Destaque**: Estratégias para escolha de palavras-chave, estrutura de conteúdo e otimização de meta descrições, com exemplos práticos para sites de imobiliárias.  \n\n---\n\n### **Elementos-chave do cronograma**:  \n- **Variabilidade de conteúdo**: Artigos, relatórios, infográficos, vídeos e guias passo a passo.  \n- **Alinhamento com o público**: Direcionado para proprietários de imobiliárias e profissionais de marketing, com foco em resultados quantificáveis.  \n- **Flexibilidade**: Ajuste de tópicos conforme demandas específicas ou feedback do cliente.  \n\nEste planejamento assegura uma cobertura abrangente e estratégica para o público-alvo, destacando a expertise de Adsune no mercado imobiliário.",
+        "data": {
+          "searchResult": null
+        },
+        "searchResult": null
+      }
+    ],
+    "isProcessing": false,
+    "audioBusy": false,
+    "pendingAudioIntent": null
   },
   "system": {
-    "lastTick": 1775107428471
+    "lastTick": 1775846743857
   },
   "needsEffects": {
     "emotionHint": null,

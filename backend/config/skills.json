@@ -4,7 +4,9 @@
   "base/xtts": true,
   "commentActivity": false,
   "memory": true,
-  "randomTalk": false,
+  "randomTalk": true,
+  "audio": true,
+  "tasks": true,
   "personality": true,
   "needs": true,
   "runtime": true

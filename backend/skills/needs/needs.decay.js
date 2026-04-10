@@ -7,7 +7,7 @@ export function applyDecay(needs, deltaTime = 1) {
     energy: -0.05, // por segundo
     hunger: -0.03,
     mood: -0.02,
-    aura: -0.01,    // aura só muda via interações
+    aura: -0.02315, // decaimento passivo: ~100 em 72 minutos (3 dias simulados)
     hygiene: -0.01, // novo
   };
 

@@ -8,9 +8,11 @@
     "start": "node backend/server.js"
   },
   "dependencies": {
+    "@tavily/core": "^0.7.2",
     "axios": "^1.13.6",
     "better-sqlite3": "^12.8.0",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.20",
     "dotenv": "^16.3.1",
     "express": "^4.22.1",
     "form-data": "^4.0.5",

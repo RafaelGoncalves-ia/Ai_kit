@@ -1,0 +1,524 @@
+<!-- ARCHITECTURE_DIAGRAMS.md -->
+
+# 🏗️ Diagramas de Arquitetura - Orchestrator V2
+
+## Sistema Completo de Orquestração
+
+### 1. Visão Geral (High Level)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                     AI-KIT ORCHESTRATION V2                    │
+├────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────┐        ┌──────────────┐     ┌────────────┐  │
+│  │   USER INPUT │        │  SCHEDULER   │     │ EVENTBUS   │  │
+│  └──────┬───────┘        └──────┬───────┘     └────┬───────┘  │
+│         │                       │                  │           │
+│         ▼                       ▼                  ▼           │
+│     ┌──────────────────────────────────────────────────┐      │
+│     │        ORCHESTRATOR (Coordenador)               │      │
+│     │  - Route selection                              │      │
+│     │  - Event listeners                              │      │
+│     │  - Intent detection                             │      │
+│     └────────┬──────────────┬──────────────┬──────────┘      │
+│              │              │              │                 │
+│    ┌─────────▼─┐  ┌────────▼───┐  ┌──────▼─────┐           │
+│    │ RealtimeR │  │  TaskRoute  │  │ AgentRoute │           │
+│    │ (SSE+TTS) │  │ (Background)│  │(Autônoma)  │           │
+│    └─────┬─────┘  └────┬───────┘  └──────┬─────┘           │
+│          │             │                 │                  │
+│          ▼             ▼                 ▼                  │
+│     ┌──────────────────────────────────────────────┐       │
+│     │         RESPONSE QUEUE (Centralizador)       │       │
+│     │  - Text emission (SSE)                       │       │
+│     │  - TTS queue management                      │       │
+│     └──────────────┬───────────────────────────────┘       │
+│                    │                                        │
+│          ┌─────────┴──────────┐                            │
+│          ▼                    ▼                            │
+│      [TEXT]              [TTS-QUEUE]                       │
+│       (UI)                (Audio)                          │
+│                                                             │
+└────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 2. RealtimeRoute (Rota Curta)
+
+```
+USER INPUT
+    │
+    ▼
+┌─────────────────────────┐
+│  RealtimeRoute.handle() │
+└──────────┬──────────────┘
+           │
+     ┌─────┴──────────┐
+     │                │
+     ▼                ▼
+  [Parse]      [Detect Intent]
+     │                │
+     ├─> Audio?────> ┌─────────────┐
+     │               │ Audio Intent │
+     │               └──────┬───────┘
+     │                      │
+     │                      ▼
+     │              ┌──────────────────────┐
+     │              │ Delega para          │
+     │              │ TaskRoute.enqueue    │
+     │              │ AudioTask()          │
+     │              └──────────────────────┘
+     │
+     ├─> Search?────> [Web Search]
+     │
+     ├─> Vision?────> [Screenshot]
+     │
+     ├─> Command?──> [Execute Cmd]
+     │
+     └─> Default───> ┌──────────────────┐
+                     │ Generate IA      │
+                     │ Response         │
+                     └────┬─────────────┘
+                          │
+                          ▼
+                     ┌──────────────┐
+                     │ ResponseQ    │
+                     │ .enqueue()   │
+                     │ speak: true  │
+                     └──────┬───────┘
+                            │
+                     ┌──────┴──────┐
+                     ▼             ▼
+                   [TEXT]     [TTS-QUEUE]
+```
+
+---
+
+### 3. TaskRoute (Rota Longa)
+
+```
+LONG TASK DETECTED
+    │
+    ▼
+┌──────────────────────┐
+│ TaskRoute.enqueueLongTask()
+│ OR enqueueAudioTask()│
+└────────┬─────────────┘
+         │
+         ▼
+    ┌─────────┐
+    │ CREATE  │
+    │ TASK    │
+    └────┬────┘
+         │
+         ▼
+    ┌──────────────┐
+    │ ADD TO QUEUE │
+    └────┬─────────┘
+         │
+         ▼
+    Process Next
+    ┌─────────────────┐
+    │ if Slot Free    │
+    └────┬────────────┘
+         │
+    YES  ▼  NO
+    ┌────┴────┐
+    │ WAIT    │
+    │ IN QUEUE│
+    └─────────┘
+         │
+         ▼
+    ┌────────────────┐
+    │ PROCESS TASK   │
+    └────┬───────────┘
+         │
+    ┌────┴──────────────────┐
+    │                       │
+    ▼                       ▼
+[AUDIO TASK]         [LONG TASK]
+    │                    │
+    ├─> Audio Skill      ├─> AI Chat
+    ├─> speak: true      ├─> Memory
+    └─────────┬──────────┴─> speak: FALSE
+              │
+              ▼
+        ┌──────────────┐
+        │ ResponseQ    │
+        │ .enqueue()   │
+        └──────┬───────┘
+               │
+        ┌──────┴──────┐
+        ▼             ▼
+      [TEXT]      [TTS?]
+                   │
+                   ├─ audio → YES (speak: true)
+                   └─ long  → NO  (speak: false)
+```
+
+---
+
+### 4. AgentRoute (Rota Autônoma)
+
+```
+SCHEDULER.tick() ← 1 segundo
+    │
+    ├─────────────────────────────────────┐
+    │                                     │
+    ▼                                     ▼
+┌──────────────────┐    ┌────────────────────────┐
+│ agent:randomtalk │    │ agent:needs-analysis   │
+└────┬─────────────┘    └─────┬──────────────────┘
+     │                        │
+     ▼                        ▼
+┌──────────────┐      ┌───────────────┐
+│executeRandom │      │ executeNeeds  │
+│Talk()        │      │Analysis()     │
+└────┬─────────┘      └────┬──────────┘
+     │                     │
+     ▼                     ▼
+┌──────────────┐      ┌───────────────┐
+│randomTalkSk. │      │ needsSkill    │
+│execute()     │      │execute()      │
+└────┬─────────┘      └────┬──────────┘
+     │                     │
+     └─────────┬───────────┘
+               │
+               ▼
+        ┌─────────────────┐
+        │emitAgentEvent() │
+        └────┬────────────┘
+             │
+    ┌────────┴────────┐
+    │                 │
+    ▼                 ▼
+agent:r... ──> [eventBus]
+agent:n...      │
+agent:re...     │
+agent:ac...     │
+                ▼
+        ┌──────────────────────┐
+        │ Orchestrator         │
+        │ Event Listeners      │
+        │ (capture events)     │
+        └────┬─────────────────┘
+             │
+             ▼
+        ┌──────────────┐
+        │ ResponseQ    │
+        │ .enqueue()   │
+        │ speak: true  │
+        └──────┬───────┘
+               │
+        ┌──────┴──────┐
+        ▼             ▼
+      [TEXT]    [TTS-QUEUE]
+```
+
+---
+
+### 5. Fluxo Completo de Requisição
+
+```
+ENTRADA DO USUÁRIO
+    │
+    ▼
+POST /chat
+    │
+    ▼
+Orchestrator.handle()
+    │
+    ├─ cancel TTS anterior
+    ├─ update user state
+    └─ detect intent
+         │
+    ┌────┴─────────────────────────┐
+    │                              │
+    ▼                              ▼
+requiresLongTask?            DEFAULT
+    │                              │
+YES ▼                              ▼ NO
+    │                         ┌────────────────┐
+    ├─> TaskRoute            │ RealtimeRoute   │
+    │   .enqueueLongTask()    │ .handle()      │
+    │                         └────┬───────────┘
+    │                              │
+    │   (background)               ├─ Parse
+    │   ┌──────────────────┐       ├─ Vision
+    │   │                  │       ├─ Search
+    │   ├─ Process AI      │       ├─ Commands
+    │   ├─ Store result    │       └─ Generate
+    │   └─ Enqueue result  │           response
+    │      speak: false    │
+    │   │                  │       ├─ TTS enqueue
+    │   └──────────────────┘       │ speak: true
+    │          │                   │
+    └──────────┴───────────────────┘
+               │
+               ▼
+        ┌─────────────────┐
+        │ ResponseQueue   │
+        │ .enqueue()      │
+        └────┬────────────┘
+             │
+    ┌────────┴────────┐
+    ▼                 ▼
+[TEXT/SSE]      [TTS-QUEUE]
+    │               │
+    └───────┬───────┘
+            ▼
+        [DONE]
+```
+
+---
+
+### 6. Mapa de Eventos
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              EVENT BUS - FLUXO COMPLETO                │
+└─────────────────────────────────────────────────────────┘
+
+USER INPUT EVENTS
+    │
+    ├─ action:status
+    │   └─ "💭 lendo...", "🔍 pesquisando..."
+    │
+    └─ task:enqueued / task:completed / task:error
+        └─ { taskId, type, ... }
+
+AGENT EVENTS (EMIT)
+    │
+    ├─ agent:randomtalk
+    ├─ agent:needs-triggered
+    ├─ agent:reminders
+    └─ agent:activity-comment
+
+AGENT EVENTS (READY)
+    │
+    ├─ agent:randomtalk-ready
+    │   └─ Orchestrator listener
+    │       └─ responseQueue.enqueue(speak: true)
+    ├─ agent:reminder-ready
+    │   └─ (prioritário)
+    ├─ agent:needs-ready
+    │   └─ (se action definida)
+    └─ agent:activity-ready
+        └─ (comentário)
+
+TTS EVENTS
+    │
+    ├─ tts:enqueued
+    ├─ tts:processing
+    ├─ tts:chunk-completed
+    └─ tts:completed
+```
+
+---
+
+### 7. Estado do Sistema (stateTree)
+
+```
+state
+├─ user
+│   ├─ isActive: boolean
+│   └─ lastSeen: timestamp
+│
+├─ orchestrator (DEPRECATED/LEGACY)
+│   └─ ...
+│
+├─ taskRoute          ← TaskRoute state
+│   ├─ queue: Task[]
+│   └─ isProcessing: boolean
+│
+├─ emotion
+│   ├─ type: string
+│   └─ timestamp: number
+│
+├─ routine
+│   ├─ currentAction: string
+│   └─ forced: null | string
+│
+├─ needs
+│   ├─ aura: number
+│   ├─ energy: number
+│   └─ hunger: number
+│
+└─ ...other state
+```
+
+---
+
+### 8. Decisão de Rota
+
+```
+INPUT: "Escreva um código para..."
+    │
+    ▼
+detectIntent(input)
+    │
+    └─ Check long triggers:
+       ["arquivo", "escreva", "corrija", "crie", "desenvolva"]
+           │
+           ├─ "escreva" found?
+           │   │
+           │   YES ▼
+           │   requiresLongTask: true
+           │
+           └─ → TaskRoute
+              └─ enqueueLongTask()
+
+INPUT: "Olá"
+    │
+    ▼
+detectIntent(input)
+    │
+    └─ No long triggers found
+       │
+       └─ → RealtimeRoute (DEFAULT)
+          └─ handle()
+```
+
+---
+
+### 9. Concorrência de Tarefas
+
+```
+TaskRoute.MAX_CONCURRENT = 2
+
+Task 1    Task 2         Task 3       Task 4
+[Slot 0]  [Slot 1]       [Queue]      [Queue]
+
+State: processing
+    ├─ Task 1 (running)
+    └─ Task 2 (running)
+
+Quando Task 1 termina:
+    ├─ runningTasks--
+    ├─ Task 3 move para Slot 0
+    └─ Process Task 3
+
+Queue:
+[T3] [T4] → aguardando slot
+```
+
+---
+
+### 10. Integração de Áudio
+
+```
+RealtimeRoute detecta audioIntent
+    │
+    ├─ Missing voice/text?
+    │   └─ Reply: "Qual voz?"
+    │   └─ Store pendingAudioIntent
+    │
+    └─ Complete?
+        └─ Delega para TaskRoute
+            │
+            ├─ enqueueAudioTask()
+            │   ├─ type: "audio"
+            │   ├─ data: audioIntent
+            │   └─ text/memoryContext
+            │
+            ├─ Background processing
+            │   ├─ audioSkill.execute()
+            │   ├─ generate WAV/MP3
+            │   └─ store file
+            │
+            └─ Enqueue result
+                ├─ speak: true  ← TTS plays audio!
+                └─ ResponseQueue
+```
+
+---
+
+## 📊 State Machine
+
+### Orchestrator State
+
+```
+INIT
+    │
+    ▼
+await initialize()
+    ├─ create routes
+    ├─ register jobs
+    ├─ setup listeners
+    └─ READY
+        │
+        ▼
+REQUEST → handle()
+    │
+    ├─ route: realtime
+    │   ├─ quick process
+    │   └─ response
+    │
+    └─ route: task
+        ├─ enqueue
+        ├─ background process
+        └─ response
+```
+
+### TaskRoute State
+
+```
+IDLE (no tasks)
+    │
+    ▼
+ENQUEUED (awaiting slot)
+    ├─ Queue grows
+    ├─ Wait for free slot
+    
+PROCESSING (task running)
+    ├─ AI execution
+    ├─ can queued other tasks
+    ├─ memory processing
+    └─ result ready
+    
+DONE (completed)
+    └─ cleanup
+        │
+        ▼
+    IDLE (check next)
+```
+
+---
+
+## 🔌 Dependency Injection
+
+```
+context
+├─ core
+│   ├─ orchestrator
+│   │   └─ initialize() exposes:
+│   │       └─ routes
+│   │           ├─ realtime
+│   │           ├─ task
+│   │           └─ agent
+│   ├─ responseQueue
+│   ├─ skillManager
+│   ├─ eventBus
+│   └─ ...
+│
+├─ services
+│   ├─ ai
+│   ├─ tts
+│   └─ ...
+│
+├─ scheduler
+│
+└─ config
+    └─ system
+        └─ maxConcurrentTasks
+```
+
+---
+
+## ✨ Conclusão
+
+Arquitetura **modular**, **escalável** e **preparada para expansão**.
+
+Cada rota é um mini-serviço independente que comunica via eventBus.

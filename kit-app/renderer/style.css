@@ -219,3 +219,25 @@ footer button {
 
 #sendBtn { background: #333; }
 #micBtn { background: #333; }
+
+/* ================= PROCESSING INDICATOR ================= */
+#processingIndicator {
+  padding: 8px 12px;
+  background: linear-gradient(90deg, #1e3c7233, #2d5a4433);
+  border-left: 3px solid #4a9eff;
+  border-radius: 4px;
+  margin: 8px 0;
+  animation: pulse 2s infinite;
+  font-style: italic;
+  color: #8ab4ff;
+  font-size: 0.9em;
+}
+
+#processingIndicator.hidden {
+  display: none;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}

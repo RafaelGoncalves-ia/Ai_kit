@@ -1,5 +1,5 @@
 import { initDB } from "./sqlite.js";
-import { extractMemory, buildContext } from "./memory.semantic.js";
+import { extractMemory, extractAIMemory, buildContext } from "./memory.semantic.js";
 
 export default {
   name: "memory",
@@ -9,8 +9,12 @@ export default {
   },
 
   // 🔥 NÃO BLOQUEIA MAIS
-  processInput(text) {
-    extractMemory(text);
+  async processInput(text) {
+    await extractMemory(text, this.context);
+  },
+
+  async processAIResponse(text) {
+    await extractAIMemory(text, this.context);
   },
 
   async getContext() {

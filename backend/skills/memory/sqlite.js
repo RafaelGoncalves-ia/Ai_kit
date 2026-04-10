@@ -24,9 +24,17 @@ export function initDB() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       type TEXT,
       content TEXT,
+      relevance REAL DEFAULT 0.5,
       created_at INTEGER
     )
   `).run();
+
+  // Adicionar coluna relevance se não existir
+  try {
+    db.prepare(`ALTER TABLE memory ADD COLUMN relevance REAL DEFAULT 0.5`).run();
+  } catch (e) {
+    // Coluna já existe
+  }
 
   // ======================
   // TABELA: VOCABULÁRIO

@@ -116,6 +116,7 @@ async function loadConfig() {
     aiModel.value = config.system?.aiModel || "";
     useXTTS.checked = config.voice?.xttsEnabled || false;
     microphone.checked = config.voice?.microphoneEnabled || false;
+    randomTalk.checked = config.skills?.randomTalk !== false;
 
     kitName.value = config.identity?.name || "KIT";
     kitDescription.value = config.identity?.description || "";
@@ -258,6 +259,9 @@ saveBtn.addEventListener("click", async () => {
       voice: {
         xttsEnabled: useXTTS.checked,
         microphoneEnabled: microphone.checked
+      },
+      skills: {
+        randomTalk: randomTalk.checked
       },
       identity: {
         name: kitName.value,

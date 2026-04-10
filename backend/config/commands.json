@@ -1,0 +1,42 @@
+{
+  "skillCommands": [
+    {
+      "skill": "audio",
+      "commands": ["gere um audio", "gerar audio", "audio"]
+    },
+    {
+      "skill": "base.ai.chat",
+      "commands": ["falar", "perguntar"]
+    },
+    {
+      "skill": "base.tts",
+      "commands": ["falar", "perguntar"]
+    },
+    {
+      "skill": "base.vision",
+      "commands": ["falar", "perguntar"]
+    },
+    {
+      "skill": "commentActivity",
+      "commands": ["falar", "perguntar"]
+    }
+  ],
+  "orchestratorTriggers": {
+    "searchTriggers": ["pesquise", "busque", "pesquisa", "noticias", "noticia", "procure", "busca"],
+    "longTriggers": ["arquivo", "escreva", "corrija", "crie", "desenvolva"],
+    "visionTriggers": ["olha", "ve", "ver", "tela", "print", "olhar"]
+  },
+  "assuntosWeb": {
+    "enabled": true,
+    "updateFrequencyHours": 24,
+    "lastUpdate": null,
+    "topics": [
+      "animes lançamentos recentes",
+      "novos episódios anime",
+      "jogos lançamentos",
+      "games trending",
+      "tech news",
+      "AI updates"
+    ]
+  }
+}

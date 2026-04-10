@@ -24,6 +24,7 @@ import createBrain from "./core/brain.js";
 import createScheduler from "./core/scheduler.js";
 import createOrchestrator from "./core/orchestrator.js";
 import createResponseQueue from "./core/responseQueue.js";
+import createTools from "./core/tools.js";
 import kitState from "./core/stateManager.js";
 import createAIService from "./services/ai.js";
 import createTTSService from "./services/tts.js";
@@ -36,6 +37,7 @@ import { eventBus } from "./core/eventBus.js";
 import createChatRoutes from "./routes/chat.js";
 import createSkillsRoutes from "./routes/skills.js";
 import createConfigRoutes from "./routes/config.js";
+import createTasksRoutes from "./routes/tasks.js";
 import sttRoute from "./routes/stt.js";
 import { initSkills } from "./skills/needs/startup.js";
 
@@ -46,6 +48,7 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use("/stt", sttRoute);
 
 // ======================
@@ -67,6 +70,7 @@ const context = {
     personality: loadConfig("personality.json")
   },
   state: kitState,
+  sessions: {},
   services: {},
   core: { eventBus }
 };
@@ -79,6 +83,8 @@ context.scheduler = context.core.scheduler;
 
 context.services.ai = createAIService(context);
 context.services.tts = createTTSService(context);
+context.llm = async (prompt, options = {}) => context.services.ai.chat(prompt, options);
+context.tools = createTools(context);
 context.core.commandEngine = createCommandEngine(context);
 context.core.skillManager = createSkillManager(context);
 context.core.brain = createBrain(context);
@@ -89,7 +95,17 @@ context.core.orchestrator = createOrchestrator(context);
 // INIT SKILLS & HISTÓRICO
 // ======================
 await context.core.skillManager.initAll();
-initSkills(context.scheduler);
+initSkills(context.core.scheduler, context);
+
+// ======================
+// INIT ORCHESTRATOR V2
+// ======================
+await context.core.orchestrator.initialize();
+console.log("✅ Orchestrator V2 inicializado com 3 rotas independentes");
+
+// Start scheduler com AgentRoute jobs já registrados
+context.scheduler.start(1000);
+console.log("✅ Scheduler iniciado com 4 AgentRoute jobs registrados");
 
 // ======================
 // SSE
@@ -161,6 +177,7 @@ app.delete("/conversations/:id", (req, res) => { deleteConversation(req.params.i
 app.use("/chat", createChatRoutes(context));
 app.use("/skills", createSkillsRoutes(context));
 app.use("/config", createConfigRoutes(context));
+app.use("/tasks", createTasksRoutes(context));
 
 app.get("/history", (req, res) => {
   const conversations = listConversations();

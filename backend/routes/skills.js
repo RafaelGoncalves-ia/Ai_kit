@@ -66,11 +66,12 @@ export default function createSkillsRoutes(context) {
             fs.writeFileSync(skillsConfigPath, JSON.stringify(skillsConfig, null, 2));
 
             // 2. Ação em tempo real: Notifica o SkillManager para carregar/descarregar
-            // Assim não precisa reiniciar o servidor!
+            if (context.core.skillManager) {
+                await context.core.skillManager.toggleSkill(skillFullName, active);
+            }
+
             if (active) {
                 console.log(`[SkillSystem] Ativando ${skillFullName}...`);
-                // Se o seu skillManager tiver um método de reload ou init individual:
-                // context.core.skillManager.loadSpecificSkill(skillFullName);
             } else {
                 console.log(`[SkillSystem] Desativando ${skillFullName}...`);
             }
@@ -92,7 +93,9 @@ function getSkillDescription(skillName) {
         "base/tts": "Saída de áudio padrão do sistema",
         "base/xtts": "Motor de voz natural da Daisy (XTTS)",
         "behavior/randomTalk": "Permite que a Daisy inicie conversas sozinha",
-        "master/commentActivity": "Leitura de comentários em tempo real"
+        "audio": "Gera áudio em XTTS usando voz masculina, feminina ou de locutor",
+        "master/commentActivity": "Leitura de comentários em tempo real",
+        "tasks": "Gerencia lembretes, tarefas e recorrência do sistema"
     };
     return descriptions[skillName] || "Funcionalidade adicional do sistema KIT";
 }

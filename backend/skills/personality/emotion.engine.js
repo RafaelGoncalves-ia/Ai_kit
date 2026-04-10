@@ -15,23 +15,28 @@ export default function updateEmotion(context) {
   // ======================
 
   if (needs.energy < 20) {
-    newEmotion = "sleepy";
-    intensity = 0.7;
-  }
-
-  if (needs.hunger > 70) {
-    newEmotion = "annoyed";
+    newEmotion = "tired";
     intensity = 0.8;
   }
 
+  if (needs.hunger > 70) {
+    newEmotion = "hangry";
+    intensity = 0.9;
+  }
+
   if (needs.mood < 30) {
-    newEmotion = "bored";
-    intensity = 0.6;
+    newEmotion = "dramatic";
+    intensity = 0.7;
   }
 
   if (needs.mood > 80 && needs.energy > 50) {
-    newEmotion = "happy";
-    intensity = 0.7;
+    newEmotion = "hype";
+    intensity = 0.8;
+  }
+
+  if (needs.energy < 40 && needs.hunger > 60) {
+    newEmotion = "grumpy";
+    intensity = 0.85;
   }
 
   // ======================

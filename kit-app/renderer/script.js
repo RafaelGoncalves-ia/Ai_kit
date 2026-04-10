@@ -8,6 +8,7 @@ const input = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
 const kitIcon = document.getElementById("kitIcon");
 const messageTemplate = document.getElementById("messageTemplate");
+const processingIndicator = document.getElementById("processingIndicator");
 
 const fileBtn = document.getElementById("fileBtn");
 const fileInput = document.getElementById("fileInput");
@@ -102,6 +103,23 @@ function animateAvatar() {
 }
 
 // ======================
+// PROCESSING INDICATOR (NOVO!)
+// ======================
+function showProcessing(message) {
+  if (processingIndicator) {
+    processingIndicator.querySelector("span").textContent = message || "Processando...";
+    processingIndicator.classList.remove("hidden");
+    scrollBottom();
+  }
+}
+
+function hideProcessing() {
+  if (processingIndicator) {
+    processingIndicator.classList.add("hidden");
+  }
+}
+
+// ======================
 // FILE
 // ======================
 fileBtn.addEventListener("click", () => fileInput.click());
@@ -123,8 +141,9 @@ async function sendMessage() {
 
   addMessage("Você", text);
   input.value = "";
-
-  const loadingId = addMessageTemp("_processando..._");
+  
+  // Mostra indicador inicial
+  showProcessing("💭 processando...");
 
   try {
     await fetch(API_URL, {
@@ -136,11 +155,10 @@ async function sendMessage() {
       }),
     });
 
-    removeMessage(loadingId);
-
+    // O indicador de status será atualizado automaticamente via SSE
   } catch (err) {
     console.error(err);
-    removeMessage(loadingId);
+    hideProcessing();
     addMessage("Sistema", "Erro ao conectar com backend.");
   }
 }
@@ -245,11 +263,22 @@ function connectEvents() {
       if (data.type === "task:completed") {
         addMessage("Kit IA", data.payload.result);
         animateAvatar();
+        hideProcessing();
       }
 
       if (data.type === "chat:response") {
         addMessage("Kit IA", data.payload.text);
         animateAvatar();
+        hideProcessing();
+      }
+
+      // ✅ NOVO: Indicador de status dinâmico
+      if (data.type === "action:status") {
+        if (data.message) {
+          showProcessing(data.message);
+        } else {
+          hideProcessing();
+        }
       }
 
     } catch (err) {

@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_file
 from TTS.api import TTS
 import torch
 import os
+import uuid
 import warnings
 import simpleaudio as sa
 
@@ -46,14 +47,22 @@ except Exception as e:
     print(f"[XTTS] Erro ao carregar modelo: {e}")
     tts = None
 
-OUTPUT_PATH = os.path.abspath("output.wav")
+OUTPUT_DIR = os.path.abspath("output")
+
+def get_output_path():
+    file_name = f"audio_{uuid.uuid4().hex[:8]}.wav"
+    return os.path.join(OUTPUT_DIR, file_name)
 
 @app.route("/audio")
 def get_audio():
-    if os.path.exists(OUTPUT_PATH):
-        return send_file(OUTPUT_PATH, as_attachment=True)
-    else:
-        return jsonify({"error": "Arquivo não encontrado"}), 404
+    latest = None
+    if os.path.isdir(OUTPUT_DIR):
+        files = [os.path.join(OUTPUT_DIR, f) for f in os.listdir(OUTPUT_DIR) if f.lower().endswith(".wav")]
+        if files:
+            latest = max(files, key=os.path.getctime)
+    if latest and os.path.exists(latest):
+        return send_file(latest, as_attachment=True)
+    return jsonify({"error": "Arquivo não encontrado"}), 404
 
 @app.route("/speak", methods=["POST"])
 def speak():
@@ -68,25 +77,26 @@ def speak():
     language = data.get("language", "pt")  # Idioma padrão
     print(f"[XTTS] Texto: {text}, Speaker: {speaker}, Language: {language}")
 
-    os.makedirs("output", exist_ok=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    output_path = get_output_path()
 
     try:
         tts.tts_to_file(
             text=text,
             speaker=speaker,
             language=language,
-            file_path=OUTPUT_PATH
+            file_path=output_path
         )
-        print(f"[XTTS] Áudio gerado: {OUTPUT_PATH}")
+        print(f"[XTTS] Áudio gerado: {output_path}")
 
         # toca o áudio com simpleaudio (não bloqueia)
-        wave_obj = sa.WaveObject.from_wave_file(OUTPUT_PATH)
+        wave_obj = sa.WaveObject.from_wave_file(output_path)
         play_obj = wave_obj.play()
         print("[XTTS] Áudio reproduzido via simpleaudio")
 
         return jsonify({
             "status": "ok",
-            "file": OUTPUT_PATH
+            "file": output_path
         })
     except Exception as e:
         print(f"[XTTS] Erro ao gerar áudio: {e}")

@@ -1,365 +1,404 @@
-import { captureScreen } from "../services/vision.js";
-import { getPersonalityByAura } from "../skills/needs/personality.map.js";
-
 /**
- * ORCHESTRATOR (VERSÃO FINAL AJUSTADA)
- * - Personalidade desacoplada (config + aura)
- * - Fallback seguro se config não existir
- * - Fila controlada (anti overload)
+ * ORCHESTRATOR REFATORADO (V2)
+ * 
+ * Responsabilidade Principal:
+ * - Carregar e coordenar as 3 rotas independentes
+ * - Decidir qual rota processa cada requisição
+ * - Orquestrar komunikação entre rotas via eventBus
+ * 
+ * Fluxo:
+ * 1. Input do usuário chega → orchestrator.handle()
+ * 2. Decidir: RealtimeRoute vs TaskRoute
+ * 3. Delegar para rota apropriada
+ * 4. Resposta via eventBus
+ * 
+ * AgentRoute:
+ * - Roda independentemente via scheduler
+ * - Nunca chamada diretamente
+ * - Comunica via eventBus
  */
 
 export default function createOrchestrator(context) {
   const state = context.state;
 
-  let runningTasks = 0;
-  const MAX_CONCURRENT = context.config?.system?.maxConcurrentTasks || 1;
+  let orchestratorReady = false;
+  let initializePromise = null;
+  let agentRouteInitPromise = null;
+  let agentRouteReady = false;
+  let responseListenerCleanup = null;
+  let agentBridgeCleanup = null;
 
-  // ======================
-  // HANDLE INPUT
-  // ======================
-  async function handle({ input, source = "user" }) {
-    const text = normalize(input);
-
-    if (!text) {
-      context.core.responseQueue.enqueue({
-        text: "Fala direito 😒",
-        speak: true,
-        priority: 1
-      });
-      return { queued: false };
+  // ==========================================
+  // INITIALIZE ROUTES (Dynamic Import)
+  // ==========================================
+  async function initialize() {
+    if (orchestratorReady) {
+      return getStatus();
     }
 
-    state.user.isActive = true;
-    state.user.lastSeen = Date.now();
-
-    const memorySkill = context.core.skillManager.get("memory");
-
-    if (memorySkill) {
-      memorySkill.processInput(text);
+    if (initializePromise) {
+      return initializePromise;
     }
 
-    const memoryContext = memorySkill
-      ? await memorySkill.getContext()
-      : "";
-
-    const intent = detectIntent(text);
-
-    // ======================
-    // VISION
-    // ======================
-    let images = [];
-
-    if (intent.useVision) {
+    initializePromise = (async () => {
       try {
-        const img = await captureScreen();
-        images.push(img);
+        // Imports dinâmicos para não carregar dependências externas desnecessariamente
+        const { default: createRealtimeRoute } = await import("./routes/realtimeRoute.js");
+        const { default: createTaskRoute } = await import("./routes/taskRoute.js");
 
-        if (memorySkill) {
-          memorySkill.processInput("O usuário pediu para analisar a tela");
+        // Criar rotas apenas uma vez
+        if (!context.core.routes) {
+          context.core.routes = {};
         }
+
+        if (!context.core.routes.realtime) {
+          context.core.routes.realtime = createRealtimeRoute(context);
+        }
+
+        if (!context.core.routes.task) {
+          context.core.routes.task = createTaskRoute(context);
+        }
+
+        setupAgentResponseListeners();
+
+        orchestratorReady = true;
+        console.log("[ORCHESTRATOR] ✅ Orchestrator inicializado com rotas realtime/task");
+
+        // AgentRoute é pesada e não precisa bloquear startup.
+        void ensureAgentRouteInitialized().catch((err) => {
+          console.error("[ORCHESTRATOR] Falha no bootstrap lazy da AgentRoute:", err);
+        });
+
+        return getStatus();
       } catch (err) {
-        console.error("[VISION ERROR]", err);
+        console.error("[ORCHESTRATOR] Erro ao inicializar rotas:", err);
+        throw err;
+      } finally {
+        initializePromise = null;
       }
-    }
+    })();
 
-    // ======================
-    // SYSTEM COMMANDS
-    // ======================
-    if (intent.systemCommand) {
-      executeSystemCommand(intent.systemCommand);
-
-      context.core.responseQueue.enqueue({
-        text: "Já fiz 😏",
-        speak: true,
-        priority: 1
-      });
-
-      return { queued: false };
-    }
-
-    // ======================
-    // QUICK RESPONSE
-    // ======================
-    const quickReply = await generateStyledResponse({
-      text,
-      memoryContext,
-      mode: "quick",
-      images
-    });
-
-    context.core.responseQueue.enqueue({
-      text: quickReply,
-      speak: true,
-      priority: 1
-    });
-
-    // ======================
-    // LONG TASK
-    // ======================
-    let queued = false;
-    let taskId = null;
-
-    if (intent.requiresLongTask) {
-      queued = true;
-      taskId = enqueueTask({ text, memoryContext });
-    }
-
-    return { queued, taskId };
+    return initializePromise;
   }
 
-  // ======================
-  // INTENT
-  // ======================
+  // ==========================================
+  // INITIALIZE AGENT ROUTE (Lazy + Idempotent)
+  // ==========================================
+  async function ensureAgentRouteInitialized() {
+    if (agentRouteReady && context.core?.routes?.agent) {
+      return context.core.routes.agent;
+    }
+
+    if (agentRouteInitPromise) {
+      return agentRouteInitPromise;
+    }
+
+    agentRouteInitPromise = (async () => {
+      try {
+        const { default: createAgentRoute } = await import("./routes/agentRoute.js");
+
+        if (!context.core.routes) {
+          context.core.routes = {};
+        }
+
+        if (!context.core.routes.agent) {
+          context.core.routes.agent = createAgentRoute(context);
+        }
+
+        const agentRoute = context.core.routes.agent;
+
+        setupAgentEventBridge(agentRoute);
+
+        if (context.scheduler) {
+          agentRoute.registerSchedulerJobs(context.scheduler);
+          console.log("[ORCHESTRATOR] Agent jobs registrados no scheduler");
+        }
+
+        agentRouteReady = true;
+        console.log("[ORCHESTRATOR] ✅ AgentRoute inicializada");
+
+        return agentRoute;
+      } catch (err) {
+        console.error("[ORCHESTRATOR] Erro ao inicializar AgentRoute:", err);
+        throw err;
+      } finally {
+        agentRouteInitPromise = null;
+      }
+    })();
+
+    return agentRouteInitPromise;
+  }
+
+  // ==========================================
+  // SETUP AGENT RESPONSE LISTENERS
+  // ==========================================
+  function setupAgentResponseListeners() {
+    if (responseListenerCleanup) {
+      return;
+    }
+
+    if (!context.core?.eventBus) return;
+
+    const eventBus = context.core.eventBus;
+    const listeners = [];
+
+    function addListener(eventName, handler) {
+      eventBus.on(eventName, handler);
+      listeners.push([eventName, handler]);
+    }
+
+    // Listener para eventos de agentRoute
+    addListener("agent:randomtalk-ready", async (data) => {
+      console.log("[ORCHESTRATOR] Capturando agent:randomtalk-ready");
+      // Enfileira para TTS se apropriado
+      if (context.core?.responseQueue) {
+        context.core.responseQueue.enqueue({
+          text: data.text,
+          speak: true,
+          priority: 3
+        });
+      }
+    });
+
+    addListener("agent:reminder-ready", async (data) => {
+      console.log("[ORCHESTRATOR] Capturando agent:reminder-ready");
+      // Enfileira lembrete
+      if (context.core?.responseQueue) {
+        context.core.responseQueue.enqueue({
+          text: `Lembrete: ${data.title} - ${data.message}`,
+          speak: true,
+          priority: 5  // Lembretes têm alta prioridade
+        });
+      }
+    });
+
+    addListener("agent:needs-ready", async (data) => {
+      console.log("[ORCHESTRATOR] Capturando agent:needs-ready");
+      // Processamento de necessidades
+      if (context.core?.responseQueue && data.action) {
+        context.core.responseQueue.enqueue({
+          text: data.action,
+          speak: true,
+          priority: 4
+        });
+      }
+    });
+
+    addListener("agent:activity-ready", async (data) => {
+      console.log("[ORCHESTRATOR] Capturando agent:activity-ready");
+      // Comentário de atividade
+      if (context.core?.responseQueue) {
+        context.core.responseQueue.enqueue({
+          text: data.text,
+          speak: true,
+          priority: 2
+        });
+      }
+    });
+
+    responseListenerCleanup = () => {
+      for (const [eventName, handler] of listeners) {
+        eventBus.off(eventName, handler);
+      }
+      responseListenerCleanup = null;
+    };
+
+    console.log("[ORCHESTRATOR] Event listeners de resposta do AgentRoute configurados");
+  }
+
+  // ==========================================
+  // SETUP AGENT EVENT BRIDGE
+  // ==========================================
+  function setupAgentEventBridge(agentRoute) {
+    agentBridgeCleanup?.();
+
+    if (!context.core?.eventBus || !agentRoute?.handleAgentEvent) return;
+
+    const eventBus = context.core.eventBus;
+    const listeners = [];
+
+    function bind(eventName, eventType) {
+      const handler = async (data) => {
+        await agentRoute.handleAgentEvent(eventType, data);
+      };
+
+      eventBus.on(eventName, handler);
+      listeners.push([eventName, handler]);
+    }
+
+    bind("agent:randomtalk", "randomtalk");
+    bind("agent:reminder", "reminder");
+    bind("agent:needs-triggered", "needs-triggered");
+    bind("agent:activity-comment", "activity-comment");
+
+    agentBridgeCleanup = () => {
+      for (const [eventName, handler] of listeners) {
+        eventBus.off(eventName, handler);
+      }
+      agentBridgeCleanup = null;
+    };
+
+    console.log("[ORCHESTRATOR] Bridge de eventos do AgentRoute configurado");
+  }
+
+  // ==========================================
+  // MAIN HANDLE (USER INPUT)
+  // ==========================================
+  /**
+   * Processa entrada do usuário
+   * Decide entre RealtimeRoute e TaskRoute
+   */
+  async function handle({ input, source = "user" }) {
+    if (!orchestratorReady) {
+      console.error("[ORCHESTRATOR] Orchestrator não inicializado");
+      return { handled: false, error: "Orchestrator não ready" };
+    }
+
+    if (!input || typeof input !== "string") {
+      return { handled: false, error: "Input inválido" };
+    }
+
+    try {
+      // 🔊 Cancelar TTS anterior para nova entrada
+      if (source === "user") {
+        try {
+          context.core.responseQueue.cancelTTS?.();
+        } catch (err) {
+          console.error("[ORCHESTRATOR] Erro ao cancelar TTS:", err.message);
+        }
+      }
+
+      // Atualizar stato de usuário
+      state.user.isActive = true;
+      state.user.lastSeen = Date.now();
+
+      // ========================
+      // DETECTAR TIPO DE AÇÃO
+      // ========================
+      const intent = detectIntent(input);
+
+      // ========================
+      // DECIDIR ROTA
+      // ========================
+      const realtimeRoute = context.core.routes.realtime;
+      const taskRoute = context.core.routes.task;
+
+      if (!realtimeRoute || !taskRoute) {
+        throw new Error("Rotas não inicializadas");
+      }
+
+      // 🔥 Se requer tarefa longa → TaskRoute
+      if (intent.requiresLongTask) {
+        console.log("[ORCHESTRATOR] → TaskRoute (long task)");
+
+        // Não processar se audio estiver ocupado (compatibilidade)
+        const isBusy = taskRoute.isAudioBusy?.();
+        if (isBusy) {
+          context.core.responseQueue.enqueue({
+            text: "Espera, estou ocupada com uma tarefa...",
+            speak: true,
+            priority: 1
+          });
+          return { handled: false, busy: true };
+        }
+
+        // Resposta rápida que diz que vai processar
+        context.core.responseQueue.enqueue({
+          text: "Deixa eu processar isso com cuidado...",
+          speak: true,
+          priority: 1
+        });
+
+        // Enfileira na task route
+        const taskId = await taskRoute.enqueueLongTask({
+          text: input,
+          memoryContext: await getMemoryContext(),
+          searchResult: null
+        });
+
+        return { handled: true, type: "task", taskId };
+      }
+
+      // 🔥 Caso padrão → RealtimeRoute
+      console.log("[ORCHESTRATOR] → RealtimeRoute (realtime)");
+
+      const result = await realtimeRoute.handle({
+        input,
+        images: []
+      });
+
+      return result;
+
+    } catch (err) {
+      console.error("[ORCHESTRATOR] Erro crítico:", err);
+
+      context.core.responseQueue.enqueue({
+        text: "Algo deu errado 😅",
+        speak: false,
+        priority: 1
+      });
+
+      return { handled: false, error: err.message };
+    }
+  }
+
+  // ==========================================
+  // INTENT DETECTION
+  // ==========================================
   function detectIntent(text) {
     const lower = text.toLowerCase();
 
-    const visionTriggers = ["olha", "ve", "ver", "tela", "print"];
-    const longTriggers = ["gere", "arquivo", "escreva", "corrija", "crie", "desenvolva"];
-
-    if (lower.includes("abre") || lower.includes("abrir")) {
-      if (lower.includes("chrome")) return { systemCommand: "open_chrome" };
-    }
-
-    if (lower.includes("clica") || lower.includes("clique")) {
-      return { systemCommand: "click" };
-    }
+    const longTriggers = ["arquivo", "escreva", "corrija", "crie", "desenvolva"];
 
     return {
-      useVision: visionTriggers.some(t => lower.includes(t)),
       requiresLongTask: longTriggers.some(t => lower.includes(t))
     };
   }
 
-  // ======================
-  // SYSTEM COMMAND
-  // ======================
-  function executeSystemCommand(cmd) {
-    switch (cmd) {
-      case "open_chrome":
-        console.log("[CMD] Abrindo Chrome...");
-        break;
-
-      case "click":
-        console.log("[CMD] Click simulado...");
-        break;
-    }
-  }
-
-  // ======================
-  // RESPONSE
-  // ======================
-  async function generateStyledResponse({ text, memoryContext, mode, images = [] }) {
-    const prompt = buildPrompt({ text, memoryContext, mode });
-    const ai = await context.services.ai.chat(prompt, { images });
-    return ai.text || "…";
-  }
-
-  // ======================
-  // PROMPT BUILDER (DESACOPLADO)
-  // ======================
-  function buildPrompt({ text, memoryContext, mode }) {
-    const emotion = state.emotion?.type || "neutral";
-    const action = state.routine?.currentAction || "idle";
-
-    const aura = state.needs?.aura ?? 50;
-    const auraProfile = getPersonalityByAura(aura);
-
-    // 🔥 fallback seguro (evita crash se config não existir ainda)
-    const base = context.config?.personality || {
-      name: "KIT",
-      identity: {
-        archetype: "assistente",
-        style: "casual",
-        tone: "neutro"
-      },
-      rules: {
-        neverFormal: true,
-        maxAggression: 0.6,
-        allowSarcasm: true
-      }
-    };
-
-    // ======================
-    // LAYERS
-    // ======================
-
-    const identityLayer = `
-Você é ${base.name}.
-
-Identidade:
-- Arquétipo: ${base.identity?.archetype}
-- Estilo: ${base.identity?.style}
-- Tom base: ${base.identity?.tone}
-`;
-
-    const auraLayer = `
-Estado atual:
-- Aura: ${aura}/100
-- Perfil: ${auraProfile.label}
-
-Comportamento:
-${auraProfile.prompt}
-`;
-
-    const emotionLayer = `
-Estado interno:
-- Emoção: ${emotion}
-- Ação atual: ${action}
-`;
-
-    const memoryLayer = memoryContext
-      ? `
-Memória relevante:
-${memoryContext}
-`
-      : "";
-
-    const rulesLayer = `
-Regras:
-- Evite formalidade: ${base.rules?.neverFormal}
-- Nível máximo de agressividade: ${base.rules?.maxAggression}
-- Sarcasmo permitido: ${base.rules?.allowSarcasm}
-`;
-
-    let instruction = "";
-
-    if (mode === "quick") {
-      instruction = "Responda curto (1-2 frases).";
-    }
-
-    if (mode === "final") {
-      instruction = "Finalize de forma curta.";
-    }
-
-    return `
-${identityLayer}
-${auraLayer}
-${emotionLayer}
-${memoryLayer}
-${rulesLayer}
-
-Usuário: ${text}
-
-${instruction}
-Resposta:
-`;
-  }
-
-  // ======================
-  // TASK QUEUE
-  // ======================
-  function enqueueTask({ text, memoryContext }) {
-    const id = generateId();
-
-    const task = {
-      id,
-      text,
-      memoryContext,
-      status: "pending",
-      createdAt: Date.now(),
-      result: null
-    };
-
-    if (!state.orchestrator) {
-      state.orchestrator = {
-        queue: [],
-        isProcessing: false
-      };
-    }
-
-    state.orchestrator.queue.push(task);
-
-    processNextTask();
-
-    return id;
-  }
-
-  async function processNextTask() {
-    if (runningTasks >= MAX_CONCURRENT) return;
-
-    const nextTask = state.orchestrator.queue.find(t => t.status === "pending");
-    if (!nextTask) return;
-
-    runningTasks++;
-    await processTask(nextTask);
-    runningTasks--;
-
-    processNextTask();
-  }
-
-  async function processTask(task) {
-    state.orchestrator.isProcessing = true;
+  // ==========================================
+  // GET MEMORY CONTEXT
+  // ==========================================
+  async function getMemoryContext() {
+    const memorySkill = context.core.skillManager.get("memory");
+    if (!memorySkill) return "";
 
     try {
-      task.status = "processing";
-
-      const prompt = `
-Responda de forma completa e detalhada.
-
-${task.memoryContext ? "Contexto:\n" + task.memoryContext : ""}
-
-Pedido:
-${task.text}
-`;
-
-      const ai = await context.services.ai.chat(prompt);
-
-      task.result = ai.text;
-      task.status = "done";
-
-      const finalReply = await generateStyledResponse({
-        text: "Terminei 😌",
-        memoryContext: task.memoryContext,
-        mode: "final"
-      });
-
-      context.core.responseQueue.enqueue({
-        text: finalReply,
-        speak: true,
-        priority: 2
-      });
-
-    } catch (err) {
-      console.error("Erro task:", err);
-
-      task.status = "error";
-      task.result = "Deu ruim 😑";
-    } finally {
-      state.orchestrator.isProcessing = false;
-      state.routine.forced = null;
+      return await memorySkill.getContext();
+    } catch {
+      return "";
     }
   }
 
-  // ======================
-  // RANDOM TALK
-  // ======================
-  async function randomTalk() {
-    const memorySkill = context.core.skillManager.get("memory");
-    const memoryContext = memorySkill ? await memorySkill.getContext() : "";
+  // ==========================================
+  // GET STATUS
+  // ==========================================
+  function getStatus() {
+    if (!orchestratorReady) {
+      return { ready: false };
+    }
 
-    const reply = await generateStyledResponse({
-      text: "Comente algo aleatório baseado no contexto atual",
-      memoryContext,
-      mode: "quick"
-    });
+    const realtimeRoute = context.core.routes.realtime;
+    const taskRoute = context.core.routes.task;
+    const agentRoute = context.core.routes.agent;
 
-    context.core.responseQueue.enqueue({
-      text: reply,
-      speak: true,
-      priority: 0
-    });
-  }
-
-  function normalize(text) {
-    return text?.trim() || "";
-  }
-
-  function generateId() {
-    return Math.random().toString(36).slice(2);
+    return {
+      ready: true,
+      routes: {
+        realtime: !!realtimeRoute,
+        task: taskRoute ? taskRoute.getQueueStatus() : null,
+        agent: agentRoute ? agentRoute.getAgentStatus() : null
+      },
+      initialization: {
+        orchestratorReady,
+        agentRouteReady,
+        agentRouteInitializing: !!agentRouteInitPromise
+      }
+    };
   }
 
   return {
+    initialize,
     handle,
-    randomTalk
+    getStatus
   };
 }
