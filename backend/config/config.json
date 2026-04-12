@@ -9,11 +9,6 @@
     "microphoneEnabled": true
   },
   "skills": {
-    "randomTalk": true
-  },
-  "identity": {
-    "name": "KIT",
-    "description": "Assistente inteligente local",
-    "personality": "Sarcástica, rápida e eficiente"
+    "randomTalk": false
   }
 }

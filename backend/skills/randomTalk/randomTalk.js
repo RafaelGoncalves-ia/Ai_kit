@@ -5,21 +5,7 @@ import {
 import { canStartIdleTalk, shouldSilenceAutonomousSource } from "../../utils/runtimeGuards.js";
 
 function ensureContext(context) {
-  if (!context || typeof context !== "object") {
-    return {
-      state: {
-        needs: {}
-      }
-    };
-  }
-
-  context.state = context.state || {};
-  context.state.needs = context.state.needs || {};
-  return context;
-}
-
-function getNeedsState(ctx) {
-  return ctx?.state?.needs || ctx?.state?.kitState?.needs || null;
+  return context && typeof context === "object" ? context : null;
 }
 
 function getRandomInteractionType() {
@@ -39,8 +25,14 @@ function getRandomInteractionType() {
   return "casual";
 }
 
+const MIN_RANDOM_TALK_COOLDOWN_MS = 30 * 60 * 1000;
+const MAX_RANDOM_TALK_COOLDOWN_MS = 45 * 60 * 1000;
+
 function getRandomInterval() {
-  return Math.random() * (20 - 5) * 60 * 1000 + 5 * 60 * 1000;
+  return (
+    Math.random() * (MAX_RANDOM_TALK_COOLDOWN_MS - MIN_RANDOM_TALK_COOLDOWN_MS) +
+    MIN_RANDOM_TALK_COOLDOWN_MS
+  );
 }
 
 async function buildPrompt(ctx, interactionType) {
@@ -113,6 +105,12 @@ export default {
       return null;
     }
 
+    const config = ctx.config?.skills?.randomTalk;
+    if (config !== true) {
+      this.nextTalkTime = null;
+      return null;
+    }
+
     const idleState = canStartIdleTalk(ctx);
     if (!idleState.allowed) {
       this.nextTalkTime = null;
@@ -134,14 +132,10 @@ export default {
 
     if (now < (this.nextTalkTime || 0)) return null;
 
-    if (ctx.lastUserInteraction && (now - ctx.lastUserInteraction) < 2 * 60 * 1000) {
+    if (ctx.lastUserInteraction && (now - ctx.lastUserInteraction) < MIN_RANDOM_TALK_COOLDOWN_MS) {
       this.nextTalkTime = null;
       return null;
     }
-
-    const config = ctx.config?.skills?.randomTalk;
-    if (config === false) return null;
-    if (!ctx.services?.tts?.isEnabled?.()) return null;
 
     this.nextTalkTime = null;
 
@@ -161,19 +155,14 @@ export default {
         return null;
       }
 
-      const needs = getNeedsState(ctx);
-      if (needs && typeof needs === "object") {
-        const nextAura = Number(needs.aura ?? 50) + 2;
-        needs.aura = Math.max(0, Math.min(100, nextAura));
-      }
-
       ctx.lastRandomTalkTime = Date.now();
 
       return {
         text,
-        voice: "default",
         type: interactionType,
-        timestamp: ctx.lastRandomTalkTime
+        timestamp: ctx.lastRandomTalkTime,
+        speak: false,
+        userFacing: false
       };
     } catch (err) {
       console.error("Erro no randomTalk:", err);

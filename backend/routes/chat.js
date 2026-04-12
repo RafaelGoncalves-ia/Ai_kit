@@ -32,21 +32,6 @@ function getUploadedImageFile(req) {
 }
 
 function onUserReply(context) {
-  if (!context.lastRandomTalkTime) return;
-
-  const now = Date.now();
-  const timeSinceRandomTalk = now - context.lastRandomTalkTime;
-  const windowMs = 10 * 1000;
-
-  if (timeSinceRandomTalk < windowMs) {
-    const needs = context.state?.needs || context.state?.kitState?.needs;
-
-    if (needs) {
-      needs.aura = Math.min(100, Number(needs.aura ?? 50) + 20);
-      console.log(`[AuraBonus] +20 aura por resposta apos random_talk (total: ${needs.aura})`);
-    }
-  }
-
   context.lastRandomTalkTime = null;
 }
 

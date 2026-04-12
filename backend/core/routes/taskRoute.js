@@ -115,7 +115,14 @@ export default function createTaskRoute(context) {
     return taskId;
   }
 
-  async function enqueueLongTask({ text, sessionId = "default" }) {
+  async function enqueueLongTask({
+    text,
+    sessionId = "default",
+    routeMode = "task",
+    routeSource = "task-route",
+    routeReason = null,
+    executionId = null
+  }) {
     if (runningTasks >= MAX_CONCURRENT) {
       console.warn("[TASK-ROUTE] Limite de tarefas concorrentes atingido");
       return null;
@@ -126,6 +133,10 @@ export default function createTaskRoute(context) {
       id: taskId,
       type: "long",
       sessionId,
+      routeMode,
+      routeSource,
+      routeReason,
+      requestedExecutionId: executionId,
       status: "pending",
       createdAt: Date.now(),
       result: null,
@@ -133,7 +144,13 @@ export default function createTaskRoute(context) {
     };
 
     queue.push(task);
-    console.log(`[TASK-ROUTE] Long task enfileirada (ID: ${taskId})`);
+    console.log("[TASK-ROUTE] Long task enfileirada", {
+      taskId,
+      sessionId,
+      routeMode,
+      routeSource,
+      routeReason: routeReason?.satisfiedCriteria || []
+    });
 
     updateExecutionStatus(context, {
       executionId: taskId,
@@ -219,7 +236,8 @@ export default function createTaskRoute(context) {
           priority: 2,
           source: "task-route-error",
           allowGeneric: true,
-          sessionId: task.sessionId
+          sessionId: task.sessionId,
+          userFacing: true
         });
       }
 
@@ -285,7 +303,8 @@ export default function createTaskRoute(context) {
       priority: 2,
       source: "task-route-audio",
       allowGeneric: true,
-      sessionId: task.sessionId
+      sessionId: task.sessionId,
+      userFacing: true
     });
   }
 
@@ -300,8 +319,8 @@ export default function createTaskRoute(context) {
     const result = await agentEngine.run({
       goal: task.text,
       sessionId: task.sessionId,
-      mode: "task",
-      executionId: task.id
+      mode: task.routeMode || "task",
+      executionId: task.requestedExecutionId || task.id
     });
 
     task.result = result;
@@ -331,8 +350,9 @@ export default function createTaskRoute(context) {
       text: finalMessage,
       speak: false,
       priority: 2,
-      source: "task-route",
-      sessionId: task.sessionId
+      source: task.routeSource || "task-route",
+      sessionId: task.sessionId,
+      userFacing: true
     });
 
     if (!queued) {

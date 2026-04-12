@@ -1,303 +1,240 @@
-const API = "http://localhost:3001";
+import {
+  API,
+  fetchConfigBundle,
+  fetchModels,
+  fetchShop,
+  fetchSkills,
+  fetchStatus,
+  saveConfigBundle,
+  toggleSkill,
+  buyShopItem
+} from "./config.api.js";
+import {
+  getBundle,
+  setBundle,
+  setModels,
+  setStatusSnapshot
+} from "./config.state.js";
+import { renderPersonalityPanel, renderSystemPanel, bindConfigPanelEvents } from "./config.render.js";
+import { validateBundle } from "./config.validate.js";
 
-// ======================
-// INIT
-// ======================
+const statusText = document.getElementById("statusText");
+const systemPanel = document.getElementById("systemPanel");
+const personalityPanel = document.getElementById("personalityPanel");
+const saveBtn = document.getElementById("saveBtn");
+const reloadBtn = document.getElementById("reloadBtn");
+
 document.addEventListener("DOMContentLoaded", () => {
   setupTabs();
+  setupStateSliders();
+  setupActions();
   loadAll();
-
-  const sliders = ["aura", "energy", "hunger", "mood", "hygiene"];
-
-  sliders.forEach(id => {
-    const slider = document.getElementById(id);
-    const val = document.getElementById(id + "Val");
-
-    if (!slider) return;
-
-    slider.addEventListener("input", () => {
-      val.innerText = Math.round(slider.value);
-    });
-  });
-
-  // SSE
-  if (window.EventSource) {
-    const sse = new EventSource(`${API}/events`);
-
-    sse.onmessage = (event) => {
-  try {
-    const msg = JSON.parse(event.data);
-
-    if (msg.type === "state:update") {
-      // Atualiza sliders, tokens, rotina etc, mas NÃO renderiza inventário
-      updateStateUI({
-        ...msg.payload,
-        inventory: undefined // ⚡ mantém inventário atual
-     });
-
-      // Só renderiza inventário se vier de ação de compra ou gift
-      // renderInventory(msg.payload); // ❌ não chamar aqui
-    }
-
-    } catch (err) {
-    console.error("Erro SSE:", err);
-   }
-  };
-  }
+  setupSSE();
+  startPolling();
 });
 
-// ======================
-// TABS
-// ======================
 function setupTabs() {
-  document.querySelectorAll(".tab").forEach(btn => {
-    btn.onclick = () => {
-      const parent = btn.closest("section") || document;
-
-      parent.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
-      parent.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-
-      btn.classList.add("active");
-      document.getElementById(btn.dataset.tab).classList.add("active");
-    };
+  document.querySelectorAll(".tab").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach((item) => item.classList.remove("active"));
+      button.classList.add("active");
+      document.getElementById(button.dataset.tab).classList.add("active");
+    });
   });
 }
 
-// ======================
-// LOAD ALL
-// ======================
-async function loadAll() {
-  setStatus("Carregando...");
+function setupStateSliders() {
+  ["aura", "energy", "hunger", "mood", "hygiene"].forEach((id) => {
+    const slider = document.getElementById(id);
+    const label = document.getElementById(`${id}Val`);
+    if (!slider || !label) return;
+    slider.addEventListener("input", () => {
+      label.innerText = Math.round(slider.value);
+    });
+  });
+}
+
+function setupActions() {
+  saveBtn.addEventListener("click", handleSave);
+  reloadBtn.addEventListener("click", () => loadAll(true));
+}
+
+async function loadAll(forceStatus = false) {
+  setStatus("Carregando configurações...");
 
   try {
-    await loadModels();
-    await loadConfig();
-    await loadSkills();
-    await loadShop();
+    const [models, bundle, skills, shop, statusPayload] = await Promise.all([
+      fetchModels(),
+      fetchConfigBundle(),
+      fetchSkills(),
+      fetchShop(),
+      fetchStatus()
+    ]);
 
-    const res = await fetch(`${API}/status`);
-    const data = await res.json();
-    const state = data.state;
+    setModels(models);
+    setBundle(bundle);
+    setStatusSnapshot(statusPayload);
 
-    updateStateUI(state);
-    renderInventory(state);
+    renderConfigPanels();
+    renderSkills(skills);
+    renderShop(shop);
+    updateStateUI(statusPayload.state);
+    renderInventory(statusPayload.state);
 
-    setStatus("Sistema sincronizado");
+    if (forceStatus) {
+      setStatus("Configurações recarregadas");
+    } else {
+      setStatus("Configuração sincronizada");
+    }
   } catch (err) {
-    console.error("Erro geral:", err);
-    setStatus("Erro ao conectar");
+    console.error(err);
+    setStatus(err.message || "Erro ao carregar configurações", true);
   }
 }
 
-// ======================
-// MODELS
-// ======================
-async function loadModels() {
+function renderConfigPanels() {
+  renderSystemPanel(systemPanel);
+  renderPersonalityPanel(personalityPanel);
+
+  bindConfigPanelEvents(systemPanel, renderConfigPanels);
+  bindConfigPanelEvents(personalityPanel, renderConfigPanels);
+}
+
+async function handleSave() {
   try {
-    const res = await fetch(`${API}/models`);
-    const data = await res.json();
-
-    aiModel.innerHTML = data.models.map(m =>
-      `<option value="${m.name}">${m.name}</option>`
-    ).join("");
-  } catch {
-    console.warn("models indisponível");
+    const bundle = getBundle();
+    validateBundle(bundle);
+    const savedBundle = await saveConfigBundle(bundle);
+    setBundle(savedBundle);
+    renderConfigPanels();
+    setStatus("Configurações salvas com sucesso");
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message || "Falha ao salvar configuração", true);
   }
 }
 
-// ======================
-// CONFIG
-// ======================
-async function loadConfig() {
-  try {
-    const res = await fetch(`${API}/config`);
-    const config = await res.json();
-
-    aiModel.value = config.system?.aiModel || "";
-    useXTTS.checked = config.voice?.xttsEnabled || false;
-    microphone.checked = config.voice?.microphoneEnabled || false;
-    randomTalk.checked = config.skills?.randomTalk !== false;
-
-    kitName.value = config.identity?.name || "KIT";
-    kitDescription.value = config.identity?.description || "";
-    kitPersonality.value = config.identity?.personality || "";
-  } catch {
-    console.warn("config indisponível");
-  }
-}
-
-// ======================
-// STATE UI
-// ======================
 function updateStateUI(state) {
   if (!state) return;
 
-  const sliders = ["aura", "energy", "hunger", "mood", "hygiene"];
-
-  sliders.forEach(id => {
+  ["aura", "energy", "hunger", "mood", "hygiene"].forEach((id) => {
     const slider = document.getElementById(id);
-    const val = document.getElementById(id + "Val");
+    const label = document.getElementById(`${id}Val`);
+    if (!slider || !label) return;
 
-    if (state.needs?.[id] !== undefined && slider) {
-      slider.value = state.needs[id];
-      val.innerText = Math.round(state.needs[id]);
+    const value = state?.needs?.[id];
+    if (value !== undefined) {
+      slider.value = value;
+      label.innerText = Math.round(value);
     }
   });
 
-  if (state.routine) {
-    currentAction.innerText = state.routine.currentAction || "-";
-  }
-
-  if (state.world) {
-    currentLocation.innerText = state.world.location || "-";
-  }
-
-  if (state.emotion) {
-    currentEmotion.innerText = state.emotion.type || "-";
-  }
-
-  if (state.tokens !== undefined) {
-    userTokens.innerText = `Tokens: ${state.tokens}`;
-  }
+  document.getElementById("currentAction").innerText = state?.routine?.currentAction || "-";
+  document.getElementById("currentLocation").innerText = state?.world?.location || "-";
+  document.getElementById("currentEmotion").innerText = state?.emotion?.type || "-";
+  document.getElementById("userTokens").innerText = `Tokens: ${state?.tokens ?? 0}`;
 }
 
-// ======================
-// SKILLS
-// ======================
-async function loadSkills() {
-  try {
-    const res = await fetch(`${API}/skills`);
-    const skills = await res.json();
-
-    skillsGrid.innerHTML = skills.map(skill => `
-      <div class="card">
-        <div style="display:flex; justify-content:space-between;">
-          <strong>${skill.name}</strong>
-          <input type="checkbox" ${skill.active ? "checked" : ""}
-            onchange="toggleSkill('${skill.name}', this.checked)">
-        </div>
-        <small>${skill.description || "Sem descrição"}</small>
+function renderSkills(skills) {
+  const target = document.getElementById("skillsGrid");
+  target.innerHTML = skills.map((skill) => `
+    <div class="card">
+      <div class="object-item-header">
+        <strong>${skill.name}</strong>
+        <input data-skill-toggle="${skill.name}" type="checkbox" ${skill.active ? "checked" : ""}>
       </div>
-    `).join("");
-  } catch {
-    console.warn("skills indisponível");
-  }
-}
+      <p class="field-help">${skill.description || "Sem descrição"}</p>
+    </div>
+  `).join("");
 
-async function toggleSkill(name, active) {
-  await fetch(`${API}/skills/${name}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ active })
+  target.querySelectorAll("[data-skill-toggle]").forEach((input) => {
+    input.addEventListener("change", async () => {
+      try {
+        await toggleSkill(input.dataset.skillToggle, input.checked);
+        setStatus(`Skill ${input.dataset.skillToggle} ${input.checked ? "ativada" : "desativada"}`);
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || "Falha ao alterar skill", true);
+        input.checked = !input.checked;
+      }
+    });
   });
-
-  setStatus(`Skill ${name} ${active ? "ativada" : "desativada"}`);
 }
 
-// ======================
-// INVENTORY
-// ======================
 function renderInventory(state) {
-  if (!state) return;
-
-  if (!state.inventory || typeof state.inventory !== "object") {
-    kitInventory.innerHTML = "<p>Nenhum item ativo</p>";
+  const target = document.getElementById("kitInventory");
+  if (!state?.inventory || typeof state.inventory !== "object") {
+    target.innerHTML = "<p class='field-help'>Nenhum item ativo.</p>";
     return;
   }
 
-  kitInventory.innerHTML = Object.entries(state.inventory).map(([slot, itemId]) => `
+  target.innerHTML = Object.entries(state.inventory).map(([slot, itemId]) => `
     <div class="card">
       <strong>${slot.toUpperCase()}</strong>
-      <small>${itemId}</small>
+      <small class="field-help">${itemId}</small>
     </div>
   `).join("");
 }
 
-// ======================
-// SHOP
-// ======================
-async function loadShop() {
-  try {
-    const res = await fetch(`${API}/shop`);
-    const items = await res.json();
+function renderShop(items) {
+  const target = document.getElementById("shopList");
+  target.innerHTML = items.map((item) => `
+    <div class="card">
+      <strong>${item.nome}</strong>
+      <p class="field-help">${item.descricao}</p>
+      <div class="pill">💰 ${item.valor}</div>
+      <button class="btn-primary" data-buy-item="${item.id}">Presentear</button>
+    </div>
+  `).join("");
 
-    shopList.innerHTML = items.map(item => `
-      <div class="card">
-        <strong>${item.nome}</strong>
-        <small>${item.descricao}</small>
-        <div>💰 ${item.valor}</div>
-        <button onclick="buyItem('${item.id}')">🎁 Presentear</button>
-      </div>
-    `).join("");
-  } catch {
-    console.warn("shop indisponível");
-  }
-}
-
-// ======================
-// ACTIONS
-// ======================
-async function buyItem(id) {
-  console.log("BUY:", id); // debug opcional
-
-  await fetch(`${API}/shop/gift`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id })
-  });
-
-  await loadAll();
-}
-
-// ======================
-// SAVE CONFIG
-// ======================
-saveBtn.addEventListener("click", async () => {
-  try {
-    const payload = {
-      system: { aiModel: aiModel.value },
-      voice: {
-        xttsEnabled: useXTTS.checked,
-        microphoneEnabled: microphone.checked
-      },
-      skills: {
-        randomTalk: randomTalk.checked
-      },
-      identity: {
-        name: kitName.value,
-        description: kitDescription.value,
-        personality: kitPersonality.value
+  target.querySelectorAll("[data-buy-item]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      try {
+        await buyShopItem(button.dataset.buyItem);
+        await refreshStatusOnly();
+        setStatus("Compra realizada com sucesso");
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || "Falha ao comprar item", true);
       }
-    };
-
-    await fetch(`${API}/config`, {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify(payload)
     });
-
-    setStatus("Salvo com sucesso");
-  } catch (err) {
-    console.error(err);
-    setStatus("Erro ao salvar");
-  }
-});
-
-// ======================
-function setStatus(text) {
-  statusText.innerText = text;
+  });
 }
 
-// ======================
-// POLLING
-// ======================
-setInterval(async () => {
+async function refreshStatusOnly() {
   try {
-    const res = await fetch(`${API}/status`);
-    const data = await res.json();
-    const state = data.state;
-
-    updateStateUI(state);
-    renderInventory(state);
+    const statusPayload = await fetchStatus();
+    setStatusSnapshot(statusPayload);
+    updateStateUI(statusPayload.state);
+    renderInventory(statusPayload.state);
   } catch {}
-}, 3000);
+}
+
+function setupSSE() {
+  if (!window.EventSource) return;
+
+  const sse = new EventSource(`${API}/events`);
+  sse.onmessage = async (event) => {
+    try {
+      const payload = JSON.parse(event.data);
+      if (payload.type === "state:update") {
+        updateStateUI(payload.payload);
+      }
+    } catch (err) {
+      console.error("Erro SSE:", err);
+    }
+  };
+}
+
+function startPolling() {
+  setInterval(() => {
+    refreshStatusOnly();
+  }, 3000);
+}
+
+function setStatus(text, isError = false) {
+  statusText.innerText = text;
+  statusText.classList.toggle("message-error", isError);
+  statusText.classList.toggle("message-success", !isError);
+}

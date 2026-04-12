@@ -6,6 +6,7 @@
 
 import fs from "fs"
 import path from "path"
+import { loadPersonalityConfig } from "./personalityConfig.js"
 
 export function createContext() {
   const context = {}
@@ -46,6 +47,6 @@ function loadConfigs() {
   return {
     skills: readJSON("skills.json"),
     system: readJSON("system.json"),
-    personality: readJSON("personality.json")
+    personality: loadPersonalityConfig()
   }
 }

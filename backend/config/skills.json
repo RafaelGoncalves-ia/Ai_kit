@@ -1,7 +1,6 @@
 {
-  "commentActivity": false,
   "memory": true,
-  "randomTalk": true,
+  "randomTalk": false,
   "audio": true,
   "tasks": true,
   "personality": true,

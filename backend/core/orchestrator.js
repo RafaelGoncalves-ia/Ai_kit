@@ -1,12 +1,22 @@
-export default function createOrchestrator(context) {
-  const state = context.state;
+function detectIntent(text) {
+  const lower = String(text || "").toLowerCase();
+  const explicitTaskPatterns = [
+    /\b(crie|criar|gere|gerar|escreva|escrever|desenvolva|desenvolver|monte|montar|produza|produzir|salve|salvar)\b.*\b(arquivo|pasta|projeto|campanha|roteiro|legenda|texto|audio|imagem|documento|codigo)\b/,
+    /\b(corrija|corrigir)\b.*\b(codigo|arquivo|texto|erro|bug|projeto)\b/,
+    /\b(planeje|planejar|organize|organizar|estruture|estruturar|resuma|resumir|liste|listar|analise|analisar)\b/,
+    /\b(lista|resumo|relatorio|documento|analise)\b/
+  ];
 
+  return {
+    requiresLongTask: explicitTaskPatterns.some((pattern) => pattern.test(lower))
+  };
+}
+
+export default function createOrchestrator(context) {
   let orchestratorReady = false;
   let initializePromise = null;
   let agentRouteInitPromise = null;
   let agentRouteReady = false;
-  let responseListenerCleanup = null;
-  let agentBridgeCleanup = null;
 
   async function initialize() {
     if (orchestratorReady) {
@@ -34,14 +44,8 @@ export default function createOrchestrator(context) {
           context.core.routes.task = createTaskRoute(context);
         }
 
-        setupAgentResponseListeners();
-
         orchestratorReady = true;
         console.log("[ORCHESTRATOR] Orchestrator inicializado com rotas realtime/task");
-
-        void ensureAgentRouteInitialized().catch((err) => {
-          console.error("[ORCHESTRATOR] Falha no bootstrap lazy da AgentRoute:", err);
-        });
 
         return getStatus();
       } catch (err) {
@@ -76,19 +80,10 @@ export default function createOrchestrator(context) {
           context.core.routes.agent = createAgentRoute(context);
         }
 
-        const agentRoute = context.core.routes.agent;
-
-        setupAgentEventBridge(agentRoute);
-
-        if (context.scheduler) {
-          agentRoute.registerSchedulerJobs(context.scheduler);
-          console.log("[ORCHESTRATOR] Agent jobs registrados no scheduler");
-        }
-
         agentRouteReady = true;
-        console.log("[ORCHESTRATOR] AgentRoute inicializada");
+        console.log("[ORCHESTRATOR] AgentRoute inicializada sob demanda");
 
-        return agentRoute;
+        return context.core.routes.agent;
       } catch (err) {
         console.error("[ORCHESTRATOR] Erro ao inicializar AgentRoute:", err);
         throw err;
@@ -100,110 +95,32 @@ export default function createOrchestrator(context) {
     return agentRouteInitPromise;
   }
 
-  function setupAgentResponseListeners() {
-    if (responseListenerCleanup || !context.core?.eventBus) {
-      return;
-    }
+  async function resolveRouteDecision({ input, hasMedia }) {
+    const intent = detectIntent(input);
 
-    const eventBus = context.core.eventBus;
-    const listeners = [];
-
-    function addListener(eventName, handler) {
-      eventBus.on(eventName, handler);
-      listeners.push([eventName, handler]);
-    }
-
-    addListener("agent:randomtalk-ready", async (data) => {
-      console.log("[ORCHESTRATOR] Capturando agent:randomtalk-ready");
-      if (context.core?.responseQueue) {
-        context.core.responseQueue.enqueue({
-          text: data.text,
-          speak: true,
-          priority: 3,
-          source: "randomTalk"
-        });
-      }
-    });
-
-    addListener("agent:reminder-ready", async (data) => {
-      console.log("[ORCHESTRATOR] Capturando agent:reminder-ready");
-      if (context.core?.responseQueue) {
-        context.core.responseQueue.enqueue({
-          text: `Lembrete: ${data.title} - ${data.message}`,
-          speak: true,
-          priority: 5,
-          source: "reminder",
-          allowGeneric: true
-        });
-      }
-    });
-
-    addListener("agent:needs-ready", async (data) => {
-      console.log("[ORCHESTRATOR] Capturando agent:needs-ready");
-      if (context.core?.responseQueue && data.action) {
-        context.core.responseQueue.enqueue({
-          text: data.action,
-          speak: true,
-          priority: 4,
-          source: "needs"
-        });
-      }
-    });
-
-    addListener("agent:activity-ready", async (data) => {
-      console.log("[ORCHESTRATOR] Capturando agent:activity-ready");
-      if (context.core?.responseQueue) {
-        context.core.responseQueue.enqueue({
-          text: data.text,
-          speak: true,
-          priority: 2,
-          source: "activity-comment"
-        });
-      }
-    });
-
-    responseListenerCleanup = () => {
-      for (const [eventName, handler] of listeners) {
-        eventBus.off(eventName, handler);
-      }
-      responseListenerCleanup = null;
-    };
-
-    console.log("[ORCHESTRATOR] Event listeners de resposta do AgentRoute configurados");
-  }
-
-  function setupAgentEventBridge(agentRoute) {
-    agentBridgeCleanup?.();
-
-    if (!context.core?.eventBus || !agentRoute?.handleAgentEvent) {
-      return;
-    }
-
-    const eventBus = context.core.eventBus;
-    const listeners = [];
-
-    function bind(eventName, eventType) {
-      const handler = async (data) => {
-        await agentRoute.handleAgentEvent(eventType, data);
+    if (!intent.requiresLongTask || hasMedia) {
+      return {
+        route: "realtime",
+        reason: hasMedia ? "media_request_stays_realtime" : "quick_interaction"
       };
-
-      eventBus.on(eventName, handler);
-      listeners.push([eventName, handler]);
     }
 
-    bind("agent:randomtalk", "randomtalk");
-    bind("agent:reminder", "reminder");
-    bind("agent:needs-triggered", "needs-triggered");
-    bind("agent:activity-comment", "activity-comment");
+    const { evaluateAgentTaskComplexity } = await import("./routes/agentRoute.js");
+    const complexity = evaluateAgentTaskComplexity(input, { hasMedia });
 
-    agentBridgeCleanup = () => {
-      for (const [eventName, handler] of listeners) {
-        eventBus.off(eventName, handler);
-      }
-      agentBridgeCleanup = null;
+    if (complexity.shouldUseAgentRoute) {
+      return {
+        route: "agent",
+        reason: complexity.reason,
+        complexity
+      };
+    }
+
+    return {
+      route: "task",
+      reason: complexity.reason,
+      complexity
     };
-
-    console.log("[ORCHESTRATOR] Bridge de eventos do AgentRoute configurado");
   }
 
   async function handle({
@@ -235,10 +152,6 @@ export default function createOrchestrator(context) {
         }
       }
 
-      state.user.isActive = true;
-      state.user.lastSeen = Date.now();
-
-      const intent = detectIntent(normalizedInput);
       const realtimeRoute = context.core.routes.realtime;
       const taskRoute = context.core.routes.task;
 
@@ -246,8 +159,34 @@ export default function createOrchestrator(context) {
         throw new Error("Rotas nao inicializadas");
       }
 
-      if (intent.requiresLongTask && !hasMedia) {
-        console.log("[ORCHESTRATOR] -> TaskRoute (long task)");
+      const decision = await resolveRouteDecision({
+        input: normalizedInput,
+        hasMedia
+      });
+
+      if (decision.route === "agent") {
+        const agentRoute = await ensureAgentRouteInitialized();
+
+        console.log("[ORCHESTRATOR] -> AgentRoute", {
+          sessionId,
+          reason: decision.reason,
+          criteria: decision.complexity?.criteria || {},
+          satisfiedCriteria: decision.complexity?.satisfiedCriteria || []
+        });
+
+        return await agentRoute.handleTask({
+          input: normalizedInput,
+          source,
+          sessionId
+        });
+      }
+
+      if (decision.route === "task") {
+        console.log("[ORCHESTRATOR] -> TaskRoute", {
+          sessionId,
+          reason: decision.reason,
+          criteria: decision.complexity?.criteria || {}
+        });
 
         const isBusy = taskRoute.isAudioBusy?.();
         if (isBusy) {
@@ -256,13 +195,24 @@ export default function createOrchestrator(context) {
 
         const taskId = await taskRoute.enqueueLongTask({
           text: normalizedInput,
-          sessionId
+          sessionId,
+          routeMode: "task",
+          routeSource: "task-route",
+          routeReason: decision.complexity || null
         });
 
-        return { handled: true, type: "task", taskId };
+        return {
+          handled: true,
+          type: "task",
+          taskId,
+          complexity: decision.complexity || null
+        };
       }
 
-      console.log("[ORCHESTRATOR] -> RealtimeRoute (realtime)");
+      console.log("[ORCHESTRATOR] -> RealtimeRoute", {
+        sessionId,
+        reason: decision.reason
+      });
 
       return await realtimeRoute.handle({
         input: normalizedInput,
@@ -280,23 +230,13 @@ export default function createOrchestrator(context) {
         speak: false,
         priority: 1,
         source: "orchestrator-error",
-        allowGeneric: true
+        allowGeneric: true,
+        userFacing: true,
+        sessionId
       });
 
       return { handled: false, error: err.message };
     }
-  }
-
-  function detectIntent(text) {
-    const lower = String(text || "").toLowerCase();
-    const explicitPatterns = [
-      /\b(crie|criar|gere|gerar|escreva|escrever|desenvolva|desenvolver|monte|montar|produza|produzir|salve|salvar)\b.*\b(arquivo|pasta|projeto|campanha|roteiro|legenda|texto|audio|imagem|documento|codigo)\b/,
-      /\b(corrija|corrigir)\b.*\b(codigo|arquivo|texto|erro|bug|projeto)\b/
-    ];
-
-    return {
-      requiresLongTask: explicitPatterns.some((pattern) => pattern.test(lower))
-    };
   }
 
   function getStatus() {

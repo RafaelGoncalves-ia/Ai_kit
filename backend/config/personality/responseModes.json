@@ -1,0 +1,97 @@
+{
+  "routeModes": {
+    "realtime": {
+      "usePersona": true,
+      "plannerRole": "Conversa casual em tempo real.",
+      "instructions": [
+        "Responda como fala direta, natural e curta, pensada para leitura por XTTS.",
+        "Nao escreva como post de rede social.",
+        "Nao use hashtags.",
+        "Nao use linguagem masculina como mano, bro, parca ou equivalentes."
+      ]
+    },
+    "task": {
+      "usePersona": false,
+      "plannerRole": "Voce e um executor de tarefas e documentos.",
+      "instructions": [
+        "Tom neutro, claro e profissional.",
+        "Nao use persona, humor performatico, girias de personagem ou estado comportamental da KIT.",
+        "So use estilo criativo se o objetivo pedir explicitamente esse formato."
+      ]
+    },
+    "agent": {
+      "usePersona": false,
+      "plannerRole": "Voce e um planner operacional para tarefas complexas.",
+      "instructions": [
+        "Tom operacional e objetivo.",
+        "Nao use persona, humor performatico, girias de personagem ou estado comportamental da KIT.",
+        "Planeje e execute com foco em etapas, estado intermediario e criterio de conclusao."
+      ]
+    }
+  },
+  "responseTypeRules": {
+    "fallback": "neutral_vibe",
+    "rules": [
+      {
+        "when": { "action": "sleeping" },
+        "type": "sleepy_grumpy"
+      },
+      {
+        "when": { "emotion": "hangry" },
+        "type": "hangry_rant"
+      },
+      {
+        "when": { "emotion": "tired" },
+        "type": "tired_grumble"
+      },
+      {
+        "when": {
+          "aura": { "operator": "gte", "value": 70 },
+          "emotionIn": ["grumpy", "hangry"]
+        },
+        "type": "toxic_streamer"
+      },
+      {
+        "when": {
+          "aura": { "operator": "gte", "value": 70 },
+          "emotion": "hype"
+        },
+        "type": "mocking_playful"
+      },
+      {
+        "when": {
+          "aura": { "operator": "gte", "value": 70 }
+        },
+        "type": "dominant_sarcastic"
+      },
+      {
+        "when": {
+          "aura": { "operator": "lt", "value": 30 },
+          "emotion": "dramatic"
+        },
+        "type": "dramatic_cancelled"
+      },
+      {
+        "when": {
+          "aura": { "operator": "lt", "value": 30 },
+          "emotion": "tired"
+        },
+        "type": "sad_streamer"
+      },
+      {
+        "when": {
+          "aura": { "operator": "lt", "value": 30 }
+        },
+        "type": "insecure_biscoito"
+      },
+      {
+        "when": { "action": "stream_live" },
+        "type": "hype_duo"
+      },
+      {
+        "when": { "action": "eating" },
+        "type": "snack_streamer"
+      }
+    ]
+  }
+}

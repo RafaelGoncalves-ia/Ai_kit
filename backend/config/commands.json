@@ -5,10 +5,6 @@
       "commands": ["gere um audio", "gerar audio", "audio"]
     },
     {
-      "skill": "commentActivity",
-      "commands": ["falar", "perguntar"]
-    },
-    {
       "skill": "randomTalk",
       "commands": ["falar", "perguntar"]
     }

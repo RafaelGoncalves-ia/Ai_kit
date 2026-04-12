@@ -77,7 +77,6 @@ function getSkillDescription(skillName) {
   const descriptions = {
     randomTalk: "Permite que a KIT inicie conversas sozinha",
     audio: "Gera audio usando tool generate_audio",
-    commentActivity: "Comenta atividade do usuario em segundo plano",
     memory: "Memoria semantica da conversa",
     tasks: "Gerencia lembretes, tarefas e recorrencia do sistema",
     needs: "Camada de decisao de necessidades",

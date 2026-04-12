@@ -1,10 +1,10 @@
 {
   "needs": {
-    "energy": 58.70000000000043,
-    "hunger": 68.15999999996916,
+    "energy": 98.05000000000278,
+    "hunger": 47.81999999996441,
     "mood": 100,
-    "aura": 100,
-    "hygiene": 90.80999999996304
+    "aura": 91.11039999999957,
+    "hygiene": 88.32999999999403
   },
   "emotion": {
     "type": "neutral",
@@ -12,19 +12,19 @@
     "lastUpdate": 1775527758203
   },
   "routine": {
-    "currentAction": "stream_live",
-    "startedAt": 1775955702806,
-    "duration": 60000,
+    "currentAction": "sleep",
+    "startedAt": 1775966887543,
+    "duration": 480000,
     "forced": null,
     "lockedUntil": 0
   },
   "world": {
-    "location": "pc",
+    "location": "bed",
     "isMoving": false
   },
   "user": {
     "isActive": true,
-    "lastSeen": 1775954333278
+    "lastSeen": 1775958553359
   },
   "inventory": {
     "decor": "small_cactus",
@@ -32,6 +32,6 @@
   },
   "tokens": 0,
   "system": {
-    "lastTick": 1775955731074
+    "lastTick": 1775967274842
   }
 }

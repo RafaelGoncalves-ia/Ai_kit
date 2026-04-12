@@ -16,7 +16,8 @@ export default function createResponseQueue(context) {
     priority = 0,
     source = "unknown",
     allowGeneric = false,
-    sessionId = null
+    sessionId = null,
+    userFacing = false
   }) {
     const suppression = shouldSuppressAssistantMessage(context, text, {
       source,
@@ -30,19 +31,25 @@ export default function createResponseQueue(context) {
       return false;
     }
 
-    registerAssistantMessage(context, text, { source });
-
     const messageId = `${Date.now()}-${Math.random()}`;
     const resolvedSessionId = sessionId || getLastSessionId(context);
+    const shouldDeliverToChat = userFacing === true;
+    const shouldSpeak = shouldDeliverToChat && speak === true;
 
-    addMessage({
-      id: messageId,
-      role: "assistant",
-      text,
-      groupId: resolvedSessionId
-    });
+    if (shouldDeliverToChat) {
+      registerAssistantMessage(context, text, { source });
 
-    if (shouldProcessAssistantMemory(source)) {
+      addMessage({
+        id: messageId,
+        role: "assistant",
+        text,
+        groupId: resolvedSessionId
+      });
+    } else {
+      console.log(`[RESPONSE-QUEUE] Mensagem mantida fora do chat source=${source}`);
+    }
+
+    if (shouldDeliverToChat && shouldProcessAssistantMemory(source)) {
       void context.invokeTool?.("memory_access", {
         action: "process_ai_response",
         text,
@@ -53,7 +60,7 @@ export default function createResponseQueue(context) {
       });
     }
 
-    if (context.core?.eventBus) {
+    if (shouldDeliverToChat && context.core?.eventBus) {
       context.core.eventBus.emit("task:completed", {
         payload: {
           id: messageId,
@@ -64,7 +71,11 @@ export default function createResponseQueue(context) {
       console.log("[RESPONSE-QUEUE] Texto exibido na UI");
     }
 
-    if (speak && text.length > 0) {
+    if (speak && !shouldSpeak) {
+      console.log(`[RESPONSE-QUEUE] TTS bloqueado source=${source} userFacing=${userFacing}`);
+    }
+
+    if (shouldSpeak && text.length > 0) {
       enqueueToTTSQueue(text, priority, source);
     }
 

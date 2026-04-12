@@ -1,5 +1,6 @@
 import fs from "fs";
 import { createProjectWorkspace } from "./security/workspaceGuard.js";
+import { getRouteBehavior } from "./personalityConfig.js";
 import { clearExecutionStatus, updateExecutionStatus } from "../utils/executionStatus.js";
 
 function safeJsonParse(text) {
@@ -59,8 +60,9 @@ function isExplicitExecutionGoal(goal) {
   const explicitPatterns = [
     /\b(crie|criar|gere|gerar|escreva|escrever|desenvolva|desenvolver|monte|montar|produza|produzir|salve|salvar)\b.*\b(arquivo|pasta|projeto|campanha|legenda|roteiro|texto|audio|imagem|documento|codigo|post|conteudo)\b/,
     /\b(corrija|corrigir)\b.*\b(codigo|arquivo|texto|erro|bug|projeto)\b/,
-    /\b(pesquise|pesquisar|busque|buscar|analise|analisar)\b.*\b(imagem|imagens|tela|foto|assunto|tema)\b/,
-    /\b(gera|gere|cria|crie)\b.*\b(audio|legenda|campanha|arquivo|pasta|imagem)\b/
+    /\b(pesquise|pesquisar|busque|buscar|analise|analisar)\b.*\b(imagem|imagens|tela|foto|assunto|tema|conteudo|documento|relatorio)\b/,
+    /\b(gera|gere|cria|crie)\b.*\b(audio|legenda|campanha|arquivo|pasta|imagem)\b/,
+    /\b(faca|faça|monte|organize|liste|listar|resuma|resumir)\b.*\b(lista|resumo|relatorio|documento|plano)\b/
   ];
 
   return explicitPatterns.some((pattern) => pattern.test(lower));
@@ -87,6 +89,17 @@ function filterExecutablePlan(steps, availableTools) {
     const toolName = step.toolName || step.type;
     return typeof availableTools[toolName] === "function";
   });
+}
+
+function getExecutionProfile(mode = "task") {
+  const routeBehavior = getRouteBehavior(mode);
+  return {
+    mode,
+    plannerRole: routeBehavior.plannerRole || "Execucao sem persona.",
+    responseStyle: Array.isArray(routeBehavior.instructions)
+      ? routeBehavior.instructions.join(" ")
+      : "Nao use persona."
+  };
 }
 
 function buildExecutionSummary(execution) {
@@ -153,7 +166,8 @@ export default function createAgentEngine(context) {
       speak: false,
       priority: 2,
       source,
-      allowGeneric: true
+      allowGeneric: true,
+      userFacing: true
     });
   }
 
@@ -170,10 +184,11 @@ export default function createAgentEngine(context) {
     return result?.data?.text || "";
   }
 
-  function buildFallbackPlan(goal) {
+  function buildFallbackPlan(goal, mode = "task") {
     const lower = String(goal || "").toLowerCase();
     const steps = [];
-    const needsText = /\b(legenda|texto|roteiro|descricao|copy|post|campanha)\b/.test(lower);
+    const profile = getExecutionProfile(mode);
+    const needsText = /\b(legenda|texto|roteiro|descricao|copy|post|campanha|lista|resumo|relatorio|documento|analise)\b/.test(lower);
     const needsAudio = /\b(audio|voz|locucao)\b/.test(lower);
     const needsImage = /\b(imagem|imagens|foto|fotos|tela|screen)\b/.test(lower);
     const needsFolder = /\b(pasta|projeto|diretorio)\b/.test(lower);
@@ -194,7 +209,7 @@ export default function createAgentEngine(context) {
         label: needsText ? "Gerando texto" : "Gerando conteudo base",
         toolName: "generate_text",
         input: {
-          prompt: `Atenda ao objetivo abaixo sem inventar contexto ausente. Se faltar informacao essencial, responda de forma curta indicando o que falta.\n\nObjetivo:\n${goal}`
+          prompt: `${profile.responseStyle}\n\nAtenda ao objetivo abaixo sem inventar contexto ausente. Se faltar informacao essencial, responda de forma curta indicando o que falta.\n\nObjetivo:\n${goal}`
         }
       });
     }
@@ -238,6 +253,7 @@ export default function createAgentEngine(context) {
   }
 
   async function createPlan({ goal, session, execution }) {
+    const profile = getExecutionProfile(execution.mode);
     execution.currentLabel = "Planejando";
     execution.progressText = "Montando plano executavel";
     publishExecutionStatus(execution, {
@@ -248,10 +264,16 @@ export default function createAgentEngine(context) {
 
     const availableTools = Object.keys(context.tools || {});
     const prompt = `
-Voce e um planner de agentes.
+${profile.plannerRole}
 
 Objetivo:
 ${goal}
+
+Modo de execucao:
+${profile.mode}
+
+Estilo obrigatorio:
+${profile.responseStyle}
 
 Ferramentas disponiveis:
 ${availableTools.join(", ")}
@@ -295,7 +317,7 @@ Regras:
     }
 
     session.memory.lastPlanSource = "fallback";
-    return filterExecutablePlan(buildFallbackPlan(goal), context.tools || {});
+    return filterExecutablePlan(buildFallbackPlan(goal, execution.mode), context.tools || {});
   }
 
   function resolveInput(input = {}, session) {

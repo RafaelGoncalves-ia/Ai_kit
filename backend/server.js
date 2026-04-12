@@ -30,6 +30,7 @@ import kitState, { persistStateNow } from "./core/stateManager.js";
 import createAIService from "./services/ai.js";
 import createTTSService from "./services/tts.js";
 import { loadConfig } from "./core/configLoader.js";
+import { loadPersonalityConfig } from "./core/personalityConfig.js";
 import { eventBus } from "./core/eventBus.js";
 import { ensureWorkspace } from "./core/security/workspaceGuard.js";
 import { getCurrentExecutionStatus, listExecutionStatuses } from "./utils/executionStatus.js";
@@ -45,6 +46,9 @@ import sttRoute from "./routes/stt.js";
 import { initSkills } from "./skills/needs/startup.js";
 
 dotenv.config();
+
+const persistedConfig = loadConfig("config.json");
+const persistedSkills = loadConfig("skills.json");
 
 if (typeof process.stdout?.setDefaultEncoding === "function") {
   process.stdout.setDefaultEncoding("utf8");
@@ -74,15 +78,20 @@ const context = {
   config: {
     system: {
       ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434",
-      defaultModel: process.env.DEFAULT_MODEL || "huihui_ai/qwen3-vl-abliterated:4b",
+      defaultModel:
+        process.env.DEFAULT_MODEL ||
+        persistedConfig?.system?.aiModel ||
+        "huihui_ai/qwen3-vl-abliterated:4b",
       maxConcurrentTasks: 1,
       maxConcurrentLlmCalls: Number(process.env.OLLAMA_MAX_CONCURRENT || 1),
       ollamaTimeoutMs: Number(process.env.OLLAMA_TIMEOUT_MS || 45000),
       safeDiagnosticMode: process.env.SAFE_DIAGNOSTIC_MODE === "true",
-      activeConversationWindowMs: Number(process.env.ACTIVE_CONVERSATION_WINDOW_MS || 120000)
+      activeConversationWindowMs: Number(process.env.ACTIVE_CONVERSATION_WINDOW_MS || 120000),
+      muted: persistedConfig?.system?.muted === true,
+      enableAutonomousTask: persistedConfig?.system?.enableAutonomousTask === true
     },
-    skills: {},
-    personality: loadConfig("personality.json")
+    skills: persistedSkills && typeof persistedSkills === "object" ? persistedSkills : {},
+    personality: loadPersonalityConfig()
   },
   state: kitState,
   runtime: {},

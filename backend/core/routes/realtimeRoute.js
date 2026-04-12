@@ -2,6 +2,7 @@ import {
   hasUsableAssistantText,
   shouldSuppressAssistantMessage
 } from "../../utils/assistantMessageGuard.js";
+import { getRouteBehavior } from "../personalityConfig.js";
 import { ensureOrchestratorRuntime } from "../../utils/runtimeState.js";
 
 export default function createRealtimeRoute(context) {
@@ -263,7 +264,8 @@ export default function createRealtimeRoute(context) {
         priority: 1,
         source: "realtime-empty-input",
         allowGeneric: true,
-        sessionId
+        sessionId,
+        userFacing: true
       });
       return { handled: false };
     }
@@ -309,7 +311,8 @@ export default function createRealtimeRoute(context) {
           priority: 1,
           source: "realtime-system",
           allowGeneric: true,
-          sessionId
+          sessionId,
+          userFacing: true
         });
 
         return { handled: true, type: "system" };
@@ -326,7 +329,8 @@ export default function createRealtimeRoute(context) {
             priority: 1,
             source: "realtime-search",
             allowGeneric: true,
-            sessionId
+            sessionId,
+            userFacing: true
           });
 
           const searchToolResult = await context.invokeTool("web_search", { query: text });
@@ -375,7 +379,8 @@ export default function createRealtimeRoute(context) {
         speak: true,
         priority: 1,
         source: "realtime",
-        sessionId
+        sessionId,
+        userFacing: true
       });
 
       if (!queued) {
@@ -406,7 +411,8 @@ export default function createRealtimeRoute(context) {
           priority: 1,
           source: "realtime",
           allowGeneric: true,
-          sessionId
+          sessionId,
+          userFacing: true
         });
 
         return {
@@ -426,7 +432,8 @@ export default function createRealtimeRoute(context) {
           priority: 1,
           source: "realtime",
           allowGeneric: true,
-          sessionId
+          sessionId,
+          userFacing: true
         });
 
         return {
@@ -443,7 +450,8 @@ export default function createRealtimeRoute(context) {
         priority: 1,
         source: "realtime-error",
         allowGeneric: true,
-        sessionId
+        sessionId,
+        userFacing: true
       });
 
       return { handled: false, error: err.message };
@@ -488,7 +496,8 @@ export default function createRealtimeRoute(context) {
       priority: 1,
       source: "realtime-audio",
       allowGeneric: true,
-      sessionId
+      sessionId,
+      userFacing: true
     });
 
     return { handled: true, type: "audio", queued, taskId };
@@ -512,7 +521,8 @@ export default function createRealtimeRoute(context) {
       text,
       memoryContext,
       searchResult,
-      mediaContext
+      mediaContext,
+      usePersona: true
     });
 
     const ai = await context.invokeTool("ai_chat", {
@@ -541,22 +551,18 @@ export default function createRealtimeRoute(context) {
     return responseText;
   }
 
-  async function buildPrompt({ text, memoryContext, searchResult, mediaContext }) {
+  async function buildPrompt({ text, memoryContext, searchResult, mediaContext, usePersona = true }) {
     const { getPersonalityByAura } = await import("../skills/needs/personality.map.js");
+    const personalityConfig = context.config?.personality || {};
+    const base = personalityConfig.base || {};
+    const routeBehavior = getRouteBehavior("realtime");
+    const identity = base.identity || {};
+    const promptSections = base.promptSections || {};
 
-    const emotion = state.emotion?.type || "neutral";
-    const action = state.routine?.currentAction || "idle";
-    const aura = state.needs?.aura ?? 50;
+    const emotion = usePersona ? state.emotion?.type || "neutral" : "neutral";
+    const action = usePersona ? state.routine?.currentAction || "idle" : "idle";
+    const aura = usePersona ? state.needs?.aura ?? 50 : 50;
     const auraProfile = getPersonalityByAura(aura);
-
-    const base = context.config?.personality || {
-      name: "KIT",
-      identity: {
-        archetype: "streamer Gen Z",
-        style: "internet/gamer",
-        tone: "sarcastica, caotica, divertida"
-      }
-    };
 
     const hasVisualContext = Boolean(mediaContext);
     const effectiveUserText = truncateSection(
@@ -566,42 +572,53 @@ export default function createRealtimeRoute(context) {
     const trimmedMemoryContext = truncateSection(memoryContext, hasVisualContext ? 1800 : 2800);
     const trimmedSearchResult = truncateSection(searchResult, 1800);
     const trimmedMediaSummary = truncateSection(mediaContext?.summary || "", 1200);
+    const realtimeInstructions = (routeBehavior.instructions || [])
+      .map((instruction) => `- ${instruction}`)
+      .join("\n");
 
-    const identityLayer = `
-Voce e ${base.name}.
+    const identityLayer = usePersona ? `
+Voce e ${base.name || "KIT"}.
 
-Identidade:
-- Arquetipo: ${base.identity?.archetype}
-- Estilo: ${base.identity?.style}
-- Tom base: ${base.identity?.tone}
-`;
+${promptSections.identityTitle || "Identidade"}:
+- Arquetipo: ${identity.archetype || "assistente conversacional"}
+- Estilo: ${identity.style || "conversa direta"}
+- Tom base: ${identity.baseTone || "natural"}
+- Identidade de genero: ${identity.genderIdentity || "feminina"}
+- Pronomes: ${identity.pronouns || ""}
+- Vibe: ${identity.presentation || "direta e falada"}
+- Relacao com o usuario: ${identity.relationship || "parceira de conversa"}
 
-    const auraLayer = `
+Guardrails de conversa:
+${realtimeInstructions}
+` : "";
+
+    const auraLayer = usePersona ? `
+${promptSections.behaviorTitle || "Comportamento"}:
 Aura atual: ${aura}/100
 Perfil: ${auraProfile.label}
 
 Comportamento:
 ${auraProfile.prompt}
-`;
+` : "";
 
-    const emotionLayer = `
-Estado interno:
+    const emotionLayer = usePersona ? `
+${promptSections.internalStateTitle || "Estado interno"}:
 - Emocao: ${emotion}
 - Acao atual: ${action}
-`;
+` : "";
 
     const memoryLayer = trimmedMemoryContext ? `
-Memoria relevante:
+${promptSections.memoryTitle || "Memoria relevante"}:
 ${trimmedMemoryContext}
 ` : "";
 
     const searchLayer = trimmedSearchResult ? `
-Resultado da pesquisa web:
+${promptSections.searchTitle || "Resultado da pesquisa web"}:
 ${trimmedSearchResult}
 ` : "";
 
     const mediaLayer = mediaContext ? `
-Contexto visual analisado:
+${promptSections.visualContextTitle || "Contexto visual analisado"}:
 - Tipo: ${mediaContext.mediaType}
 - Caminho: ${mediaContext.imagePath || "sem-caminho"}
 - Analise objetiva: ${trimmedMediaSummary}
