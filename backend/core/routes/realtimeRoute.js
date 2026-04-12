@@ -1,224 +1,471 @@
-/**
- * REALTIME ROUTE (Rota Curta)
- * 
- * Responsabilidades:
- * - Respostas imediatas via SSE
- * - Processamento rápido (sem lógica complexa)
- * - Integração com TTS em fila (tempo real)
- * - Vision (screenshot)
- * - Comandos de sistema simples
- * - Geração de áudio
- * 
- * NÃO FARÁ:
- * - Tarefas multi-step
- * - Processamento em background
- * - Execução autônoma
- */
-
-import { captureScreen } from "../../services/vision.js";
-import { pesquisarMundoReal } from "../../services/searchService.js";
+import {
+  hasUsableAssistantText,
+  shouldSuppressAssistantMessage
+} from "../../utils/assistantMessageGuard.js";
+import { ensureOrchestratorRuntime } from "../../utils/runtimeState.js";
 
 export default function createRealtimeRoute(context) {
   const state = context.state;
+  const runtime = ensureOrchestratorRuntime(context);
+  const FRIENDLY_LLM_FALLBACK = "Demorei demais para processar isso 😵‍💫 tenta novamente ou simplifica o pedido.";
 
-  // ==========================================
-  // EMIT STATUS
-  // ==========================================
   function emitStatus(message) {
-    if (context.core?.eventBus) {
-      context.core.eventBus.emit("action:status", {
-        message,
-        timestamp: Date.now()
-      });
+    if (!context.core?.eventBus) {
+      return;
+    }
+
+    context.core.eventBus.emit("action:status", {
+      message,
+      timestamp: Date.now()
+    });
+
+    if (message) {
       console.log(`[REALTIME] ${message}`);
+    } else {
+      console.log("[REALTIME] status cleared");
     }
   }
 
-  // ==========================================
-  // HANDLE REQUEST
-  // ==========================================
-  /**
-   * Processa requisição de usuário na rota curta
-   * Retorna resposta imediata com opcional TTS
-   */
-  async function handle({ input, images = [] }) {
-    const text = normalize(input);
+  function ensureSession(sessionId = "default") {
+    context.sessions = context.sessions || {};
+    context.sessions[sessionId] = context.sessions[sessionId] || {
+      id: sessionId,
+      memory: {},
+      questions: {},
+      executions: []
+    };
 
-    if (!text) {
+    context.sessions[sessionId].memory = context.sessions[sessionId].memory || {};
+    return context.sessions[sessionId];
+  }
+
+  function normalize(text) {
+    return text?.trim() || "";
+  }
+
+  function truncateSection(value, maxChars, suffix = "\n[trecho truncado]") {
+    const text = String(value || "").trim();
+    if (!text || text.length <= maxChars) {
+      return text;
+    }
+
+    return `${text.slice(0, Math.max(0, maxChars - suffix.length)).trim()}${suffix}`;
+  }
+
+  function isLLMTimeoutError(err) {
+    if (!err) return false;
+    return err.code === "LLM_TIMEOUT" || err.code === "LLM_ERROR_TIMEOUT";
+  }
+
+  function isLLMFailureError(err) {
+    if (!err) return false;
+    return err.code === "LLM_TIMEOUT" || err.code === "LLM_ERROR" || err.code === "LLM_ERROR_TIMEOUT";
+  }
+
+  function isVisionFailureError(err) {
+    if (!err) return false;
+    return err.code === "VISION_TIMEOUT" || err.code === "VISION_UNAVAILABLE";
+  }
+
+  function buildFriendlyRealtimeReply(kind = "generic") {
+    if (kind === "vision") {
+      return "Demorei demais para analisar a imagem ou a tela. Tenta de novo ou manda algo mais direto.";
+    }
+
+    return FRIENDLY_LLM_FALLBACK;
+  }
+
+  function detectIntent(text) {
+    const lower = String(text || "").toLowerCase();
+    const includesTerm = (term) => {
+      if (term.includes(" ")) {
+        return lower.includes(term);
+      }
+
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`\\b${escaped}\\b`, "i").test(lower);
+    };
+
+    const searchTriggers = ["pesquise", "busque", "pesquisa", "noticias", "noticia", "procure", "busca"];
+    const visionTriggers = ["olha", "ve", "ver", "tela", "print", "olhar", "screenshot"];
+    const legacyScreenCommandPatterns = [
+      /\b(olha|olhar|ve|ver|mostra|mostrar|analisa|analisar|descreve|descrever)\b.*\b(tela|print|screenshot)\b/i,
+      /\b(tela|print|screenshot)\b.*\b(olha|olhar|ve|ver|mostra|mostrar|analisa|analisar|descreve|descrever)\b/i
+    ];
+    const imageContextTriggers = [
+      "imagem",
+      "foto",
+      "print",
+      "tela",
+      "screenshot",
+      "descreva a imagem",
+      "analise a imagem",
+      "descreva o print"
+    ];
+    const longTriggers = ["arquivo", "escreva", "corrija", "crie", "desenvolva"];
+
+    if (lower.includes("abre") || lower.includes("abrir")) {
+      if (lower.includes("chrome")) return { systemCommand: "open_chrome" };
+    }
+
+    if (lower.includes("clica") || lower.includes("clique")) {
+      return { systemCommand: "click" };
+    }
+
+    const legacyScreenCommand = legacyScreenCommandPatterns.some((pattern) => pattern.test(lower));
+
+    return {
+      requiresSearch: searchTriggers.some((trigger) => includesTerm(trigger)),
+      useVision: legacyScreenCommand || visionTriggers.some((trigger) => includesTerm(trigger)),
+      legacyScreenCommand,
+      requiresImageContext: imageContextTriggers.some((trigger) => includesTerm(trigger)),
+      requiresLongTask: longTriggers.some((trigger) => includesTerm(trigger))
+    };
+  }
+
+  function rememberSessionMedia(session, media = {}) {
+    const memory = session.memory || {};
+    const now = Date.now();
+
+    memory.lastMediaPath = media.imagePath || media.mediaPath || memory.lastMediaPath || null;
+    memory.lastMediaType = media.mediaType || memory.lastMediaType || "image";
+    memory.lastMediaAt = now;
+    memory.pendingMedia = Boolean(memory.lastMediaPath);
+
+    if (memory.lastMediaType === "screenshot") {
+      memory.lastScreenshotPath = memory.lastMediaPath;
+      memory.lastScreenshotAt = now;
+    } else {
+      memory.lastImagePath = memory.lastMediaPath;
+      memory.lastImageAt = now;
+    }
+
+    memory.currentVisualContext = {
+      path: memory.lastMediaPath,
+      type: memory.lastMediaType,
+      capturedAt: now
+    };
+
+    session.memory = memory;
+  }
+
+  async function resolveMediaContext({
+    session,
+    text,
+    images = [],
+    filePath = null,
+    screenshotPath = null,
+    intent
+  }) {
+    const memory = session.memory || {};
+    let analysisResult = null;
+    let source = null;
+    let consumePendingMedia = false;
+    const shouldKeepPendingAfterUse = !text && Boolean(filePath || screenshotPath || images.length > 0);
+
+    if (filePath) {
+      source = "realtime.image-upload";
+      analysisResult = await context.invokeTool("analyze_image", {
+        imagePath: filePath,
+        goal: text || "Descreva a imagem de forma objetiva, sem inventar.",
+        source,
+        sessionId: session.id
+      });
+    } else if (screenshotPath) {
+      source = "realtime.screenshot-path";
+      analysisResult = await context.invokeTool("analyze_image", {
+        imagePath: screenshotPath,
+        goal: text || "Descreva a tela de forma objetiva, sem inventar.",
+        source,
+        sessionId: session.id,
+        mediaType: "screenshot"
+      });
+    } else if (images.length > 0) {
+      source = "realtime.image-inline";
+      analysisResult = await context.invokeTool("analyze_image", {
+        image: images[0],
+        goal: text || "Descreva a imagem de forma objetiva, sem inventar.",
+        source,
+        sessionId: session.id
+      });
+    } else if (memory.pendingMedia && memory.lastMediaPath) {
+      source = "realtime.session-media";
+      consumePendingMedia = true;
+      analysisResult = await context.invokeTool("analyze_image", {
+        imagePath: memory.lastMediaPath,
+        goal: text || "Descreva a imagem de forma objetiva, sem inventar.",
+        source,
+        sessionId: session.id,
+        mediaType: memory.lastMediaType || "image"
+      });
+    } else if (intent.useVision) {
+      source = "realtime.screenshot-capture";
+      console.log(`[REALTIME] Comando legado de tela acionado (sessionId=${session.id})`);
+      analysisResult = await context.invokeTool("analyze_image", {
+        capture: true,
+        goal: text || "Descreva a tela de forma objetiva, sem inventar.",
+        source,
+        sessionId: session.id,
+        mediaType: "screenshot"
+      });
+    }
+
+    if (!analysisResult) {
+      return null;
+    }
+
+    if (analysisResult.status !== "ok") {
+      const error = new Error(analysisResult.error || "Falha ao analisar imagem");
+      error.code = analysisResult?.data?.kind === "timeout"
+        ? "VISION_TIMEOUT"
+        : "VISION_UNAVAILABLE";
+      error.cause = analysisResult;
+      throw error;
+    }
+
+    if (consumePendingMedia) {
+      session.memory.pendingMedia = false;
+    }
+
+    rememberSessionMedia(session, {
+      imagePath: analysisResult.data?.imagePath || filePath || screenshotPath || null,
+      mediaType: analysisResult.data?.mediaType || (screenshotPath ? "screenshot" : "image")
+    });
+
+    if ((analysisResult.data?.mediaType || (screenshotPath ? "screenshot" : "image")) === "screenshot") {
+      console.log(
+        `[REALTIME] Screenshot salvo em ${session.memory.lastScreenshotPath} (sessionId=${session.id})`
+      );
+    }
+
+    if (!shouldKeepPendingAfterUse) {
+      session.memory.pendingMedia = false;
+    }
+
+    return {
+      summary: analysisResult.data?.summary || "",
+      image: analysisResult.data?.image || null,
+      imagePath: analysisResult.data?.imagePath || null,
+      mediaType: analysisResult.data?.mediaType || "image"
+    };
+  }
+
+  async function handle({ input, images = [], sessionId = "default", filePath = null, screenshotPath = null }) {
+    const text = normalize(input);
+    const session = ensureSession(sessionId);
+    const intent = detectIntent(text);
+    const hasIncomingMedia = Boolean(filePath || screenshotPath || images.length > 0 || session.memory?.pendingMedia);
+
+    if (!text && !hasIncomingMedia) {
       context.core.responseQueue.enqueue({
-        text: "Fala direito 😒",
-        speak: true,
-        priority: 1
+        text: "Preciso de texto ou de uma imagem valida para continuar.",
+        speak: false,
+        priority: 1,
+        source: "realtime-empty-input",
+        allowGeneric: true,
+        sessionId
       });
       return { handled: false };
     }
 
     try {
-      const memorySkill = context.core.skillManager.get("memory");
       const audioSkill = context.core.skillManager.get("audio");
 
-      // ========================
-      // PROCESSAMENTO DE MEMÓRIA
-      // ========================
-      if (memorySkill) {
-        await memorySkill.processInput(text);
-      }
+      const memoryResult = await context.invokeTool("memory_access", {
+        action: "get_context",
+        source: "realtime.memory-context",
+        sessionId,
+        query: text
+      });
+      const memoryContext = memoryResult?.data?.text || "";
 
-      const memoryContext = memorySkill
-        ? await memorySkill.getContext()
-        : "";
-
-      // ========================
-      // PARSE DE ÁUDIO
-      // ========================
       let audioIntent = null;
-      if (audioSkill?.parseCommand) {
+      if (audioSkill?.parseCommand && text) {
         audioIntent = audioSkill.parseCommand(text);
       }
 
-      // Verificar intent pendente
-      if (!audioIntent && state.orchestrator?.pendingAudioIntent && audioSkill?.completePendingAudioIntent) {
+      if (!audioIntent && runtime.pendingAudioIntent && audioSkill?.completePendingAudioIntent && text) {
         audioIntent = audioSkill.completePendingAudioIntent(
-          state.orchestrator.pendingAudioIntent,
+          runtime.pendingAudioIntent,
           text
         );
       }
 
-      // ========================
-      // DETECTAR TIPO DE AÇÃO
-      // ========================
-      const intent = detectIntent(text);
-
-      // ========================
-      // AÇÃO 1: GERAÇÃO DE ÁUDIO
-      // ========================
       if (audioIntent) {
         return await handleAudioIntent({
           audioIntent,
           text,
-          audioSkill,
-          memoryContext
+          memoryContext,
+          sessionId
         });
       }
 
-      // ========================
-      // AÇÃO 2: COMANDO DE SISTEMA
-      // ========================
       if (intent.systemCommand) {
         executeSystemCommand(intent.systemCommand);
 
         context.core.responseQueue.enqueue({
-          text: "Já fiz 😏",
+          text: "Ja fiz.",
           speak: true,
-          priority: 1
+          priority: 1,
+          source: "realtime-system",
+          allowGeneric: true,
+          sessionId
         });
 
         return { handled: true, type: "system" };
       }
 
-      // ========================
-      // AÇÃO 3: WEB SEARCH
-      // ========================
       let searchResult = null;
-      if (intent.requiresSearch) {
+      if (intent.requiresSearch && text) {
         try {
-          emitStatus("🔍 pesquisando...");
+          emitStatus("pesquisando...");
 
           context.core.responseQueue.enqueue({
             text: "Deixa eu pesquisar sobre isso...",
             speak: true,
-            priority: 1
+            priority: 1,
+            source: "realtime-search",
+            allowGeneric: true,
+            sessionId
           });
 
-          searchResult = await pesquisarMundoReal(text);
-
-          if (memorySkill) {
-            await memorySkill.processAIResponse(`[Pesquisa Web] ${text}\n${searchResult}`);
-          }
+          const searchToolResult = await context.invokeTool("web_search", { query: text });
+          searchResult = searchToolResult?.data?.text || null;
         } catch (err) {
           console.error("[REALTIME] Erro search:", err);
-          searchResult = "Consegui não, internet tá zoada.";
+          searchResult = "Nao consegui acessar a pesquisa agora.";
         }
       }
 
-      // ========================
-      // AÇÃO 4: VISION (SCREENSHOT)
-      // ========================
-      if (intent.useVision && images.length === 0) {
-        try {
-          const img = await captureScreen();
-          images.push(img);
-
-          if (memorySkill) {
-            await memorySkill.processInput("O usuário pediu para analisar a tela");
-          }
-        } catch (err) {
-          console.error("[REALTIME] Erro vision:", err);
-        }
+      if (intent.requiresImageContext && !hasIncomingMedia && !intent.useVision) {
+        throw new Error("Voce pediu analise de imagem, mas nao existe imagem valida no contexto.");
       }
 
-      // ========================
-      // AÇÃO 5: RESPOSTA RÁPIDA
-      // ========================
-      emitStatus("💭 lendo...");
+      if (intent.legacyScreenCommand && !filePath && !screenshotPath && images.length === 0) {
+        emitStatus("capturando tela...");
+      } else {
+        emitStatus("lendo...");
+      }
+
+      const mediaContext = await resolveMediaContext({
+        session,
+        text,
+        images,
+        filePath,
+        screenshotPath,
+        intent
+      });
+
+      if (intent.requiresImageContext && !mediaContext) {
+        throw new Error("Nao encontrei imagem valida para analisar.");
+      }
+
+      emitStatus("lendo...");
 
       const response = await generateResponse({
         text,
         memoryContext,
         searchResult,
-        images
+        mediaContext,
+        sessionId
       });
 
-      // Processar memória da resposta
-      if (memorySkill) {
-        await memorySkill.processAIResponse(response);
-      }
-
-      // Enfileirar resposta com TTS
-      context.core.responseQueue.enqueue({
+      const queued = context.core.responseQueue.enqueue({
         text: response,
         speak: true,
-        priority: 1
+        priority: 1,
+        source: "realtime",
+        sessionId
       });
 
-      // Limpa status
+      if (!queued) {
+        throw new Error("Resposta bloqueada pelos filtros da realtime");
+      }
+
       emitStatus(null);
 
-      return { handled: true, type: "realtime", response };
-
+      return {
+        handled: true,
+        type: "realtime",
+        response,
+        media: mediaContext ? {
+          imagePath: mediaContext.imagePath,
+          mediaType: mediaContext.mediaType
+        } : null
+      };
     } catch (err) {
-      console.error("[REALTIME] Erro crítico:", err);
+      console.error("[REALTIME] Erro critico:", err);
+      emitStatus(null);
+
+      if (isLLMFailureError(err) || err?.message?.includes("LLM demorou para responder")) {
+        const fallbackText = buildFriendlyRealtimeReply("generic");
+
+        context.core.responseQueue.enqueue({
+          text: fallbackText,
+          speak: true,
+          priority: 1,
+          source: "realtime",
+          allowGeneric: true,
+          sessionId
+        });
+
+        return {
+          handled: true,
+          type: "realtime",
+          response: fallbackText,
+          fallback: true
+        };
+      }
+
+      if (isVisionFailureError(err)) {
+        const fallbackText = buildFriendlyRealtimeReply("vision");
+
+        context.core.responseQueue.enqueue({
+          text: fallbackText,
+          speak: true,
+          priority: 1,
+          source: "realtime",
+          allowGeneric: true,
+          sessionId
+        });
+
+        return {
+          handled: true,
+          type: "realtime",
+          response: fallbackText,
+          fallback: true
+        };
+      }
 
       context.core.responseQueue.enqueue({
-        text: "Algo deu errado 😅",
+        text: err.message || "Nao consegui responder de forma util agora.",
         speak: false,
-        priority: 1
+        priority: 1,
+        source: "realtime-error",
+        allowGeneric: true,
+        sessionId
       });
 
       return { handled: false, error: err.message };
     }
   }
 
-  // ==========================================
-  // AUDIO INTENT HANDLER
-  // ==========================================
-  async function handleAudioIntent({ audioIntent, text, audioSkill, memoryContext }) {
-    let quickReply = "Tudo bem, vou gerar o áudio.";
+  async function handleAudioIntent({ audioIntent, text, memoryContext, sessionId }) {
+    let quickReply = "Tudo bem, vou gerar o audio.";
     let queued = false;
     let taskId = null;
 
     if (audioIntent.missingText && audioIntent.missingVoice) {
-      quickReply = "Certo, quero gerar um áudio. Me diga o texto e qual voz você quer usar (masculina, feminina ou locutor).";
+      quickReply = "Certo, quero gerar um audio. Me diga o texto e qual voz voce quer usar (masculina, feminina ou locutor).";
     } else if (audioIntent.missingVoice) {
-      quickReply = "Qual voz você quer usar para o áudio? Masculina, feminina ou locutor.";
+      quickReply = "Qual voz voce quer usar para o audio? Masculina, feminina ou locutor.";
     } else if (audioIntent.missingText) {
-      quickReply = "Perfeito, qual texto você quer transformar em áudio?";
+      quickReply = "Perfeito, qual texto voce quer transformar em audio?";
     } else {
-      const voiceLabel = audioIntent.voiceName || audioIntent.voiceFunction || audioIntent.voiceGenre || "padrão";
-      quickReply = `Beleza, estou gerando o áudio com voz ${voiceLabel}.`;
+      const voiceLabel = audioIntent.voiceName || audioIntent.voiceFunction || audioIntent.voiceGenre || "padrao";
+      quickReply = `Beleza, estou gerando o audio com voz ${voiceLabel}.`;
       queued = true;
 
-      // Delega para rota de tarefas
       if (context.core?.routes?.task) {
         taskId = await context.core.routes.task.enqueueAudioTask({
           type: "audio",
@@ -230,83 +477,71 @@ export default function createRealtimeRoute(context) {
     }
 
     if (audioIntent.missingText || audioIntent.missingVoice) {
-      state.orchestrator = state.orchestrator || {};
-      state.orchestrator.pendingAudioIntent = audioIntent;
-    } else if (state.orchestrator) {
-      state.orchestrator.pendingAudioIntent = null;
+      runtime.pendingAudioIntent = audioIntent;
+    } else {
+      runtime.pendingAudioIntent = null;
     }
 
     context.core.responseQueue.enqueue({
       text: quickReply,
       speak: true,
-      priority: 1
+      priority: 1,
+      source: "realtime-audio",
+      allowGeneric: true,
+      sessionId
     });
 
     return { handled: true, type: "audio", queued, taskId };
   }
 
-  // ==========================================
-  // INTENT DETECTION
-  // ==========================================
-  function detectIntent(text) {
-    const lower = text.toLowerCase();
-
-    const searchTriggers = ["pesquise", "busque", "pesquisa", "noticias", "noticia", "procure", "busca"];
-    const visionTriggers = ["olha", "ve", "ver", "tela", "print", "olhar"];
-    const longTriggers = ["arquivo", "escreva", "corrija", "crie", "desenvolva"];
-
-    if (lower.includes("abre") || lower.includes("abrir")) {
-      if (lower.includes("chrome")) return { systemCommand: "open_chrome" };
-    }
-
-    if (lower.includes("clica") || lower.includes("clique")) {
-      return { systemCommand: "click" };
-    }
-
-    return {
-      requiresSearch: searchTriggers.some(t => lower.includes(t)),
-      useVision: visionTriggers.some(t => lower.includes(t)),
-      requiresLongTask: longTriggers.some(t => lower.includes(t))
-    };
-  }
-
-  // ==========================================
-  // SYSTEM COMMAND
-  // ==========================================
   function executeSystemCommand(cmd) {
     switch (cmd) {
       case "open_chrome":
         console.log("[REALTIME] Abrindo Chrome...");
         break;
-
       case "click":
         console.log("[REALTIME] Click simulado...");
         break;
-
       default:
         console.log(`[REALTIME] Comando desconhecido: ${cmd}`);
     }
   }
 
-  // ==========================================
-  // GENERATE RESPONSE
-  // ==========================================
-  async function generateResponse({ text, memoryContext, searchResult, images }) {
+  async function generateResponse({ text, memoryContext, searchResult, mediaContext, sessionId }) {
     const prompt = await buildPrompt({
       text,
       memoryContext,
       searchResult,
-      mode: "quick"
+      mediaContext
     });
 
-    const ai = await context.services.ai.chat(prompt, { images });
-    return ai.text || "…";
+    const ai = await context.invokeTool("ai_chat", {
+      prompt,
+      images: mediaContext?.image ? [mediaContext.image] : [],
+      source: "realtime",
+      sessionId
+    });
+
+    if (ai?.status !== "ok") {
+      const error = new Error(ai?.error || "Falha ao gerar resposta realtime");
+      error.code = ai?.data?.kind === "timeout" ? "LLM_TIMEOUT" : "LLM_ERROR";
+      error.cause = ai;
+      throw error;
+    }
+
+    const responseText = String(ai?.data?.text || "").trim();
+    const suppression = shouldSuppressAssistantMessage(context, responseText, {
+      source: "realtime"
+    });
+
+    if (!hasUsableAssistantText(responseText) || suppression.blocked) {
+      throw new Error(`Falha ao gerar resposta realtime: ${suppression.reason || "empty_response"}`);
+    }
+
+    return responseText;
   }
 
-  // ==========================================
-  // PROMPT BUILDER
-  // ==========================================
-  async function buildPrompt({ text, memoryContext, searchResult, mode }) {
+  async function buildPrompt({ text, memoryContext, searchResult, mediaContext }) {
     const { getPersonalityByAura } = await import("../skills/needs/personality.map.js");
 
     const emotion = state.emotion?.type || "neutral";
@@ -319,15 +554,24 @@ export default function createRealtimeRoute(context) {
       identity: {
         archetype: "streamer Gen Z",
         style: "internet/gamer",
-        tone: "sarcástica, caótica, divertida"
+        tone: "sarcastica, caotica, divertida"
       }
     };
 
+    const hasVisualContext = Boolean(mediaContext);
+    const effectiveUserText = truncateSection(
+      text || "Descreva a imagem de forma objetiva, sem inventar.",
+      hasVisualContext ? 1600 : 2400
+    );
+    const trimmedMemoryContext = truncateSection(memoryContext, hasVisualContext ? 1800 : 2800);
+    const trimmedSearchResult = truncateSection(searchResult, 1800);
+    const trimmedMediaSummary = truncateSection(mediaContext?.summary || "", 1200);
+
     const identityLayer = `
-Você é ${base.name}.
+Voce e ${base.name}.
 
 Identidade:
-- Arquétipo: ${base.identity?.archetype}
+- Arquetipo: ${base.identity?.archetype}
 - Estilo: ${base.identity?.style}
 - Tom base: ${base.identity?.tone}
 `;
@@ -342,25 +586,28 @@ ${auraProfile.prompt}
 
     const emotionLayer = `
 Estado interno:
-- Emoção: ${emotion}
-- Ação atual: ${action}
+- Emocao: ${emotion}
+- Acao atual: ${action}
 `;
 
-    const memoryLayer = memoryContext
-      ? `
-Memória relevante:
-${memoryContext}
-`
-      : "";
+    const memoryLayer = trimmedMemoryContext ? `
+Memoria relevante:
+${trimmedMemoryContext}
+` : "";
 
-    const searchLayer = searchResult
-      ? `
+    const searchLayer = trimmedSearchResult ? `
 Resultado da pesquisa web:
-${searchResult}
-`
-      : "";
+${trimmedSearchResult}
+` : "";
 
-    let instruction = "Responda curto, rápido e com atitude de live.";
+    const mediaLayer = mediaContext ? `
+Contexto visual analisado:
+- Tipo: ${mediaContext.mediaType}
+- Caminho: ${mediaContext.imagePath || "sem-caminho"}
+- Analise objetiva: ${trimmedMediaSummary}
+
+Use esse contexto visual junto com a instrucao textual. Se a analise visual estiver insuficiente, diga isso explicitamente e nao invente.
+` : "";
 
     return `
 ${identityLayer}
@@ -368,19 +615,15 @@ ${auraLayer}
 ${emotionLayer}
 ${memoryLayer}
 ${searchLayer}
+${mediaLayer}
 
-Usuário: ${text}
+Instrucao do usuario:
+${effectiveUserText}
 
-${instruction}
+Evite respostas genericas como "claro, posso ajudar" ou "como posso ajudar voce hoje".
+Se houver imagem ou tela no contexto, responda com base nela.
 Resposta:
 `;
-  }
-
-  // ==========================================
-  // UTILITIES
-  // ==========================================
-  function normalize(text) {
-    return text?.trim() || "";
   }
 
   return {

@@ -25,11 +25,14 @@ import createScheduler from "./core/scheduler.js";
 import createOrchestrator from "./core/orchestrator.js";
 import createResponseQueue from "./core/responseQueue.js";
 import createTools from "./core/tools.js";
-import kitState from "./core/stateManager.js";
+import createAgentEngine from "./core/AgentEngine.js";
+import kitState, { persistStateNow } from "./core/stateManager.js";
 import createAIService from "./services/ai.js";
 import createTTSService from "./services/tts.js";
 import { loadConfig } from "./core/configLoader.js";
 import { eventBus } from "./core/eventBus.js";
+import { ensureWorkspace } from "./core/security/workspaceGuard.js";
+import { getCurrentExecutionStatus, listExecutionStatuses } from "./utils/executionStatus.js";
 
 // ======================
 // IMPORT ROUTES
@@ -42,6 +45,14 @@ import sttRoute from "./routes/stt.js";
 import { initSkills } from "./skills/needs/startup.js";
 
 dotenv.config();
+
+if (typeof process.stdout?.setDefaultEncoding === "function") {
+  process.stdout.setDefaultEncoding("utf8");
+}
+
+if (typeof process.stderr?.setDefaultEncoding === "function") {
+  process.stderr.setDefaultEncoding("utf8");
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -64,13 +75,19 @@ const context = {
     system: {
       ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434",
       defaultModel: process.env.DEFAULT_MODEL || "huihui_ai/qwen3-vl-abliterated:4b",
-      maxConcurrentTasks: 1
+      maxConcurrentTasks: 1,
+      maxConcurrentLlmCalls: Number(process.env.OLLAMA_MAX_CONCURRENT || 1),
+      ollamaTimeoutMs: Number(process.env.OLLAMA_TIMEOUT_MS || 45000),
+      safeDiagnosticMode: process.env.SAFE_DIAGNOSTIC_MODE === "true",
+      activeConversationWindowMs: Number(process.env.ACTIVE_CONVERSATION_WINDOW_MS || 120000)
     },
     skills: {},
     personality: loadConfig("personality.json")
   },
   state: kitState,
+  runtime: {},
   sessions: {},
+  rawServices: {},
   services: {},
   core: { eventBus }
 };
@@ -78,34 +95,48 @@ const context = {
 // ======================
 // INIT CORE
 // ======================
+ensureWorkspace();
+
 context.core.scheduler = createScheduler(context);
 context.scheduler = context.core.scheduler;
 
-context.services.ai = createAIService(context);
-context.services.tts = createTTSService(context);
-context.llm = async (prompt, options = {}) => context.services.ai.chat(prompt, options);
+context.rawServices.ai = createAIService(context);
+context.rawServices.tts = createTTSService(context);
+context.services.ai = context.rawServices.ai;
+context.services.tts = context.rawServices.tts;
 context.tools = createTools(context);
+context.invokeTool = async (toolName, input = {}) => {
+  const tool = context.tools?.[toolName];
+  if (typeof tool !== "function") {
+    throw new Error(`Tool nao encontrada: ${toolName}`);
+  }
+  return tool(input);
+};
 context.core.commandEngine = createCommandEngine(context);
 context.core.skillManager = createSkillManager(context);
 context.core.brain = createBrain(context);
 context.core.responseQueue = createResponseQueue(context);
+context.core.agentEngine = createAgentEngine(context);
 context.core.orchestrator = createOrchestrator(context);
 
 // ======================
-// INIT SKILLS & HISTÓRICO
+// INIT SKILLS & HISTÃ“RICO
 // ======================
 await context.core.skillManager.initAll();
-initSkills(context.core.scheduler, context);
+initSkills(context.core.scheduler);
 
 // ======================
 // INIT ORCHESTRATOR V2
 // ======================
 await context.core.orchestrator.initialize();
-console.log("✅ Orchestrator V2 inicializado com 3 rotas independentes");
+console.log("âœ… Orchestrator V2 inicializado com 3 rotas independentes");
 
-// Start scheduler com AgentRoute jobs já registrados
-context.scheduler.start(1000);
-console.log("✅ Scheduler iniciado com 4 AgentRoute jobs registrados");
+// Start scheduler com AgentRoute jobs jÃ¡ registrados
+if (context.scheduler.start(1000)) {
+  console.log("âœ… Scheduler iniciado");
+} else {
+  console.log("âš ï¸ Scheduler ja estava iniciado");
+}
 
 // ======================
 // SSE
@@ -127,8 +158,16 @@ function sendSSE(data) {
 global.sendSSE = sendSSE;
 
 context.core.eventBus.on("task:completed", (data) => {
-  logger.info("📢 [SSE] Evento recebido via eventBus");
+  logger.info("[SSE] Evento recebido via eventBus");
   sendSSE({ type: "task:completed", payload: data.payload || data });
+});
+
+context.core.eventBus.on("execution:status", (data) => {
+  sendSSE({ type: "execution:status", payload: data });
+});
+
+context.core.eventBus.on("action:status", (data) => {
+  sendSSE({ type: "action:status", payload: data });
 });
 
 app.get("/events", (req, res) => {
@@ -140,11 +179,11 @@ app.get("/events", (req, res) => {
   const clientId = Date.now();
   const client = { id: clientId, res };
   sseClients.push(client);
-  logger.info("🔌 SSE conectado:", clientId);
+  logger.info("SSE conectado:", clientId);
 
   req.on("close", () => {
     sseClients = sseClients.filter(c => c.id !== clientId);
-    logger.info("❌ SSE desconectado:", clientId);
+    logger.info("SSE desconectado:", clientId);
   });
 });
 
@@ -152,7 +191,23 @@ app.get("/events", (req, res) => {
 // ROTAS API
 // ======================
 app.get("/status", (req, res) => {
-  res.json({ status: "online", uptime: process.uptime(), state: context.state });
+  res.json({
+    status: "online",
+    uptime: process.uptime(),
+    state: context.state,
+    execution: {
+      current: getCurrentExecutionStatus(context),
+      all: listExecutionStatuses(context)
+    }
+  });
+});
+
+app.get("/execution-status", (req, res) => {
+  res.json({
+    success: true,
+    current: getCurrentExecutionStatus(context),
+    executions: listExecutionStatuses(context)
+  });
 });
 
 app.get("/models", async (req, res) => {
@@ -182,7 +237,7 @@ app.use("/tasks", createTasksRoutes(context));
 app.get("/history", (req, res) => {
   const conversations = listConversations();
   if (!conversations.length) return res.json(null);
-  const last = conversations[conversations.length - 1];
+  const last = conversations[0];
   const conv = loadConversationById(last.id);
   res.json(conv);
 });
@@ -191,38 +246,36 @@ app.get("/history", (req, res) => {
 // SHOP ROUTER
 // ======================
 const shopRouter = express.Router();
-const statePath = path.join(process.cwd(), "backend/config/kitState.json");
 const catalogPath = path.join(process.cwd(), "backend/config/catalog.json");
 
-// GET /shop → retorna todos os itens da loja
+// GET /shop â†’ retorna todos os itens da loja
 shopRouter.get("/", (req, res) => {
   try {
     const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
     res.json(catalog);
   } catch (err) {
-    console.error("Erro ao ler catálogo:", err);
-    res.status(500).json({ error: "Erro ao ler catálogo" });
+    console.error("Erro ao ler catÃ¡logo:", err);
+    res.status(500).json({ error: "Erro ao ler catÃ¡logo" });
   }
 });
 
-// POST /shop/gift → comprar ou presentear item
+// POST /shop/gift â†’ comprar ou presentear item
 shopRouter.post("/gift", (req, res) => {
   try {
-    // 🔹 lê o estado atual do arquivo
-    const state = JSON.parse(fs.readFileSync(statePath, "utf-8"));
+    const state = JSON.parse(JSON.stringify(kitState));
     const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf-8"));
 
-    // 🔹 encontra o item pelo ID
+    // ðŸ”¹ encontra o item pelo ID
     const item = catalog.find(i => i.id === req.body.id);
-    if (!item) return res.status(404).json({ error: "Item não encontrado" });
+    if (!item) return res.status(404).json({ error: "Item nÃ£o encontrado" });
 
     const price = Number(item.valor) || 0;
     if (state.tokens < price) return res.status(400).json({ error: "Tokens insuficientes" });
 
-    // 🔹 desconta tokens
+    // ðŸ”¹ desconta tokens
     state.tokens -= price;
 
-    // 🔹 consumível → aplica efeito nas necessidades
+    // ðŸ”¹ consumÃ­vel â†’ aplica efeito nas necessidades
     if (item.tipo === "consumivel") {
       Object.keys(item.efeito || {}).forEach(key => {
         if (state.needs[key] !== undefined) {
@@ -233,21 +286,21 @@ shopRouter.post("/gift", (req, res) => {
       });
     }
 
-    // 🔹 skin (visual) → adiciona ao inventário
+    // ðŸ”¹ skin (visual) â†’ adiciona ao inventÃ¡rio
     if (item.tipo === "skin") {
       if (!state.inventory) state.inventory = {};
       state.inventory[item.slot] = item.id;
     }
 
-    // 🔹 ATUALIZA kitState em memória
+    // ðŸ”¹ ATUALIZA kitState em memÃ³ria
     Object.assign(kitState, state);
 
-    // 🔹 salva o estado atualizado no arquivo
-    fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+    // ðŸ”¹ salva o estado atualizado no arquivo
+    persistStateNow();
 
-    console.log("✅ COMPRA OK:", item.id);
+    console.log("âœ… COMPRA OK:", item.id);
 
-    // 🔹 envia SSE (opcional)
+    // ðŸ”¹ envia SSE (opcional)
     if (global.sendSSE) {
       global.sendSSE({
         type: "state:update",
@@ -275,7 +328,7 @@ app.get("/logs/:name", (req, res) => {
     const data = fs.readFileSync(filePath, "utf8");
     res.send(data);
   } catch {
-    res.status(200).send(`LOG NÃO ENCONTRADO: ${fileName}`);
+    res.status(200).send(`LOG NÃƒO ENCONTRADO: ${fileName}`);
   }
 });
 
@@ -283,12 +336,12 @@ app.get("/logs/:name", (req, res) => {
 // START SERVER
 // ======================
 const server = app.listen(PORT, () => {
-  logger.info(`🚀 Kit IA Rodando em http://localhost:${PORT}`);
+  logger.info(`Kit IA rodando em http://localhost:${PORT}`);
 });
 
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
-    console.error(`❌ PORTA ${PORT} EM USO.`);
+    console.error(`PORTA ${PORT} EM USO.`);
     process.exit(1);
   }
 });

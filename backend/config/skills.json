@@ -1,7 +1,4 @@
 {
-  "base/ai.chat": true,
-  "base/tts": true,
-  "base/xtts": true,
   "commentActivity": false,
   "memory": true,
   "randomTalk": true,
@@ -9,5 +6,7 @@
   "tasks": true,
   "personality": true,
   "needs": true,
-  "runtime": true
+  "runtime": true,
+  "web-update": true,
+  "tts-queue": true
 }

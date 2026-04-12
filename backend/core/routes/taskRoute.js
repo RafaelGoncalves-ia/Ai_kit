@@ -1,162 +1,180 @@
-/**
- * TASK ROUTE (Rota Longa)
- * 
- * Responsabilidades:
- * - Execução de tarefas multi-step
- * - Processamento em background
- * - Leitura de arquivos
- * - Geração de conteúdo estruturado
- * - Resumos, análises, etc
- * 
- * Características:
- * - Sem TTS em tempo real
- * - Áudio apenas quando explicitamente solicitado
- * - Pode processar múltiplas tarefas em paralelo (até MAX_CONCURRENT)
- * - Isolado da rota realtime
- */
+import {
+  hasUsableAssistantText,
+  shouldSuppressAssistantMessage
+} from "../../utils/assistantMessageGuard.js";
+import { updateExecutionStatus } from "../../utils/executionStatus.js";
+
+function hasRealFile(pathValue) {
+  try {
+    return Boolean(pathValue);
+  } catch {
+    return false;
+  }
+}
+
+function buildFinalChatMessage(result) {
+  const summary = result?.summary || {};
+  const files = Array.isArray(summary.files) ? summary.files.filter(Boolean) : [];
+  const text = String(summary.text || "").trim();
+
+  if (files.length > 0 && text) {
+    return `${text}\n\nArquivo salvo em:\n${files.join("\n")}`;
+  }
+
+  if (files.length > 0) {
+    return `Conclui a execucao e salvei o arquivo em:\n${files.join("\n")}`;
+  }
+
+  if (hasUsableAssistantText(text)) {
+    return text;
+  }
+
+  return "";
+}
 
 export default function createTaskRoute(context) {
-  const state = context.state;
-
   let runningTasks = 0;
   const MAX_CONCURRENT = context.config?.system?.maxConcurrentTasks || 1;
+  const queue = [];
+  const completedTasks = [];
 
-  // ==========================================
-  // EMIT STATUS
-  // ==========================================
-  function emitStatus(message) {
-    if (context.core?.eventBus) {
-      context.core.eventBus.emit("action:status", {
-        message,
-        timestamp: Date.now()
-      });
-      console.log(`[TASK-ROUTE] ${message}`);
+  function recordCompletedTask(task) {
+    completedTasks.unshift({
+      id: task.id,
+      type: task.type,
+      status: task.status,
+      sessionId: task.sessionId,
+      createdAt: task.createdAt,
+      finishedAt: Date.now(),
+      result: task.result
+    });
+
+    if (completedTasks.length > 50) {
+      completedTasks.length = 50;
     }
   }
 
-  // ==========================================
-  // ENQUEUE AUDIO TASK
-  // ==========================================
-  /**
-   * Enfileira geração de áudio (chamado pela rota realtime)
-   */
-  async function enqueueAudioTask({ type, data, text, memoryContext }) {
+  function emitStatus(message) {
+    if (!context.core?.eventBus) {
+      return;
+    }
+
+    context.core.eventBus.emit("action:status", {
+      message,
+      timestamp: Date.now()
+    });
+
+    if (message) {
+      console.log(`[TASK-ROUTE] ${message}`);
+    } else {
+      console.log("[TASK-ROUTE] status cleared");
+    }
+  }
+
+  async function enqueueAudioTask({ type, data, text, sessionId = "default" }) {
     if (runningTasks >= MAX_CONCURRENT) {
       console.warn("[TASK-ROUTE] Limite de tarefas concorrentes atingido");
       return null;
     }
 
     const taskId = generateId();
-
     const task = {
       id: taskId,
       type: "audio",
+      sessionId,
       status: "pending",
       createdAt: Date.now(),
       result: null,
       data,
-      text,
-      memoryContext
+      text
     };
 
-    if (!state.taskRoute) {
-      state.taskRoute = {
-        queue: [],
-        isProcessing: false
-      };
-    }
-
-    state.taskRoute.queue.push(task);
-
+    queue.push(task);
     console.log(`[TASK-ROUTE] Audio task enfileirada (ID: ${taskId})`);
 
-    // Emite evento
+    updateExecutionStatus(context, {
+      executionId: taskId,
+      sessionId,
+      mode: "task",
+      status: "planning",
+      label: "Na fila",
+      progressText: "Aguardando inicio da geracao de audio",
+      currentStep: 0,
+      totalSteps: 1
+    });
+
     if (context.core?.eventBus) {
       context.core.eventBus.emit("task:enqueued", {
         taskId,
         type: "audio",
-        queueLength: state.taskRoute.queue.length
+        queueLength: queue.length
       });
     }
 
     processNextTask();
-
     return taskId;
   }
 
-  // ==========================================
-  // ENQUEUE LONG TASK
-  // ==========================================
-  /**
-   * Enfileira tarefa longa (chamado pelo orchestrator)
-   */
-  async function enqueueLongTask({ text, memoryContext, searchResult }) {
+  async function enqueueLongTask({ text, sessionId = "default" }) {
     if (runningTasks >= MAX_CONCURRENT) {
       console.warn("[TASK-ROUTE] Limite de tarefas concorrentes atingido");
       return null;
     }
 
     const taskId = generateId();
-
     const task = {
       id: taskId,
       type: "long",
+      sessionId,
       status: "pending",
       createdAt: Date.now(),
       result: null,
-      text,
-      memoryContext,
-      searchResult: searchResult || null
+      text
     };
 
-    if (!state.taskRoute) {
-      state.taskRoute = {
-        queue: [],
-        isProcessing: false
-      };
-    }
-
-    state.taskRoute.queue.push(task);
-
+    queue.push(task);
     console.log(`[TASK-ROUTE] Long task enfileirada (ID: ${taskId})`);
 
-    // Emite evento
+    updateExecutionStatus(context, {
+      executionId: taskId,
+      sessionId,
+      mode: "task",
+      status: "planning",
+      label: "Na fila",
+      progressText: "Aguardando inicio da execucao",
+      currentStep: 0,
+      totalSteps: 0
+    });
+
     if (context.core?.eventBus) {
       context.core.eventBus.emit("task:enqueued", {
         taskId,
         type: "long",
-        queueLength: state.taskRoute.queue.length
+        queueLength: queue.length
       });
     }
 
     processNextTask();
-
     return taskId;
   }
 
-  // ==========================================
-  // PROCESS NEXT TASK
-  // ==========================================
   async function processNextTask() {
     if (runningTasks >= MAX_CONCURRENT) return;
-    if (!state.taskRoute?.queue.length) return;
+    if (!queue.length) return;
 
-    const nextTask = state.taskRoute.queue.find(t => t.status === "pending");
+    const nextTask = queue.find((task) => task.status === "pending");
     if (!nextTask) return;
 
-    runningTasks++;
+    runningTasks += 1;
 
     try {
       await processTask(nextTask);
     } finally {
-      runningTasks--;
+      runningTasks -= 1;
       processNextTask();
     }
   }
 
-  // ==========================================
-  // PROCESS TASK
-  // ==========================================
   async function processTask(task) {
     try {
       task.status = "processing";
@@ -168,8 +186,8 @@ export default function createTaskRoute(context) {
       }
 
       task.status = "done";
+      recordCompletedTask(task);
 
-      // Emite conclusão
       if (context.core?.eventBus) {
         context.core.eventBus.emit("task:completed", {
           taskId: task.id,
@@ -177,14 +195,34 @@ export default function createTaskRoute(context) {
           result: task.result
         });
       }
-
     } catch (err) {
       console.error(`[TASK-ROUTE] Erro na task ${task.id}:`, err);
-
       task.status = "error";
       task.result = { error: err.message };
+      recordCompletedTask(task);
 
-      // Emite erro
+      updateExecutionStatus(context, {
+        executionId: task.id,
+        sessionId: task.sessionId,
+        mode: "task",
+        status: "error",
+        label: "Falha na execucao",
+        progressText: err.message,
+        error: err.message,
+        finishedAt: Date.now()
+      });
+
+      if (context.core?.responseQueue) {
+        context.core.responseQueue.enqueue({
+          text: err.message,
+          speak: false,
+          priority: 2,
+          source: "task-route-error",
+          allowGeneric: true,
+          sessionId: task.sessionId
+        });
+      }
+
       if (context.core?.eventBus) {
         context.core.eventBus.emit("task:error", {
           taskId: task.id,
@@ -192,138 +230,139 @@ export default function createTaskRoute(context) {
           error: err.message
         });
       }
+    } finally {
+      const taskIndex = queue.findIndex((item) => item.id === task.id);
+      if (taskIndex >= 0) {
+        queue.splice(taskIndex, 1);
+      }
+      emitStatus(null);
     }
   }
 
-  // ==========================================
-  // PROCESS AUDIO TASK
-  // ==========================================
   async function processAudioTask(task) {
-    emitStatus("🎵 gerando áudio...");
+    emitStatus("gerando audio...");
 
-    const audioSkill = context.core.skillManager.get("audio");
-
-    if (!audioSkill || typeof audioSkill.execute !== "function") {
-      throw new Error("Audio skill não disponível");
-    }
-
-    const result = await audioSkill.execute({ input: task.data });
-
-    if (result?.success) {
-      task.result = `Áudio gerado com sucesso: ${result.file || "output.wav"}`;
-    } else {
-      task.result = result?.error || "Falha ao gerar o áudio.";
-    }
-
-    // Enfileira resposta com TTS automático (pois é geração de áudio)
-    context.core.responseQueue.enqueue({
-      text: task.result,
-      speak: true,
-      priority: 2
+    updateExecutionStatus(context, {
+      executionId: task.id,
+      sessionId: task.sessionId,
+      mode: "task",
+      status: "running",
+      label: "Gerando audio",
+      progressText: "Trabalhando... 1/1",
+      currentStep: 1,
+      totalSteps: 1
     });
 
-    emitStatus(null);
-  }
-
-  // ==========================================
-  // PROCESS LONG TASK
-  // ==========================================
-  async function processLongTask(task) {
-    emitStatus("⚙️ processando...");
-
-    const prompt = buildLongTaskPrompt({
-      text: task.text,
-      memoryContext: task.memoryContext,
-      searchResult: task.searchResult
+    const result = await context.invokeTool("generate_audio", {
+      ...(task.data || {}),
+      sessionId: task.sessionId,
+      executionId: task.id
     });
 
-    const ai = await context.services.ai.chat(prompt);
-    task.result = ai.text || "…";
-
-    // Processar memória da resposta
-    const memorySkill = context.core.skillManager.get("memory");
-    if (memorySkill) {
-      await memorySkill.processAIResponse(task.result);
+    if (result?.status !== "ok" || !result.data?.file) {
+      throw new Error(result?.error || "Falha ao gerar o audio.");
     }
 
-    // 🔊 Enfileira resposta SEM TTS automático
-    // Rota longa nunca fala automaticamente
-    context.core.responseQueue.enqueue({
-      text: task.result,
-      speak: false,  // ✅ Importante: sem TTS automático
-      priority: 2
-    });
-
-    emitStatus(null);
-  }
-
-  // ==========================================
-  // BUILD LONG TASK PROMPT
-  // ==========================================
-  function buildLongTaskPrompt({ text, memoryContext, searchResult }) {
-    const base = context.config?.personality || {
-      name: "KIT"
+    task.result = {
+      file: result.data.file
     };
 
-    let prompt = `
-Você é ${base.name}.
+    updateExecutionStatus(context, {
+      executionId: task.id,
+      sessionId: task.sessionId,
+      mode: "task",
+      status: "done",
+      label: "Concluido",
+      progressText: `Audio salvo em ${result.data.file}`,
+      currentStep: 1,
+      totalSteps: 1,
+      finishedAt: Date.now()
+    });
 
-Forneça uma resposta neutra, objetiva e bem estruturada.
-Foque em edição e criação de conteúdo: documentos, códigos, ideias, projetos e trabalho.
-evite emoção ou tom casual.
-`;
-
-    if (memoryContext) {
-      prompt += `
-
-Contexto relevante:
-${memoryContext}
-`;
-    }
-
-    if (searchResult) {
-      prompt += `
-
-Informações adicionais (pesquisa web):
-${searchResult}
-`;
-    }
-
-    prompt += `
-
-Pedido do usuário:
-${text}
-
-Responda de forma estruturada e profissional:
-`;
-
-    return prompt;
+    context.core.responseQueue.enqueue({
+      text: `Audio gerado em:\n${result.data.file}`,
+      speak: true,
+      priority: 2,
+      source: "task-route-audio",
+      allowGeneric: true,
+      sessionId: task.sessionId
+    });
   }
 
-  // ==========================================
-  // QUERY STATUS
-  // ==========================================
+  async function processLongTask(task) {
+    emitStatus("planejando execucao...");
+
+    const agentEngine = context.core?.agentEngine;
+    if (!agentEngine?.run) {
+      throw new Error("AgentEngine indisponivel");
+    }
+
+    const result = await agentEngine.run({
+      goal: task.text,
+      sessionId: task.sessionId,
+      mode: "task",
+      executionId: task.id
+    });
+
+    task.result = result;
+
+    if (result?.status === "busy") {
+      throw new Error("Ja existe uma execucao em andamento para esta sessao.");
+    }
+
+    if (result?.status === "ignored") {
+      throw new Error("A solicitacao nao abriu uma execucao real.");
+    }
+
+    if (result?.status !== "ok") {
+      throw new Error(result?.error || "Execucao longa falhou.");
+    }
+
+    const finalMessage = buildFinalChatMessage(result);
+    const suppression = shouldSuppressAssistantMessage(context, finalMessage, {
+      source: "task-route"
+    });
+
+    if (!hasUsableAssistantText(finalMessage) || suppression.blocked) {
+      throw new Error(`Resultado final da task-route invalido: ${suppression.reason || "empty_response"}`);
+    }
+
+    const queued = context.core.responseQueue.enqueue({
+      text: finalMessage,
+      speak: false,
+      priority: 2,
+      source: "task-route",
+      sessionId: task.sessionId
+    });
+
+    if (!queued) {
+      throw new Error("Resultado final da task-route bloqueado pelos filtros");
+    }
+  }
+
   function getQueueStatus() {
     return {
       runningTasks,
       maxConcurrent: MAX_CONCURRENT,
-      queueLength: state.taskRoute?.queue?.length || 0,
-      queue: (state.taskRoute?.queue || []).map(task => ({
+      queueLength: queue.length,
+      queue: queue.map((task) => ({
         id: task.id,
         type: task.type,
         status: task.status,
-        createdAt: task.id
+        sessionId: task.sessionId,
+        createdAt: task.createdAt
       }))
     };
   }
 
   function isAudioBusy() {
-    return runningTasks > 0 || (state.taskRoute?.queue?.length || 0) > 0;
+    return runningTasks > 0 || queue.length > 0;
   }
 
-  // ==========================================
-  // UTILITIES
-  // ==========================================
+  function listRecentCompleted(limit = 20) {
+    return completedTasks.slice(0, Math.max(1, Number(limit || 20)));
+  }
+
   function generateId() {
     return Math.random().toString(36).slice(2);
   }
@@ -332,6 +371,7 @@ Responda de forma estruturada e profissional:
     enqueueAudioTask,
     enqueueLongTask,
     getQueueStatus,
-    isAudioBusy
+    isAudioBusy,
+    listRecentCompleted
   };
 }

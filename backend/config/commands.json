@@ -5,19 +5,11 @@
       "commands": ["gere um audio", "gerar audio", "audio"]
     },
     {
-      "skill": "base.ai.chat",
-      "commands": ["falar", "perguntar"]
-    },
-    {
-      "skill": "base.tts",
-      "commands": ["falar", "perguntar"]
-    },
-    {
-      "skill": "base.vision",
-      "commands": ["falar", "perguntar"]
-    },
-    {
       "skill": "commentActivity",
+      "commands": ["falar", "perguntar"]
+    },
+    {
+      "skill": "randomTalk",
       "commands": ["falar", "perguntar"]
     }
   ],
@@ -31,9 +23,9 @@
     "updateFrequencyHours": 24,
     "lastUpdate": null,
     "topics": [
-      "animes lançamentos recentes",
-      "novos episódios anime",
-      "jogos lançamentos",
+      "animes lancamentos recentes",
+      "novos episodios anime",
+      "jogos lancamentos",
       "games trending",
       "tech news",
       "AI updates"

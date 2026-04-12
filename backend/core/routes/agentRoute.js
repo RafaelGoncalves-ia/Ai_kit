@@ -1,44 +1,38 @@
-import createAgentEngine from "../AgentEngine.js";
-
-/**
- * AGENT ROUTE (Rota Autônoma)
- * 
- * Responsabilidades:
- * - Execução de ações SEM input direto do usuário
- * - Integração com scheduler
- * - NUNCA responder diretamente ao usuário
- * - Emitir eventos para serem capturados por outras rotas
- * 
- * Controlada por:
- * - Scheduler (periodicamente)
- * - EventBus (baseado em eventos)
- * - Skills de autonomia (randomTalk, needsEngine, etc)
- * 
- * Exemplos:
- * - Lembretes agendados
- * - RandomTalk/Notícias
- * - Análise de necessidades
- * - Check de atividades
- * - Síntese de dados em background
- */
+import {
+  hasUsableAssistantText,
+  shouldSuppressAssistantMessage
+} from "../../utils/assistantMessageGuard.js";
+import { isSafeDiagnosticMode, shouldSilenceAutonomousSource } from "../../utils/runtimeGuards.js";
 
 export default function createAgentRoute(context) {
   const state = context.state;
-  const agentEngine = createAgentEngine(context);
+  const agentEngine = context.core?.agentEngine;
   let autonomousTaskRunning = false;
   let lastAutonomousTaskAt = 0;
   const AUTONOMOUS_TASK_INTERVAL = 60 * 1000;
 
-  // ==========================================
-  // EMIT AGENT EVENT
-  // ==========================================
-  /**
-   * Emite evento para outras rotas capturarem
-   * Nunca enfileira resposta diretamente!
-   */
+  function isAutonomousTaskEnabled() {
+    if (isSafeDiagnosticMode(context)) {
+      return false;
+    }
+
+    return (
+      context.config?.system?.enableAutonomousTask === true ||
+      process.env.ENABLE_AUTONOMOUS_TASK === "true"
+    );
+  }
+
+  function getAutonomousGoal() {
+    return (
+      context.config?.system?.autonomousTaskGoal ||
+      process.env.AUTONOMOUS_TASK_GOAL ||
+      ""
+    ).trim();
+  }
+
   function emitAgentEvent(type, payload) {
     if (!context.core?.eventBus) {
-      console.warn("[AGENT-ROUTE] EventBus não disponível");
+      console.warn("[AGENT-ROUTE] EventBus nao disponivel");
       return;
     }
 
@@ -51,24 +45,16 @@ export default function createAgentRoute(context) {
     console.log(`[AGENT-ROUTE] Evento emitido: agent:${type}`);
   }
 
-  // ==========================================
-  // SCHEDULE JOB INTEGRATION
-  // ==========================================
-  /**
-   * Registra job no scheduler
-   * Chamado durante inicialização
-   */
   function registerSchedulerJobs(scheduler) {
     if (!scheduler || typeof scheduler.register !== "function") {
-      console.warn("[AGENT-ROUTE] Scheduler não disponível");
+      console.warn("[AGENT-ROUTE] Scheduler nao disponivel");
       return;
     }
 
-    // Job de RandomTalk
     scheduler.register({
       name: "agent:randomtalk",
       priority: 5,
-      enabled: true,
+      enabled: !isSafeDiagnosticMode(context),
       execute: async () => {
         try {
           await executeRandomTalk();
@@ -78,7 +64,6 @@ export default function createAgentRoute(context) {
       }
     });
 
-    // Job de análise de necessidades
     scheduler.register({
       name: "agent:needs-analysis",
       priority: 4,
@@ -92,7 +77,6 @@ export default function createAgentRoute(context) {
       }
     });
 
-    // Job de lembretes
     scheduler.register({
       name: "agent:reminders",
       priority: 6,
@@ -106,11 +90,10 @@ export default function createAgentRoute(context) {
       }
     });
 
-    // Job de comentário de atividade
     scheduler.register({
       name: "agent:activity-comment",
       priority: 3,
-      enabled: true,
+      enabled: !isSafeDiagnosticMode(context),
       execute: async () => {
         try {
           await executeActivityComment();
@@ -123,12 +106,30 @@ export default function createAgentRoute(context) {
     scheduler.register({
       name: "agent:autonomous-task",
       priority: 2,
-      enabled: true,
+      enabled: isAutonomousTaskEnabled(),
       execute: async () => {
+        if (!agentEngine?.run) {
+          return;
+        }
+
+        if (!isAutonomousTaskEnabled()) {
+          return;
+        }
+
+        const runtimeBlock = shouldSilenceAutonomousSource(context, "autonomous-task");
+        if (runtimeBlock.blocked) {
+          return;
+        }
+
         if (autonomousTaskRunning) return;
 
         const now = Date.now();
         if (now - lastAutonomousTaskAt < AUTONOMOUS_TASK_INTERVAL) {
+          return;
+        }
+
+        const goal = getAutonomousGoal();
+        if (!goal) {
           return;
         }
 
@@ -137,8 +138,9 @@ export default function createAgentRoute(context) {
 
         try {
           await agentEngine.run({
-            goal: "criar campanha com imagens e gerar legenda e audio",
-            sessionId: "auto"
+            goal,
+            sessionId: "auto",
+            mode: "agent"
           });
         } catch (err) {
           console.error("[AGENT-ROUTE] Erro em autonomousTask:", err.message);
@@ -148,13 +150,15 @@ export default function createAgentRoute(context) {
       }
     });
 
-    console.log("[AGENT-ROUTE] 5 scheduler jobs registrados");
+    console.log("[AGENT-ROUTE] Scheduler jobs registrados");
   }
 
-  // ==========================================
-  // RANDOM TALK
-  // ==========================================
   async function executeRandomTalk() {
+    const runtimeBlock = shouldSilenceAutonomousSource(context, "randomTalk");
+    if (runtimeBlock.blocked) {
+      return;
+    }
+
     const randomTalkSkill = context.core.skillManager.get("randomTalk");
 
     if (!randomTalkSkill || typeof randomTalkSkill.execute !== "function") {
@@ -165,7 +169,6 @@ export default function createAgentRoute(context) {
       const result = await randomTalkSkill.execute({ context });
 
       if (result && result.text) {
-        // Emite evento para RealtimeRoute capturar e falar
         emitAgentEvent("randomtalk", {
           text: result.text,
           voice: result.voice || "default"
@@ -176,9 +179,6 @@ export default function createAgentRoute(context) {
     }
   }
 
-  // ==========================================
-  // NEEDS ANALYSIS
-  // ==========================================
   async function executeNeedsAnalysis() {
     const needsSkill = context.core.skillManager.get("needs");
 
@@ -190,7 +190,6 @@ export default function createAgentRoute(context) {
       const result = await needsSkill.execute({ context });
 
       if (result && result.triggered) {
-        // Emite evento se alguma necessidade foi acionada
         emitAgentEvent("needs-triggered", {
           need: result.need,
           level: result.level,
@@ -202,9 +201,6 @@ export default function createAgentRoute(context) {
     }
   }
 
-  // ==========================================
-  // REMINDERS
-  // ==========================================
   async function executeReminders() {
     const tasksSkill = context.core.skillManager.get("tasks");
 
@@ -217,7 +213,6 @@ export default function createAgentRoute(context) {
 
       if (reminders && reminders.length > 0) {
         for (const reminder of reminders) {
-          // Emite evento de lembrete
           emitAgentEvent("reminder", {
             title: reminder.title,
             message: reminder.message,
@@ -230,10 +225,12 @@ export default function createAgentRoute(context) {
     }
   }
 
-  // ==========================================
-  // ACTIVITY COMMENT
-  // ==========================================
   async function executeActivityComment() {
+    const runtimeBlock = shouldSilenceAutonomousSource(context, "activity-comment");
+    if (runtimeBlock.blocked) {
+      return;
+    }
+
     const commentSkill = context.core.skillManager.get("commentActivity");
 
     if (!commentSkill || typeof commentSkill.execute !== "function") {
@@ -244,7 +241,6 @@ export default function createAgentRoute(context) {
       const result = await commentSkill.execute({ context });
 
       if (result && result.text) {
-        // Emite comentário de atividade
         emitAgentEvent("activity-comment", {
           text: result.text,
           activity: result.activity
@@ -255,15 +251,6 @@ export default function createAgentRoute(context) {
     }
   }
 
-  // ==========================================
-  // HANDLE AGENT EVENT
-  // ==========================================
-  /**
-   * Processa evento emitido por AgentRoute
-   * E delega para rota apropriada
-   * 
-   * Esta função é chamada por listeners de eventos
-   */
   async function handleAgentEvent(eventType, eventData) {
     console.log(`[AGENT-ROUTE] Processando evento: ${eventType}`);
 
@@ -286,12 +273,16 @@ export default function createAgentRoute(context) {
     }
   }
 
-  // ==========================================
-  // EVENT HANDLERS (Delegam para rotas)
-  // ==========================================
+  function shouldEmitPreparedText(source, text) {
+    const suppression = shouldSuppressAssistantMessage(context, text, { source });
+    return hasUsableAssistantText(text) && !suppression.blocked;
+  }
+
   function handleRandomTalk(data) {
-    // RandomTalk é emitido via eventBus
-    // A UI/Frontend vai capturar e exibir
+    if (!shouldEmitPreparedText("randomTalk", data?.text)) {
+      return null;
+    }
+
     console.log("[AGENT-ROUTE] RandomTalk emitido:", data.text.substring(0, 50));
 
     if (context.core?.eventBus) {
@@ -304,7 +295,6 @@ export default function createAgentRoute(context) {
   }
 
   function handleReminder(data) {
-    // Lembretes são emitidos e capturados pela UI
     console.log("[AGENT-ROUTE] Lembrete:", data.title);
 
     if (context.core?.eventBus) {
@@ -318,7 +308,6 @@ export default function createAgentRoute(context) {
   }
 
   function handleNeedsTriggered(data) {
-    // Necessidades acionadas geram eventos
     console.log(`[AGENT-ROUTE] Necessidade acionada: ${data.need} (${data.level})`);
 
     if (context.core?.eventBus) {
@@ -332,8 +321,11 @@ export default function createAgentRoute(context) {
   }
 
   function handleActivityComment(data) {
-    // Comentários de atividade são emitidos
-    console.log("[AGENT-ROUTE] Comentário de atividade:", data.text.substring(0, 50));
+    if (!shouldEmitPreparedText("activity-comment", data?.text)) {
+      return null;
+    }
+
+    console.log("[AGENT-ROUTE] Comentario de atividade:", data.text.substring(0, 50));
 
     if (context.core?.eventBus) {
       context.core.eventBus.emit("agent:activity-ready", {
@@ -344,13 +336,11 @@ export default function createAgentRoute(context) {
     }
   }
 
-  // ==========================================
-  // RETRIEVE AGENT STATE
-  // ==========================================
   function getAgentStatus() {
     return {
       isScheduled: true,
       eventBusReady: !!context.core?.eventBus,
+      safeDiagnosticMode: isSafeDiagnosticMode(context),
       skillsLoaded: {
         randomTalk: !!context.core?.skillManager?.get("randomTalk"),
         needs: !!context.core?.skillManager?.get("needs"),
@@ -358,6 +348,9 @@ export default function createAgentRoute(context) {
         commentActivity: !!context.core?.skillManager?.get("commentActivity")
       },
       autonomousTask: {
+        enabled: isAutonomousTaskEnabled(),
+        engineReady: !!agentEngine?.run,
+        goalConfigured: !!getAutonomousGoal(),
         running: autonomousTaskRunning,
         lastRunAt: lastAutonomousTaskAt || null
       }

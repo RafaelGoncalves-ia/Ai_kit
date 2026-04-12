@@ -1,0 +1,4 @@
+Resposta util para: Atenda ao objetivo abaixo sem inventar contexto ausente. Se faltar informacao essencial, responda de forma curta indicando o que falta.
+
+Objetivo:
+crie um arquivo com um resumo do projeto

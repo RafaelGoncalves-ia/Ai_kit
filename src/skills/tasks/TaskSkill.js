@@ -314,8 +314,8 @@ export default {
     }
 
     const prompt = buildPrompt(task, this.context.state);
-    const response = await this.context.services.ai.chat(prompt);
-    const message = response?.text || `Lembrete: ${task.title}`;
+    const response = await this.context.invokeTool("ai_chat", { prompt });
+    const message = response?.data?.text || `Lembrete: ${task.title}`;
 
     this.recentReminders.unshift({
       taskId: task.id,
@@ -454,5 +454,20 @@ export default {
         )`
       )
       .run();
+
+    this.db.prepare(`
+      CREATE INDEX IF NOT EXISTS idx_tasks_status_due_date
+      ON tasks (status, due_date)
+    `).run();
+
+    this.db.prepare(`
+      CREATE INDEX IF NOT EXISTS idx_tasks_client_status
+      ON tasks (client, status)
+    `).run();
+
+    this.db.prepare(`
+      CREATE INDEX IF NOT EXISTS idx_tasks_last_run
+      ON tasks (last_run)
+    `).run();
   },
 };

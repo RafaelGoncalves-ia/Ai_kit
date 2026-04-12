@@ -11,20 +11,14 @@ export class SkillManager {
     this.enabledSkills = new Map();
   }
 
-  // ======================
-  // INIT PRINCIPAL
-  // ======================
   async init() {
-    logger.info("Inicializando SkillManager (Modo Dinâmico)...");
+    logger.info("Inicializando SkillManager (Modo Dinamico)...");
     await this.loadSkills();
     this.applyConfig();
     this.validateDependencies();
-    logger.info(`Skills carregadas: Disponíveis=${this.skills.size}, Ativas=${this.enabledSkills.size}`);
+    logger.info(`Skills carregadas: Disponiveis=${this.skills.size}, Ativas=${this.enabledSkills.size}`);
   }
 
-  // ======================
-  // LOAD DINÂMICO DE SKILLS
-  // ======================
   async loadSkills() {
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     const skillsRoot = path.resolve(__dirname, "../skills");
@@ -34,17 +28,18 @@ export class SkillManager {
     const categories = fs.readdirSync(skillsRoot);
 
     for (const category of categories) {
+      // Categoria descontinuada: runtime ignora esse namespace.
+      if (category === "base") continue;
+
       const categoryPath = path.join(skillsRoot, category);
       if (!fs.statSync(categoryPath).isDirectory()) continue;
 
-      // Skill direta (index.js ou skill.js)
       const directIndex = path.join(categoryPath, "index.js");
       const directSkill = path.join(categoryPath, "skill.js");
       if (fs.existsSync(directIndex) || fs.existsSync(directSkill)) {
         await this.loadSkillFromPath(categoryPath, category);
       }
 
-      // Subpastas de skills
       const subfolders = fs.readdirSync(categoryPath);
       for (const folder of subfolders) {
         const skillDir = path.join(categoryPath, folder);
@@ -54,20 +49,21 @@ export class SkillManager {
     }
   }
 
-  // ======================
-  // LOAD INDIVIDUAL
-  // ======================
   async loadSkillFromPath(skillDir, folderName) {
     try {
       const indexPath = path.join(skillDir, "index.js");
       const skillPathFile = path.join(skillDir, "skill.js");
-      const fullPath = fs.existsSync(indexPath) ? indexPath : fs.existsSync(skillPathFile) ? skillPathFile : null;
+      const fullPath = fs.existsSync(indexPath)
+        ? indexPath
+        : fs.existsSync(skillPathFile)
+          ? skillPathFile
+          : null;
       if (!fullPath) return;
 
       const fileUrl = pathToFileURL(fullPath).href;
       const module = await import(fileUrl);
       const skill = module.default;
-      if (!skill || !skill.name) return logger.warn(`Skill inválida em: ${folderName}`);
+      if (!skill || !skill.name) return logger.warn(`Skill invalida em: ${folderName}`);
 
       if (this.skills.has(skill.name)) return logger.warn(`Skill duplicada ignorada: ${skill.name}`);
 
@@ -80,9 +76,6 @@ export class SkillManager {
     }
   }
 
-  // ======================
-  // CONFIGURAÇÃO E ATIVAÇÃO
-  // ======================
   applyConfig() {
     const config = this.context.config.skills || {};
     for (const [name, skill] of this.skills.entries()) {
@@ -96,7 +89,7 @@ export class SkillManager {
   async toggleSkill(name, active) {
     try {
       const skill = this.skills.get(name);
-      if (!skill) return logger.warn(`Skill não encontrada: ${name}`);
+      if (!skill) return logger.warn(`Skill nao encontrada: ${name}`);
 
       if (active) {
         skill.enabled = true;
@@ -125,7 +118,7 @@ export class SkillManager {
       if (!skill.dependsOn) continue;
       for (const dep of skill.dependsOn) {
         if (!this.enabledSkills.has(dep)) {
-          logger.warn(`Skill [${name}] depende de [${dep}] que está inativa`);
+          logger.warn(`Skill [${name}] depende de [${dep}] que esta inativa`);
         }
       }
     }
@@ -133,8 +126,8 @@ export class SkillManager {
 
   async initAll() {
     await this.init();
-    if (!this.context.scheduler) throw new Error("Scheduler não encontrado no context");
-    if (!this.context.state) throw new Error("StateManager não encontrado no context");
+    if (!this.context.scheduler) throw new Error("Scheduler nao encontrado no context");
+    if (!this.context.state) throw new Error("StateManager nao encontrado no context");
 
     for (const skill of this.enabledSkills.values()) {
       if (typeof skill.init === "function" && !skill.__initialized) {
@@ -149,9 +142,6 @@ export class SkillManager {
     }
   }
 
-  // ======================
-  // UTILITÁRIOS
-  // ======================
   get(name) {
     return this.enabledSkills.get(name);
   }
@@ -164,7 +154,14 @@ export class SkillManager {
     const skill = this.get(name);
     if (!skill || typeof skill.execute !== "function") return null;
     try {
-      return await skill.execute({ input, context: this.context, services: this.context.services, skills: this });
+      return await skill.execute({
+        input,
+        context: this.context,
+        services: this.context.services,
+        tools: this.context.tools,
+        invokeTool: this.context.invokeTool,
+        skills: this
+      });
     } catch (err) {
       logger.error(`Erro na skill ${name}:`, err);
       return null;
@@ -180,9 +177,6 @@ export class SkillManager {
   }
 }
 
-// ======================
-// EXPORT FACTORY
-// ======================
 export default function createSkillManager(context) {
   return new SkillManager(context);
 }

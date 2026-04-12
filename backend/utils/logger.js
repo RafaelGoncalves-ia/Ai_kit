@@ -2,18 +2,24 @@
 // Evita console.log espalhado pelo projeto
 // Fácil de evoluir depois (arquivo, cores, níveis, etc)
 
+const normalizeMessage = (parts) => parts
+  .flat()
+  .filter((part) => part !== undefined && part !== null)
+  .map((part) => typeof part === "string" ? part : JSON.stringify(part))
+  .join(" ")
+
 const formatMessage = (level, message) => {
   const timestamp = new Date().toISOString()
   return `[${timestamp}] [${level.toUpperCase()}] ${message}`
 }
 
 const logger = {
-  info(message) {
-    console.log(formatMessage("info", message))
+  info(...parts) {
+    console.log(formatMessage("info", normalizeMessage(parts)))
   },
 
-  warn(message) {
-    console.warn(formatMessage("warn", message))
+  warn(...parts) {
+    console.warn(formatMessage("warn", normalizeMessage(parts)))
   },
 
   error(message, error = null) {
@@ -23,9 +29,9 @@ const logger = {
     }
   },
 
-  debug(message) {
+  debug(...parts) {
     if (process.env.DEBUG === "true") {
-      console.log(formatMessage("debug", message))
+      console.log(formatMessage("debug", normalizeMessage(parts)))
     }
   }
 }

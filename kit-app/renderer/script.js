@@ -1,7 +1,3 @@
-// ======================
-// SCRIPT PRINCIPAL KIT IA (MULTICHAT)
-// ======================
-
 const renderedMessages = new Set();
 const chatBox = document.getElementById("chatBox");
 const input = document.getElementById("input");
@@ -19,29 +15,21 @@ const API_URL = `${API_BASE}/chat`;
 const EVENTS_URL = `${API_BASE}/events`;
 
 let currentConversationId = null;
+let selectedFile = null;
 
-// ======================
-// GLOBAL (SIDEBAR)
-// ======================
 window.chatBox = chatBox;
 window.addMessage = addMessage;
 window.clearChat = clearChat;
 window.loadConversation = loadConversation;
 window.createNewChat = createNewChat;
 
-// ======================
-// MARKDOWN
-// ======================
 marked.setOptions({
   breaks: true,
-  gfm: true,
+  gfm: true
 });
 
-// ======================
-// CHAT RENDER
-// ======================
 function addMessage(author, text) {
-  const id = author + "-" + text;
+  const id = `${author}-${text}`;
 
   if (renderedMessages.has(id)) return;
   renderedMessages.add(id);
@@ -49,7 +37,7 @@ function addMessage(author, text) {
   const clone = messageTemplate.content.cloneNode(true);
   const msg = clone.querySelector(".message");
 
-  clone.querySelector(".author").textContent = author + ":";
+  clone.querySelector(".author").textContent = `${author}:`;
   clone.querySelector(".text").innerHTML = marked.parse(text);
 
   msg.classList.add(author === "Você" ? "user-msg" : "ai-msg");
@@ -67,34 +55,6 @@ function scrollBottom() {
   chatBox.parentElement.scrollTop = chatBox.parentElement.scrollHeight;
 }
 
-// ======================
-// TEMP MESSAGE
-// ======================
-function addMessageTemp(text) {
-  const clone = messageTemplate.content.cloneNode(true);
-  const msg = clone.querySelector(".message");
-
-  const id = "temp-" + Date.now();
-  msg.id = id;
-
-  msg.querySelector(".author").textContent = "Kit IA:";
-  msg.querySelector(".text").innerHTML = marked.parse(text);
-  msg.classList.add("ai-msg-temp");
-
-  chatBox.appendChild(clone);
-  scrollBottom();
-
-  return id;
-}
-
-function removeMessage(id) {
-  const el = document.getElementById(id);
-  if (el) el.remove();
-}
-
-// ======================
-// AVATAR
-// ======================
 function animateAvatar() {
   kitIcon.src = "assets/avatar/listening.png";
   setTimeout(() => {
@@ -102,9 +62,6 @@ function animateAvatar() {
   }, 1500);
 }
 
-// ======================
-// PROCESSING INDICATOR (NOVO!)
-// ======================
 function showProcessing(message) {
   if (processingIndicator) {
     processingIndicator.querySelector("span").textContent = message || "Processando...";
@@ -119,47 +76,62 @@ function hideProcessing() {
   }
 }
 
-// ======================
-// FILE
-// ======================
 fileBtn.addEventListener("click", () => fileInput.click());
 
 fileInput.addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (file) {
+    selectedFile = file;
     addMessage("Sistema", `Arquivo: **${file.name}**`);
-    fileInput.value = "";
   }
 });
 
-// ======================
-// SEND MESSAGE
-// ======================
 async function sendMessage() {
   const text = input.value.trim();
-  if (!text) return;
+  if (!text && !selectedFile) return;
 
-  addMessage("Você", text);
+  if (text) {
+    addMessage("Você", text);
+  } else if (selectedFile) {
+    addMessage("Você", `[Imagem enviada: ${selectedFile.name}]`);
+  }
+
   input.value = "";
-  
-  // Mostra indicador inicial
+  const fileToSend = selectedFile;
+  selectedFile = null;
+  fileInput.value = "";
+
   showProcessing("💭 processando...");
 
   try {
-    await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text,
-        conversationId: currentConversationId
-      }),
-    });
+    if (fileToSend) {
+      const formData = new FormData();
+      formData.append("text", text);
+      formData.append("sessionId", currentConversationId || "default");
+      formData.append("file", fileToSend, fileToSend.name);
 
-    // O indicador de status será atualizado automaticamente via SSE
+      await fetch(API_URL, {
+        method: "POST",
+        body: formData
+      });
+    } else {
+      await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          sessionId: currentConversationId || "default"
+        })
+      });
+    }
   } catch (err) {
     console.error(err);
     hideProcessing();
     addMessage("Sistema", "Erro ao conectar com backend.");
+
+    if (fileToSend) {
+      selectedFile = fileToSend;
+    }
   }
 }
 
@@ -168,22 +140,17 @@ input.addEventListener("keypress", (e) => {
   if (e.key === "Enter") sendMessage();
 });
 
-// ======================
-// CONFIG BUTTON
-// ======================
 if (configBtn) {
   configBtn.addEventListener("click", () => {
     if (window.kitAPI?.openConfig) {
       window.kitAPI.openConfig();
       return;
     }
+
     window.open("./config/config.html", "_blank");
   });
 }
 
-// ======================
-// CONVERSATIONS
-// ======================
 async function loadConversation(id) {
   try {
     const res = await fetch(`${API_BASE}/conversations/${id}`);
@@ -194,13 +161,11 @@ async function loadConversation(id) {
 
     if (!data?.messages) return;
 
-    data.messages.forEach(msg => {
+    data.messages.forEach((msg) => {
       const author = msg.role === "user" ? "Você" : "Kit IA";
-      // ✅ usa msg.text se content não existir
       const text = msg.content ?? msg.text ?? "";
       addMessage(author, text);
     });
-
   } catch (err) {
     console.error("Erro ao carregar conversa:", err);
   }
@@ -212,29 +177,22 @@ async function createNewChat() {
       method: "POST"
     });
 
-    // pega lista atualizada
     const res = await fetch(`${API_BASE}/conversations`);
     const list = await res.json();
-
     const last = list[list.length - 1];
 
     if (last) {
       await loadConversation(last.id);
     }
 
-    // opcional: avisar sidebar pra atualizar
     if (window.refreshSidebar) {
       window.refreshSidebar();
     }
-
   } catch (err) {
     console.error("Erro ao criar chat:", err);
   }
 }
 
-// ======================
-// HISTÓRICO INICIAL
-// ======================
 async function loadInitialHistory() {
   try {
     const res = await fetch(`${API_BASE}/conversations`);
@@ -244,15 +202,11 @@ async function loadInitialHistory() {
 
     const first = list[0];
     await loadConversation(first.id);
-
   } catch (err) {
     console.warn("Erro ao carregar histórico inicial:", err);
   }
 }
 
-// ======================
-// SSE
-// ======================
 function connectEvents() {
   const evtSource = new EventSource(EVENTS_URL);
 
@@ -272,7 +226,6 @@ function connectEvents() {
         hideProcessing();
       }
 
-      // ✅ NOVO: Indicador de status dinâmico
       if (data.type === "action:status") {
         if (data.message) {
           showProcessing(data.message);
@@ -280,7 +233,6 @@ function connectEvents() {
           hideProcessing();
         }
       }
-
     } catch (err) {
       console.error("Erro SSE:", err);
     }
@@ -293,11 +245,9 @@ function connectEvents() {
   };
 }
 
-// ======================
-// INIT
-// ======================
 async function init() {
   await loadInitialHistory();
   connectEvents();
 }
+
 init();

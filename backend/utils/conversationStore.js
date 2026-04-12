@@ -1,106 +1,109 @@
-import fs from "fs";
-import path from "path";
+import {
+  deleteConversationGroup,
+  getConversationMessages,
+  listConversationGroups,
+  saveConversationMessage
+} from "../skills/memory/memory.repository.js";
+import { initDB } from "../skills/memory/sqlite.js";
 
-const BASE_DIR = path.resolve("conversations");
 let currentConversationId = null;
 
-function ensureDir() {
-  if (!fs.existsSync(BASE_DIR)) fs.mkdirSync(BASE_DIR, { recursive: true });
+function ensureReady() {
+  initDB();
 }
 
-// ======================
-// INICIALIZA CONVERSA ATIVA
-// ======================
+function buildConversationTitle(messages = [], fallbackId = "default") {
+  const firstUserMessage = messages.find((message) => message.role === "user")?.text || "";
+  const title = String(firstUserMessage || fallbackId).replace(/\s+/g, " ").trim();
+  return title ? title.slice(0, 60) : fallbackId;
+}
+
 export function initConversation() {
-  ensureDir();
-  const files = fs.readdirSync(BASE_DIR).filter(f => f.endsWith(".json"));
-  if (files.length) {
-    currentConversationId = files[files.length - 1]; // pega última conversa existente
+  ensureReady();
+  const groups = listConversationGroups(1);
+  if (groups.length > 0) {
+    currentConversationId = groups[0].id;
   } else {
-    const conv = createNewConversation("Chat Inicial");
-    currentConversationId = conv.id;
+    currentConversationId = `chat-${Date.now()}`;
   }
   return currentConversationId;
 }
 
-// ======================
-// LISTAR CONVERSAS
-// ======================
 export function listConversations() {
-  ensureDir();
-  const files = fs.readdirSync(BASE_DIR).filter(f => f.endsWith(".json"));
-
-  return files.map(f => {
-    const conv = JSON.parse(fs.readFileSync(path.join(BASE_DIR, f), "utf-8"));
-    return {
-      id: f,
-      title: conv.title || f.replace(".json", ""),
-      path: path.join(BASE_DIR, f)
-    };
-  });
+  ensureReady();
+  return listConversationGroups(100).map((conversation) => ({
+    id: conversation.id,
+    title: conversation.title,
+    updatedAt: conversation.lastMessageAt,
+    messageCount: conversation.messageCount,
+    path: null
+  }));
 }
 
-// ======================
-// CRIAR NOVA CONVERSA
-// ======================
 export function createNewConversation(title = "Novo Chat") {
-  ensureDir();
-  const files = fs.readdirSync(BASE_DIR).filter(f => f.endsWith(".json"));
-
-  const next = files.length ? files.length + 1 : 1;
-  const fileName = `chat-${next}.json`;
-  const filePath = path.join(BASE_DIR, fileName);
-
-  const conv = { id: fileName, title, messages: [] };
-  fs.writeFileSync(filePath, JSON.stringify(conv, null, 2));
-
-  currentConversationId = fileName; // define nova conversa como ativa
-  return conv;
+  ensureReady();
+  currentConversationId = `chat-${Date.now()}`;
+  return {
+    id: currentConversationId,
+    title,
+    messages: []
+  };
 }
 
-// ======================
-// ADICIONAR MENSAGEM
-// ======================
 export function addMessage(message) {
-  if (!currentConversationId) initConversation();
+  ensureReady();
 
-  const filePath = path.join(BASE_DIR, currentConversationId);
-  const conv = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  if (!currentConversationId) {
+    initConversation();
+  }
 
-  conv.messages.push({
-    id: Date.now() + "-" + Math.random(),
-    ...message,
-    timestamp: new Date().toISOString()
+  const groupId = message.groupId || message.sessionId || currentConversationId || "default";
+  const text = message.text || message.content || "";
+  const createdAt = message.timestamp ? new Date(message.timestamp).getTime() : Date.now();
+
+  if (!String(text || "").trim()) {
+    return groupId;
+  }
+
+  saveConversationMessage({
+    groupId,
+    role: message.role || "user",
+    content: text,
+    createdAt
   });
 
-  fs.writeFileSync(filePath, JSON.stringify(conv, null, 2));
-  return currentConversationId;
+  currentConversationId = groupId;
+  return groupId;
 }
 
-// ======================
-// CARREGAR CONVERSA POR ID
-// ======================
 export function loadConversationById(id) {
-  const filePath = path.join(BASE_DIR, id);
-  if (!fs.existsSync(filePath)) return null;
-  currentConversationId = id;
-  return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  ensureReady();
+  const groupId = id || currentConversationId || initConversation();
+  const messages = getConversationMessages({ groupId, limit: 500, newestFirst: false }).map((message) => ({
+    id: `${message.id}`,
+    role: message.role,
+    text: message.content,
+    timestamp: new Date(message.createdAt).toISOString()
+  }));
+
+  currentConversationId = groupId;
+  return {
+    id: groupId,
+    title: buildConversationTitle(messages, groupId),
+    messages
+  };
 }
 
-// ======================
-// RETORNA CONVERSA ATUAL
-// ======================
 export function getCurrentConversation() {
-  if (!currentConversationId) initConversation();
-  const filePath = path.join(BASE_DIR, currentConversationId);
-  return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  const groupId = currentConversationId || initConversation();
+  return loadConversationById(groupId);
 }
 
-// ======================
-// DELETAR CONVERSA
-// ======================
 export function deleteConversation(id) {
-  const filePath = path.join(BASE_DIR, id);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  if (currentConversationId === id) currentConversationId = null;
+  ensureReady();
+  const deleted = deleteConversationGroup(id);
+  if (currentConversationId === id) {
+    currentConversationId = null;
+  }
+  return deleted;
 }

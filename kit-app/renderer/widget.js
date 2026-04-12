@@ -32,7 +32,8 @@ async function send(textOverride = null) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
         text: value,
-        file: tempPath // Envia o caminho do arquivo se houver
+        file: tempPath,
+        sessionId: "widget"
       }),
     });
 

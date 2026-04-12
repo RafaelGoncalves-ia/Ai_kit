@@ -1,20 +1,13 @@
 import express from "express";
-import db from "../database/sqlite.js";
+import { getRecentMemory } from "../skills/memory/memory.repository.js";
+import { initDB } from "../skills/memory/sqlite.js";
 
 const router = express.Router();
 
-// LISTAR
 router.get("/", (req, res) => {
-  const data = db.prepare("SELECT * FROM memory").all();
-  res.json(data);
-});
-
-// DELETE
-router.delete("/:id", (req, res) => {
-  db.prepare("DELETE FROM memory WHERE id=?")
-    .run(req.params.id);
-
-  res.json({ success: true });
+  initDB();
+  const limit = Number(req.query.limit || 50);
+  res.json(getRecentMemory(limit));
 });
 
 export default router;

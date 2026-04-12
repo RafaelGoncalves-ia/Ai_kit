@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, screen, Notification } = require("electron");
+const { app, BrowserWindow, globalShortcut, ipcMain, screen, Notification, dialog } = require("electron");
 const path = require("path");
 const { EventSource } = require("eventsource");
 
@@ -199,6 +199,20 @@ ipcMain.on("close-notify", () => {
     notifyWindow.close();
     notifyWindow = null;
   }
+});
+
+ipcMain.handle("open-file-dialog", async (event) => {
+  const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+    title: "Selecionar imagem",
+    properties: ["openFile"],
+    filters: [
+      { name: "Imagens", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp"] }
+    ]
+  });
+
+  const selectedPath = result.canceled ? null : result.filePaths[0] || null;
+  event.sender.send("file-selected", selectedPath);
+  return selectedPath;
 });
 
 // ======================

@@ -15,10 +15,17 @@ export default function createBrain(context) {
     if (!text) return { text: "", usage: null };
 
     try {
-      const response = await context.services.ai.chat(text, options);
+      const response = await context.invokeTool("ai_chat", {
+        prompt: text,
+        images: options.images || [],
+        options,
+        source: options.source || "brain.generate",
+        sessionId: options.sessionId || null,
+        executionId: options.executionId || null
+      });
       return {
-        text: response?.text || "",
-        usage: response?.usage || null
+        text: response?.data?.text || "",
+        usage: response?.data?.raw?.usage || null
       };
     } catch (err) {
       console.error("Erro em brain.generate:", err);

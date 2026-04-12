@@ -1,272 +1,301 @@
-import { saveMemory, getRecentMemory, getMemoryByType } from "./memory.repository.js";
+import {
+  getMemoryByType,
+  getRecentConversationMessages,
+  getRelevantMemory,
+  getVocabulary,
+  saveMemory,
+  saveVocabulary
+} from "./memory.repository.js";
 
-/**
- * Extração inteligente usando IA
- */
-export async function extractMemory(text, context) {
-  try {
-    // Prompt para extrair memórias
-    const prompt = `
-Analise o texto do usuário e extraia informações relevantes para memória.
-Retorne apenas um JSON válido com a estrutura:
-{
-  "memories": [
-    {
-      "type": "user|preference|vocabulary|fact|emotion|topic",
-      "key": "chave opcional",
-      "value": "conteúdo extraído",
-      "relevance": 0.0-1.0 (peso baseado em importância e certeza)
-    }
-  ]
+function normalizeText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
 }
 
-Tipos:
-- user: informações sobre o usuário (nome, idade, etc.)
-- preference: gostos, preferências
-- vocabulary: definições, significados
-- fact: fatos mencionados
-- emotion: sentimentos expressos
-- topic: tópicos discutidos
-
-Seja conservador: só extraia se for claro e relevante. Relevância alta para fatos pessoais, baixa para conversação casual.
-
-Texto: "${text}"
-`;
-
-    const aiResponse = await context.services.ai.chat(prompt, {});
-    const responseText = aiResponse.text || "{}";
-
-    // Tentar parsear JSON
-    let parsed;
-    try {
-      parsed = JSON.parse(responseText);
-    } catch (e) {
-      console.warn("[Memory] Falha ao parsear resposta da IA:", responseText);
-      return;
-    }
-
-    if (parsed.memories && Array.isArray(parsed.memories)) {
-      for (const mem of parsed.memories) {
-        if (mem.type && mem.value) {
-          saveMemory({
-            type: mem.type,
-            key: mem.key || null,
-            value: mem.value,
-            relevance: Math.min(1.0, Math.max(0.0, mem.relevance || 0.5))
-          });
-        }
-      }
-    }
-
-    // Sempre salva o histórico da conversa
-    saveMemory({
-      type: "conversation",
-      value: `user: ${text}`,
-      relevance: 0.3
-    });
-
-  } catch (err) {
-    console.error("[Memory] Erro na extração:", err);
-    // Fallback para regras simples se IA falhar
-    fallbackExtract(text);
-  }
+function normalizeComparableText(value) {
+  return normalizeText(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
-/**
- * Fallback para extração simples (se IA falhar)
- */
-function fallbackExtract(text) {
-  const lower = text.toLowerCase();
+function truncate(text, maxChars) {
+  const normalized = normalizeText(text);
+  if (!normalized || normalized.length <= maxChars) {
+    return normalized;
+  }
 
-  if (lower.includes("meu nome é")) {
-    const name = text.split("é").pop().trim();
-    if (name.length > 1) {
-      saveMemory({
-        type: "user",
-        key: "nome",
-        value: name,
-        relevance: 1
-      });
+  return `${normalized.slice(0, Math.max(0, maxChars - 18)).trim()} [truncado]`;
+}
+
+function dedupeEntries(entries = []) {
+  const seen = new Set();
+  return entries.filter((entry) => {
+    const identity = [
+      entry.type,
+      entry.key || "",
+      entry.value || "",
+      entry.groupId || "",
+      entry.source || ""
+    ].join("|");
+
+    if (seen.has(identity)) {
+      return false;
     }
-  }
 
-  if (lower.includes("eu gosto de")) {
-    const value = text.split("de").pop().trim();
-    saveMemory({
-      type: "preference",
-      key: "gosto",
-      value,
-      relevance: 0.7
-    });
-  }
-
-  if (lower.includes("significa")) {
-    saveMemory({
-      type: "vocabulary",
-      value: text,
-      relevance: 0.5
-    });
-  }
-
-  saveMemory({
-    type: "conversation",
-    value: `user: ${text}`,
-    relevance: 0.3
+    seen.add(identity);
+    return true;
   });
 }
 
-/**
- * Extração de memórias da IA (opiniões e preferências)
- */
-export async function extractAIMemory(text, context) {
-  // Validação: rejeita respostas vazias
-  if (!text || text.trim() === "") {
-    return;
-  }
-
-  try {
-    // Prompt para extrair opiniões da IA
-    const prompt = `
-Analise a resposta da IA e extraia suas opiniões, preferências ou escolhas expressas.
-Retorne apenas um JSON válido com a estrutura:
-{
-  "memories": [
-    {
-      "type": "ai_opinion",
-      "key": "assunto",
-      "value": "opinião expressa",
-      "relevance": 0.0-1.0 (baixo para opiniões mutáveis, alto para convicções fortes)
-    }
-  ]
+function extractGreetingVocabulary(text) {
+  const lower = normalizeComparableText(text);
+  const greetings = ["bom dia", "boa tarde", "boa noite", "oi", "ola", "olá"];
+  return greetings.find((item) => lower.includes(item)) || null;
 }
 
-Exemplos:
-- "Eu gosto de azul" → {"type": "ai_opinion", "key": "cor_favorita", "value": "azul", "relevance": 0.4}
-- "O roxo é muito melhor agora" → mudança de opinião, relevância baixa
-- "Eu odeio esperar" → opinião forte, relevância alta
+function extractUserEntries(text, meta = {}) {
+  const normalized = normalizeText(text);
+  const lower = normalizeComparableText(normalized);
+  const globalEntries = [];
+  const sessionEntries = [];
+  const sessionId = meta.sessionId || null;
 
-Seja conservador: só extraia opiniões claras e pessoais da IA.
+  const pushGlobal = (entry) => globalEntries.push({
+    confidence: 0.8,
+    relevance: 0.7,
+    source: meta.source || "memory.rule",
+    groupId: null,
+    ...entry
+  });
 
-Texto da IA: "${text}"
-`;
+  const pushSession = (entry) => sessionEntries.push({
+    confidence: 0.7,
+    relevance: 0.6,
+    source: meta.source || "memory.rule",
+    groupId: sessionId,
+    ...entry
+  });
 
-    const aiResponse = await context.services.ai.chat(prompt, {});
-    const responseText = aiResponse.text || "{}";
+  const nameMatch = normalized.match(/\b(?:meu nome e|me chamo|pode me chamar de)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'\- ]{1,40})/i);
+  if (nameMatch) {
+    pushGlobal({
+      type: "user",
+      key: "nome",
+      value: normalizeText(nameMatch[1]),
+      relevance: 0.98,
+      confidence: 0.98
+    });
+  }
 
-    let parsed;
-    try {
-      parsed = JSON.parse(responseText);
-    } catch (e) {
-      console.warn("[AI Memory] Falha ao parsear resposta da IA:", responseText);
-      return;
-    }
+  const companyMatch = normalized.match(/\b(?:minha\s+(?:empresa|agencia|agência)\s+(?:e|é|se chama)|empresa|agencia|agência)\s*[:\-]?\s*([A-Za-z0-9À-ÿ][A-Za-z0-9À-ÿ '&._-]{1,60})/i);
+  if (companyMatch) {
+    pushGlobal({
+      type: "fact",
+      key: "empresa",
+      value: normalizeText(companyMatch[1]),
+      relevance: 0.92,
+      confidence: 0.9
+    });
+  }
 
-    if (parsed.memories && Array.isArray(parsed.memories)) {
-      for (const mem of parsed.memories) {
-        if (mem.type && mem.value) {
-          // Para opiniões da IA, relevância sempre baixa (0.2-0.6) para permitir mudanças
-          const relevance = Math.min(0.6, Math.max(0.2, mem.relevance || 0.4));
-          saveMemory({
-            type: mem.type,
-            key: mem.key || null,
-            value: mem.value,
-            relevance
-          });
-        }
-      }
-    }
+  const workAreaMatch = normalized.match(/\b(?:trabalho com|atuo com|sou de|minha area e|minha área é)\s+([A-Za-zÀ-ÿ0-9 ,._-]{3,80})/i);
+  if (workAreaMatch) {
+    pushGlobal({
+      type: "fact",
+      key: "area",
+      value: normalizeText(workAreaMatch[1]),
+      relevance: 0.85,
+      confidence: 0.84
+    });
+  }
 
-  } catch (err) {
-    console.error("[AI Memory] Erro na extração:", err);
+  const likeMatch = normalized.match(/\b(?:eu gosto de|curto|adoro|prefiro)\s+([A-Za-zÀ-ÿ0-9 ,._-]{2,80})/i);
+  if (likeMatch) {
+    pushGlobal({
+      type: "preference",
+      key: "gosta_de",
+      value: normalizeText(likeMatch[1]),
+      relevance: 0.8,
+      confidence: 0.78
+    });
+  }
+
+  const dislikeMatch = normalized.match(/\b(?:nao gosto de|não gosto de|detesto|odeio)\s+([A-Za-zÀ-ÿ0-9 ,._-]{2,80})/i);
+  if (dislikeMatch) {
+    pushGlobal({
+      type: "preference",
+      key: "nao_gosta_de",
+      value: normalizeText(dislikeMatch[1]),
+      relevance: 0.8,
+      confidence: 0.78
+    });
+  }
+
+  const focusMatch = normalized.match(/\b(?:focado em|focada em|foco em|sobre)\s+([A-Za-zÀ-ÿ0-9 ,._-]{2,100})/i);
+  if (focusMatch) {
+    pushSession({
+      type: "topic",
+      key: "foco",
+      value: normalizeText(focusMatch[1]),
+      relevance: 0.82,
+      confidence: 0.78
+    });
+  }
+
+  if (lower.includes("sem inventar")) {
+    pushGlobal({
+      type: "constraint",
+      key: "estilo_resposta",
+      value: "sem inventar",
+      relevance: 0.9,
+      confidence: 0.92
+    });
+  }
+
+  if (lower.includes("objetivo") || lower.includes("objetiva")) {
+    pushGlobal({
+      type: "constraint",
+      key: "estilo_resposta",
+      value: "objetivo",
+      relevance: 0.75,
+      confidence: 0.72
+    });
+  }
+
+  if (lower.includes("em portugues") || lower.includes("em português")) {
+    pushGlobal({
+      type: "constraint",
+      key: "idioma",
+      value: "pt-BR",
+      relevance: 0.88,
+      confidence: 0.9
+    });
+  }
+
+  const greeting = extractGreetingVocabulary(normalized);
+  if (greeting) {
+    pushSession({
+      type: "vocabulary",
+      key: "saudacao",
+      value: greeting,
+      relevance: 0.45,
+      confidence: 0.9
+    });
+  }
+
+  return dedupeEntries([...globalEntries, ...sessionEntries]);
+}
+
+function extractAIEntries(text, meta = {}) {
+  const normalized = normalizeText(text);
+  const entries = [];
+  const sessionId = meta.sessionId || null;
+
+  const opinionMatch = normalized.match(/\b(?:eu gosto de|eu prefiro|minha favorita e|minha favorita é)\s+([A-Za-zÀ-ÿ0-9 ,._-]{2,80})/i);
+  if (opinionMatch) {
+    entries.push({
+      type: "ai_opinion",
+      key: "opiniao",
+      value: normalizeText(opinionMatch[1]),
+      relevance: 0.35,
+      confidence: 0.45,
+      groupId: sessionId,
+      source: meta.source || "memory.ai-rule"
+    });
+  }
+
+  return dedupeEntries(entries);
+}
+
+function persistEntries(entries = []) {
+  for (const entry of entries) {
+    saveMemory(entry);
   }
 }
 
-/**
- * Contexto inteligente com pesos
- */
-export async function buildContext() {
-  const recent = getRecentMemory(20); // mais para filtrar
-  const userData = getMemoryByType("user", 5);
-  const preferences = getMemoryByType("preference", 5);
-  const vocab = getMemoryByType("vocabulary", 5);
-  const facts = getMemoryByType("fact", 5);
-  const emotions = getMemoryByType("emotion", 3);
-  const topics = getMemoryByType("topic", 5);
-  const aiOpinions = getMemoryByType("ai_opinion", 5);
-
-  let context = "";
-
-  // Usuário - alta prioridade
-  if (userData.length) {
-    context += `Informações sobre o usuário (baseado em conversas anteriores, pode não ser 100% preciso):\n`;
-    userData.forEach(mem => {
-      context += `- ${mem.content} (confiança: ${(mem.relevance * 100).toFixed(0)}%)\n`;
-    });
-    context += "\n";
+export async function extractMemory(text, context, meta = {}) {
+  const normalized = normalizeText(text);
+  if (!normalized) {
+    return { extracted: 0 };
   }
 
-  // Preferências
-  if (preferences.length) {
-    context += `Preferências mencionadas (sujeito a mudanças):\n`;
-    preferences.forEach(mem => {
-      context += `- ${mem.content} (confiança: ${(mem.relevance * 100).toFixed(0)}%)\n`;
-    });
-    context += "\n";
-  }
+  const entries = extractUserEntries(normalized, meta);
+  persistEntries(entries);
 
-  // Fatos relevantes
-  if (facts.length) {
-    context += `Fatos mencionados:\n`;
-    facts.forEach(mem => {
-      context += `- ${mem.content} (relevância: ${(mem.relevance * 100).toFixed(0)}%)\n`;
-    });
-    context += "\n";
-  }
-
-  // Emoções recentes
-  if (emotions.length) {
-    context += `Estado emocional recente:\n`;
-    emotions.forEach(mem => {
-      context += `- ${mem.content} (relevância: ${(mem.relevance * 100).toFixed(0)}%)\n`;
-    });
-    context += "\n";
-  }
-
-  // Opiniões da IA (mutáveis)
-  if (aiOpinions.length) {
-    context += `Minhas opiniões atuais (posso mudar de ideia):\n`;
-    aiOpinions.forEach(mem => {
-      context += `- ${mem.content} (convicção: ${(mem.relevance * 100).toFixed(0)}%)\n`;
-    });
-    context += "\n";
-  }
-
-  // Tópicos
-  if (topics.length) {
-    context += `Tópicos discutidos:\n`;
-    topics.forEach(mem => {
-      context += `- ${mem.content} (relevância: ${(mem.relevance * 100).toFixed(0)}%)\n`;
-    });
-    context += "\n";
-  }
-
-  // Vocabulário
-  if (vocab.length) {
-    context += `Vocabulário e definições:\n`;
-    vocab.forEach(mem => {
-      context += `- ${mem.content} (relevância: ${(mem.relevance * 100).toFixed(0)}%)\n`;
-    });
-    context += "\n";
-  }
-
-  // Histórico recente (filtrado por relevância > 0.3)
-  const relevantRecent = recent.filter(r => r.relevance > 0.3).slice(0, 8);
-  if (relevantRecent.length) {
-    context += `Histórico recente relevante:\n`;
-    relevantRecent.reverse().forEach(r => {
-      context += `- ${r.content}\n`;
+  const greeting = extractGreetingVocabulary(normalized);
+  if (greeting) {
+    saveVocabulary({
+      phrase: greeting,
+      groupId: meta.sessionId || null,
+      source: meta.source || "memory.rule",
+      weight: 0.6
     });
   }
 
-  return context.trim();
+  return { extracted: entries.length };
+}
+
+export async function extractAIMemory(text, context, meta = {}) {
+  const normalized = normalizeText(text);
+  if (!normalized) {
+    return { extracted: 0 };
+  }
+
+  const entries = extractAIEntries(normalized, meta);
+  persistEntries(entries);
+  return { extracted: entries.length };
+}
+
+export async function buildContext(options = {}) {
+  const sessionId = options.sessionId || options.groupId || null;
+  const query = options.query || options.text || "";
+  const memories = getRelevantMemory({
+    groupId: sessionId,
+    query,
+    limit: 8
+  });
+  const vocabulary = getVocabulary(5, {
+    groupId: sessionId,
+    query
+  });
+  const recentMessages = getRecentConversationMessages({
+    groupId: sessionId || "default",
+    limit: 6
+  });
+
+  const memoryLines = memories.map((memory) => {
+    const label = memory.key ? `${memory.type}/${memory.key}` : memory.type;
+    return `- ${label}: ${truncate(memory.content, 140)}`;
+  });
+
+  const vocabularyLines = vocabulary.map((item) => `- ${truncate(item.phrase, 80)}`);
+  const conversationLines = recentMessages.map((message) => {
+    const roleLabel = message.role === "assistant" ? "assistant" : message.role;
+    return `- ${roleLabel}: ${truncate(message.content, 180)}`;
+  });
+
+  const sections = [];
+
+  if (memoryLines.length > 0) {
+    sections.push(`Memorias persistentes:\n${memoryLines.join("\n")}`);
+  }
+
+  if (vocabularyLines.length > 0) {
+    sections.push(`Vocabulário útil:\n${vocabularyLines.join("\n")}`);
+  }
+
+  if (conversationLines.length > 0) {
+    sections.push(`Conversa recente:\n${conversationLines.join("\n")}`);
+  }
+
+  const text = sections.join("\n\n").trim();
+  return truncate(text, 2400);
+}
+
+export function getLegacyContextSnapshot() {
+  return {
+    userData: getMemoryByType("user", 5),
+    preferences: getMemoryByType("preference", 5),
+    facts: getMemoryByType("fact", 5)
+  };
 }

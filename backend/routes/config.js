@@ -144,18 +144,14 @@ export default function createConfigRoutes(context) {
       }
 
       // ======================
-      // VOICE
+      // VOICE FLAGS
       // ======================
-      if (context.core.skillManager) {
-        if (xttsEnabled !== undefined) {
-          await context.core.skillManager.toggleSkill("base/xtts", xttsEnabled);
-          current.voice.xttsEnabled = xttsEnabled;
-        }
+      if (xttsEnabled !== undefined) {
+        current.voice.xttsEnabled = !!xttsEnabled;
+      }
 
-        if (microphoneEnabled !== undefined) {
-          await context.core.skillManager.toggleSkill("base/stt", microphoneEnabled);
-          current.voice.microphoneEnabled = microphoneEnabled;
-        }
+      if (microphoneEnabled !== undefined) {
+        current.voice.microphoneEnabled = !!microphoneEnabled;
       }
 
       // ======================

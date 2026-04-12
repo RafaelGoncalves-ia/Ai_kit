@@ -1,4 +1,4 @@
-import { pesquisarMundoReal } from "../../services/searchService.js";
+import { isSafeDiagnosticMode } from "../../utils/runtimeGuards.js";
 
 export default {
   name: "web-update",
@@ -8,44 +8,31 @@ export default {
     const config = context.config;
 
     if (!scheduler) return;
+    if (scheduler.hasJob?.("web-update-daily")) {
+      console.log("[WEB-UPDATE] Job web-update-daily ja registrado");
+      return;
+    }
 
     let lastUpdate = null;
 
     scheduler.register({
       name: "web-update-daily",
       priority: 2,
-      enabled: true,
+      enabled: false,
       async execute(ctx) {
-        const now = Date.now();
-        const updateFrequency = (config?.assuntosWeb?.updateFrequencyHours || 24) * 60 * 60 * 1000;
+        const explicitlyEnabled =
+          ctx?.config?.system?.enableAutonomousWebUpdate === true ||
+          process.env.ENABLE_AUTONOMOUS_WEB_UPDATE === "true";
 
-        // Verifica se já passou o tempo de atualização
-        if (lastUpdate && (now - lastUpdate) < updateFrequency) return;
-
-        // Verifica se web-update está habilitado
-        if (config?.assuntosWeb?.enabled === false) return;
-
-        const topics = config?.assuntosWeb?.topics || [];
-        if (!topics || topics.length === 0) return;
-
-        lastUpdate = now;
-
-        try {
-          const randomTopic = topics[Math.floor(Math.random() * topics.length)];
-          console.log(`[WEB-UPDATE] Pesquisando sobre: ${randomTopic}`);
-
-          const searchResult = await pesquisarMundoReal(randomTopic);
-
-          // Salva na memória
-          const memorySkill = ctx.core.skillManager.get("memory");
-          if (memorySkill) {
-            await memorySkill.processAIResponse(`[Web Update] Sobre ${randomTopic}:\n${searchResult}`);
-          }
-
-          console.log(`[WEB-UPDATE] Atualização concluída para: ${randomTopic}`);
-        } catch (err) {
-          console.error("[WEB-UPDATE] Erro na atualização:", err);
+        if (!explicitlyEnabled || isSafeDiagnosticMode(ctx)) {
+          return;
         }
+
+        const now = Date.now();
+        const configuredHours = Number(config?.assuntosWeb?.updateFrequencyHours || 24);
+        const updateFrequency = configuredHours * 60 * 60 * 1000;
+
+        if (lastUpdate && (now - lastUpdate) < updateFrequency) return;
       }
     });
 

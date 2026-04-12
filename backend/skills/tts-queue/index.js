@@ -9,7 +9,7 @@
  * 
  * NÃO DUPLICA LÓGICA:
  * - Apenas orquestra execução de TTS
- * - Usa context.services.tts.speak() existente
+ * - Usa tool audio_play para execucao de TTS
  * - Emite eventos via eventBus
  */
 
@@ -205,8 +205,8 @@ export default {
           // Executa TTS via serviço existente
           console.log(`[TTS-QUEUE] Processando chunk ${item.index + 1}/${item.total}`);
           
-          if (this._context?.services?.tts?.speak) {
-            await this._context.services.tts.speak(item.text);
+          if (this._context?.invokeTool) {
+            await this._context.invokeTool("audio_play", { text: item.text });
           } else {
             console.warn("[TTS-QUEUE] Serviço TTS não disponível");
           }
@@ -252,7 +252,7 @@ export default {
    * Cancela toda a fila e interrompe processamento atual
    * Útil quando usuário envia nova mensagem
    */
-  async cancelQueue() {
+  cancelQueue() {
     const itemsRemoved = this._queue.length;
     this._queue = [];
     this._isProcessing = false;
@@ -315,3 +315,6 @@ export default {
     this._isProcessing = false;
   }
 };
+
+
+

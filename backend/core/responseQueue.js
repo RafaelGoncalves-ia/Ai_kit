@@ -1,28 +1,58 @@
 import { addMessage } from "../utils/conversationStore.js";
-
-/**
- * RESPONSE QUEUE (VERSÃO REFATORADA)
- *
- * Responsabilidades:
- * - ✅ Separação: texto exibido IMEDIATO, áudio em background
- * - ✅ Usa skill tts-queue para gerenciar fila de TTS
- * - ✅ Cancelamento automático ao receber nova mensagem
- * - ✅ Apenas orquestra, não duplica lógica TTS
- * - ✅ Emite eventos para UI via eventBus
- */
+import {
+  registerAssistantMessage,
+  shouldSuppressAssistantMessage
+} from "../utils/assistantMessageGuard.js";
+import { getLastSessionId } from "../utils/runtimeState.js";
 
 export default function createResponseQueue(context) {
-  function enqueue({ text, speak = true, priority = 0 }) {
-    const messageId = Date.now() + "-" + Math.random();
+  function shouldProcessAssistantMemory(source = "unknown") {
+    return !/(error|search|system|audio|empty-input)/i.test(String(source || ""));
+  }
 
-    // 🔥 salva no histórico
+  function enqueue({
+    text,
+    speak = true,
+    priority = 0,
+    source = "unknown",
+    allowGeneric = false,
+    sessionId = null
+  }) {
+    const suppression = shouldSuppressAssistantMessage(context, text, {
+      source,
+      allowGeneric
+    });
+
+    if (suppression.blocked) {
+      console.warn(
+        `[RESPONSE-QUEUE] Mensagem bloqueada source=${source} reason=${suppression.reason}`
+      );
+      return false;
+    }
+
+    registerAssistantMessage(context, text, { source });
+
+    const messageId = `${Date.now()}-${Math.random()}`;
+    const resolvedSessionId = sessionId || getLastSessionId(context);
+
     addMessage({
       id: messageId,
       role: "assistant",
-      text
+      text,
+      groupId: resolvedSessionId
     });
 
-    // 🔥 ENVIO IMEDIATO VIA EVENTBUS (texto aparece AGORA na UI)
+    if (shouldProcessAssistantMemory(source)) {
+      void context.invokeTool?.("memory_access", {
+        action: "process_ai_response",
+        text,
+        source: `${source}.memory-response`,
+        sessionId: resolvedSessionId
+      }).catch((err) => {
+        console.warn("[RESPONSE-QUEUE] Falha nao bloqueante ao consolidar memoria:", err?.message || err);
+      });
+    }
+
     if (context.core?.eventBus) {
       context.core.eventBus.emit("task:completed", {
         payload: {
@@ -31,67 +61,54 @@ export default function createResponseQueue(context) {
         }
       });
 
-      console.log("[RESPONSE-QUEUE] ✅ Texto exibido na UI (sem esperar áudio)");
+      console.log("[RESPONSE-QUEUE] Texto exibido na UI");
     }
 
-    // 🔊 Enfileira áudio em background (APENAS NA ROTA CURTA)
-    // Rota longa não enfileira automaticamente
     if (speak && text.length > 0) {
-      enqueueToTTSQueue(text, priority);
+      enqueueToTTSQueue(text, priority, source);
     }
+
+    return true;
   }
 
-  /**
-   * Enfileira texto para TTS via skill tts-queue
-   * Garante processamento sequencial e cancela fila anterior
-   */
-  function enqueueToTTSQueue(text, priority = 0) {
+  function enqueueToTTSQueue(text, priority = 0, source = "unknown") {
     try {
       const ttsQueueSkill = context.core?.skillManager?.get("tts-queue");
-      
+
       if (!ttsQueueSkill) {
-        console.warn("[RESPONSE-QUEUE] Skill tts-queue não disponível");
+        console.warn("[RESPONSE-QUEUE] Skill tts-queue nao disponivel");
         return;
       }
 
-      // Enfileira texto para processamento sequencial
       const result = ttsQueueSkill.enqueueText(text, priority);
-      
+
       if (result.queued) {
         console.log(
-          `[RESPONSE-QUEUE] 🎵 ${result.chunkCount} chunks enfileirados ` +
-          `(Total na fila: ${ttsQueueSkill.getQueueStatus().queueLength})`
+          `[RESPONSE-QUEUE] TTS enfileirado source=${source} chunks=${result.chunkCount} ` +
+          `queueLength=${ttsQueueSkill.getQueueStatus().queueLength}`
         );
       }
-
     } catch (err) {
       console.error("[RESPONSE-QUEUE] Erro ao enfileirar TTS:", err.message);
     }
   }
 
-  /**
-   * Cancela fila de TTS (chamado quando nova entrada de usuário chega)
-   */
   function cancelTTS() {
     try {
       const ttsQueueSkill = context.core?.skillManager?.get("tts-queue");
-      
+
       if (!ttsQueueSkill) {
-        console.warn("[RESPONSE-QUEUE] Skill tts-queue não disponível");
+        console.warn("[RESPONSE-QUEUE] Skill tts-queue nao disponivel");
         return;
       }
 
       const result = ttsQueueSkill.cancelQueue();
-      console.log(`[RESPONSE-QUEUE] 🛑 TTS cancelado (${result.itemsRemoved} items removidos)`);
-
+      console.log(`[RESPONSE-QUEUE] TTS cancelado (${result.itemsRemoved} items removidos)`);
     } catch (err) {
       console.error("[RESPONSE-QUEUE] Erro ao cancelar TTS:", err.message);
     }
   }
 
-  /**
-   * Verifica se há áudio sendo processado
-   */
   function isTTSBusy() {
     try {
       const ttsQueueSkill = context.core?.skillManager?.get("tts-queue");

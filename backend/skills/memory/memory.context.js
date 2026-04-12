@@ -1,18 +1,23 @@
-//memory.context.js
-import { getRecentMessages, getVocabulary } from "./memory.repository.js";
+import { getRecentConversationMessages, getVocabulary } from "./memory.repository.js";
 
 // ======================
 // CONTEXTO LIMITADO
 // ======================
-export function buildContext() {
-  const messages = getRecentMessages(10); // limite
+export function buildContext(options = {}) {
+  const messages = getRecentConversationMessages({
+    groupId: options.sessionId || "default",
+    limit: 10
+  });
 
-  const vocab = getVocabulary(10)
-    .map(v => v.text)
+  const vocab = getVocabulary(10, {
+    groupId: options.sessionId || null,
+    query: options.query || ""
+  })
+    .map(v => v.phrase)
     .join("\n");
 
   return {
-    messages: messages.reverse(),
+    messages,
     vocabulary: vocab
   };
 }
