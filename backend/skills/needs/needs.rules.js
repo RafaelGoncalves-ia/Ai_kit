@@ -1,32 +1,47 @@
 /**
- * Regras que convertem Needs em efeitos reais
+ * Regras simples que convertem Needs em hints.
+ *
+ * Importante:
+ * - Aqui existe prioridade explícita.
+ * - Não sobrescreve hint várias vezes no mesmo ciclo.
+ * - O motor de rotina continua sendo a camada principal de decisão.
  */
 export function evaluateNeeds(needs) {
-  const effects = { emotionHint: null, actionHint: null };
+  const safeNeeds = {
+    energy: Number(needs?.energy ?? 50),
+    hunger: Number(needs?.hunger ?? 50),
+    mood: Number(needs?.mood ?? 50),
+    aura: Number(needs?.aura ?? 50),
+    hygiene: Number(needs?.hygiene ?? 50)
+  };
 
-  if (needs.energy < 20) {
-    effects.emotionHint = "sleepy";
-    effects.actionHint = "sleep";
+  if (safeNeeds.energy < 15) {
+    return { emotionHint: "sleepy", actionHint: "sleep" };
   }
 
-  if (needs.hunger < 30) {
-    effects.emotionHint = "annoyed";
-    effects.actionHint = "eat";
+  if (safeNeeds.hunger < 15) {
+    return { emotionHint: "annoyed", actionHint: "cook_meal" };
   }
 
-  if (needs.mood < 30) {
-    effects.emotionHint = "bored";
-    effects.actionHint = "fun";
+  if (safeNeeds.hygiene < 20) {
+    return { emotionHint: "dirty", actionHint: "take_bath" };
   }
 
-  if (needs.aura < 20) {
-    effects.emotionHint = "cold";
+  if (safeNeeds.mood < 30) {
+    return { emotionHint: "bored", actionHint: "play_videogame" };
   }
 
-  if (needs.hygiene < 30) {
-    effects.emotionHint = "dirty";
-    effects.actionHint = "shower";
+  if (safeNeeds.aura < 20) {
+    return { emotionHint: "cold", actionHint: "take_selfies" };
   }
 
-  return effects;
+  if (safeNeeds.energy < 40) {
+    return { emotionHint: "tired", actionHint: "nap" };
+  }
+
+  if (safeNeeds.hunger < 35) {
+    return { emotionHint: "snacky", actionHint: "eat_snack" };
+  }
+
+  return { emotionHint: null, actionHint: null };
 }

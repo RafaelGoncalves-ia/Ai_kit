@@ -17,6 +17,10 @@ model = WhisperModel(
 
 print("[STT] pronto")
 
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({ "status": "ok" })
+
 @app.route("/transcribe", methods=["POST"])
 def transcribe():
     try:
@@ -44,4 +48,4 @@ def transcribe():
         return jsonify({ "error": str(e) }), 500
 
 if __name__ == "__main__":
-    app.run(port=5006)
+    app.run(port=int(os.environ.get("STT_PORT", 5006)))

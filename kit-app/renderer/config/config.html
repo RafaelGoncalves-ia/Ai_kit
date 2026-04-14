@@ -24,6 +24,26 @@
 
   <main>
     <section id="system" class="tab-content active">
+      <div class="card">
+        <div class="object-item-header">
+          <div>
+            <h2 class="section-title">Vocabulário</h2>
+            <p class="section-description">A base `vocabulary` é somente leitura em runtime e só pode ser atualizada por importação manual da planilha Excel.</p>
+          </div>
+          <button id="updateVocabularyBtn" class="btn-primary">Atualizar vocabulário</button>
+        </div>
+        <div class="current-status">
+          <div class="status-item">
+            Status da importação: <span id="vocabularyImportStatus">Aguardando ação</span>
+          </div>
+          <div class="status-item">
+            Total de termos: <span id="vocabularyTotal">0</span>
+          </div>
+          <div class="status-item">
+            Grupos: <span id="vocabularyGroups">-</span>
+          </div>
+        </div>
+      </div>
       <div id="systemPanel" class="panel-grid"></div>
     </section>
 

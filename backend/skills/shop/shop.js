@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import kitState, { persistStateNow } from "../../core/stateManager.js";
+import { syncEmotionFromState } from "../../core/personalityConfig.js";
 
 const catalogPath = path.join(process.cwd(), "backend/config/catalog.json");
 
@@ -43,6 +44,7 @@ export default function registerShop(scheduler) {
 
             if (item.tipo === "consumivel") {
               applyEffect(kitState.needs, item.efeito || {});
+              syncEmotionFromState(kitState);
             } else if (item.tipo === "skin") {
               kitState.inventory = kitState.inventory || {};
               kitState.inventory[item.slot] = item.id;

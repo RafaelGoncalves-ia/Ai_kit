@@ -8,39 +8,68 @@
   },
   "rules": [
     {
+      "metric": "aura",
+      "operator": "lt",
+      "value": 15,
+      "emotion": "dramatic",
+      "intensity": 0.95,
+      "priority": 70
+    },
+    {
+      "metric": "aura",
+      "operator": "lt",
+      "value": 30,
+      "emotion": "grumpy",
+      "intensity": 0.8,
+      "priority": 50
+    },
+    {
+      "metric": "aura",
+      "operator": "gt",
+      "value": 75,
+      "emotion": "hype",
+      "intensity": 0.9,
+      "priority": 55
+    },
+    {
       "metric": "energy",
       "operator": "lt",
       "value": 20,
       "emotion": "tired",
-      "intensity": 0.8
+      "intensity": 0.8,
+      "priority": 80
     },
     {
       "metric": "hunger",
       "operator": "gt",
       "value": 70,
       "emotion": "hangry",
-      "intensity": 0.9
+      "intensity": 0.9,
+      "priority": 90
     },
     {
       "metric": "mood",
       "operator": "lt",
       "value": 30,
       "emotion": "dramatic",
-      "intensity": 0.7
+      "intensity": 0.7,
+      "priority": 60
     },
     {
       "metric": "mood",
       "operator": "gt",
       "value": 80,
       "emotion": "hype",
-      "intensity": 0.8
+      "intensity": 0.8,
+      "priority": 40
     },
     {
       "metric": "energy",
       "operator": "lt",
       "value": 40,
       "emotion": "grumpy",
-      "intensity": 0.85
+      "intensity": 0.85,
+      "priority": 65
     }
   ]
 }

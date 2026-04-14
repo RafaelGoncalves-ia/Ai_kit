@@ -11,6 +11,7 @@ import {
 } from "./config.api.js";
 import {
   getBundle,
+  mergeStatusSnapshot,
   setBundle,
   setModels,
   setStatusSnapshot
@@ -23,6 +24,10 @@ const systemPanel = document.getElementById("systemPanel");
 const personalityPanel = document.getElementById("personalityPanel");
 const saveBtn = document.getElementById("saveBtn");
 const reloadBtn = document.getElementById("reloadBtn");
+const updateVocabularyBtn = document.getElementById("updateVocabularyBtn");
+const vocabularyImportStatus = document.getElementById("vocabularyImportStatus");
+const vocabularyTotal = document.getElementById("vocabularyTotal");
+const vocabularyGroups = document.getElementById("vocabularyGroups");
 
 document.addEventListener("DOMContentLoaded", () => {
   setupTabs();
@@ -58,6 +63,7 @@ function setupStateSliders() {
 function setupActions() {
   saveBtn.addEventListener("click", handleSave);
   reloadBtn.addEventListener("click", () => loadAll(true));
+  updateVocabularyBtn?.addEventListener("click", handleVocabularyImport);
 }
 
 async function loadAll(forceStatus = false) {
@@ -81,6 +87,7 @@ async function loadAll(forceStatus = false) {
     renderShop(shop);
     updateStateUI(statusPayload.state);
     renderInventory(statusPayload.state);
+    await refreshVocabularyMeta();
 
     if (forceStatus) {
       setStatus("Configurações recarregadas");
@@ -112,6 +119,49 @@ async function handleSave() {
   } catch (err) {
     console.error(err);
     setStatus(err.message || "Falha ao salvar configuração", true);
+  }
+}
+
+async function handleVocabularyImport() {
+  if (!window.kitAPI?.selectVocabularyExcel || !window.kitAPI?.updateVocabularyFromExcel) {
+    setVocabularyStatus("Integração Electron indisponível", true);
+    return;
+  }
+
+  try {
+    setVocabularyStatus("Selecionando planilha...");
+    const filePath = await window.kitAPI.selectVocabularyExcel();
+
+    if (!filePath) {
+      setVocabularyStatus("Importação cancelada");
+      return;
+    }
+
+    setVocabularyStatus("Importando vocabulário...");
+    const result = await window.kitAPI.updateVocabularyFromExcel(filePath);
+    await refreshVocabularyMeta(result?.meta);
+    setVocabularyStatus(`Importação concluída: ${result.imported || 0} registros`);
+    setStatus("Vocabulário atualizado com sucesso");
+  } catch (err) {
+    console.error(err);
+    setVocabularyStatus(err.message || "Falha ao importar vocabulário", true);
+    setStatus(err.message || "Falha ao importar vocabulário", true);
+  }
+}
+
+async function refreshVocabularyMeta(prefetchedMeta = null) {
+  try {
+    const meta = prefetchedMeta || await window.kitAPI?.getVocabularyMeta?.();
+    if (!meta) {
+      return;
+    }
+
+    vocabularyTotal.innerText = String(meta.total ?? 0);
+    vocabularyGroups.innerText = Array.isArray(meta.groups) && meta.groups.length
+      ? meta.groups.map((group) => `${group.name} (${group.total})`).join(", ")
+      : "-";
+  } catch (err) {
+    console.error("Erro ao carregar metadados do vocabulário:", err);
   }
 }
 
@@ -219,7 +269,9 @@ function setupSSE() {
     try {
       const payload = JSON.parse(event.data);
       if (payload.type === "state:update") {
-        updateStateUI(payload.payload);
+        const mergedStatus = mergeStatusSnapshot(payload.payload);
+        updateStateUI(mergedStatus?.state);
+        renderInventory(mergedStatus?.state);
       }
     } catch (err) {
       console.error("Erro SSE:", err);
@@ -237,4 +289,10 @@ function setStatus(text, isError = false) {
   statusText.innerText = text;
   statusText.classList.toggle("message-error", isError);
   statusText.classList.toggle("message-success", !isError);
+}
+
+function setVocabularyStatus(text, isError = false) {
+  vocabularyImportStatus.innerText = text;
+  vocabularyImportStatus.classList.toggle("message-error", isError);
+  vocabularyImportStatus.classList.toggle("message-success", !isError);
 }

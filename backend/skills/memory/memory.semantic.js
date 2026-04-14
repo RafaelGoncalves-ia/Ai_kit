@@ -3,8 +3,7 @@ import {
   getRecentConversationMessages,
   getRelevantMemory,
   getVocabulary,
-  saveMemory,
-  saveVocabulary
+  saveMemory
 } from "./memory.repository.js";
 
 function normalizeText(value) {
@@ -222,16 +221,6 @@ export async function extractMemory(text, context, meta = {}) {
   const entries = extractUserEntries(normalized, meta);
   persistEntries(entries);
 
-  const greeting = extractGreetingVocabulary(normalized);
-  if (greeting) {
-    saveVocabulary({
-      phrase: greeting,
-      groupId: meta.sessionId || null,
-      source: meta.source || "memory.rule",
-      weight: 0.6
-    });
-  }
-
   return { extracted: entries.length };
 }
 
@@ -268,7 +257,13 @@ export async function buildContext(options = {}) {
     return `- ${label}: ${truncate(memory.content, 140)}`;
   });
 
-  const vocabularyLines = vocabulary.map((item) => `- ${truncate(item.phrase, 80)}`);
+  const vocabularyLines = vocabulary.map((item) => {
+    const parts = [truncate(item.term || item.phrase, 80)];
+    if (item.meaning) {
+      parts.push(truncate(item.meaning, 120));
+    }
+    return `- ${parts.join(": ")}`;
+  });
   const conversationLines = recentMessages.map((message) => {
     const roleLabel = message.role === "assistant" ? "assistant" : message.role;
     return `- ${roleLabel}: ${truncate(message.content, 180)}`;

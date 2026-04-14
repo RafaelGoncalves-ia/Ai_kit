@@ -35,6 +35,29 @@ export function setStatusSnapshot(status) {
   appState.status = status || null;
 }
 
+export function mergeStatusSnapshot(patch) {
+  if (!patch || typeof patch !== "object") {
+    return appState.status;
+  }
+
+  const currentStatus = appState.status && typeof appState.status === "object"
+    ? appState.status
+    : {};
+  const currentState = currentStatus.state && typeof currentStatus.state === "object"
+    ? currentStatus.state
+    : {};
+  const nextState = patch.state && typeof patch.state === "object"
+    ? { ...currentState, ...patch.state }
+    : { ...currentState, ...patch };
+
+  appState.status = {
+    ...currentStatus,
+    state: nextState
+  };
+
+  return appState.status;
+}
+
 export function getStatusSnapshot() {
   return appState.status;
 }

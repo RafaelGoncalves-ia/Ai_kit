@@ -22,8 +22,7 @@ function createIndexes(database) {
     `CREATE INDEX IF NOT EXISTS idx_conversations_role_created ON conversations (role, created_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_memory_group_updated ON memory (group_id, updated_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_memory_type_relevance ON memory (type, relevance DESC, updated_at DESC)`,
-    `CREATE INDEX IF NOT EXISTS idx_memory_key ON memory (key)`,
-    `CREATE INDEX IF NOT EXISTS idx_vocabulary_group_updated ON vocabulary (group_id, updated_at DESC)`
+    `CREATE INDEX IF NOT EXISTS idx_memory_key ON memory (key)`
   ];
 
   for (const sql of statements) {
@@ -50,10 +49,6 @@ function migrateLegacyRows(database) {
     INSERT INTO conversations (group_id, role, content, created_at)
     VALUES (?, ?, ?, ?)
   `);
-  const insertVocabulary = database.prepare(`
-    INSERT INTO vocabulary (phrase, group_id, source, weight, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
   const deleteMemoryRow = database.prepare(`DELETE FROM memory WHERE id = ?`);
 
   const transaction = database.transaction(() => {
@@ -71,20 +66,7 @@ function migrateLegacyRows(database) {
       );
       deleteMemoryRow.run(row.id);
     }
-
     for (const row of legacyVocabularyRows) {
-      const phrase = String(row.content || "").trim();
-      if (phrase) {
-        const timestamp = Number(row.created_at || Date.now());
-        insertVocabulary.run(
-          phrase,
-          null,
-          "legacy-import",
-          0.5,
-          timestamp,
-          timestamp
-        );
-      }
       deleteMemoryRow.run(row.id);
     }
   });
@@ -103,18 +85,6 @@ function createTables(database) {
       confidence REAL DEFAULT 0.5,
       relevance REAL DEFAULT 0.5,
       group_id TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    )
-  `).run();
-
-  database.prepare(`
-    CREATE TABLE IF NOT EXISTS vocabulary (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      phrase TEXT NOT NULL,
-      group_id TEXT,
-      source TEXT,
-      weight REAL DEFAULT 0.5,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )
@@ -141,17 +111,6 @@ function migrateTables(database) {
 
   database.prepare(`
     UPDATE memory
-    SET updated_at = COALESCE(updated_at, created_at, CAST(strftime('%s','now') AS INTEGER) * 1000)
-    WHERE updated_at IS NULL
-  `).run();
-
-  ensureColumn(database, "vocabulary", "group_id", "TEXT");
-  ensureColumn(database, "vocabulary", "source", "TEXT");
-  ensureColumn(database, "vocabulary", "weight", "REAL DEFAULT 0.5");
-  ensureColumn(database, "vocabulary", "updated_at", "INTEGER");
-
-  database.prepare(`
-    UPDATE vocabulary
     SET updated_at = COALESCE(updated_at, created_at, CAST(strftime('%s','now') AS INTEGER) * 1000)
     WHERE updated_at IS NULL
   `).run();

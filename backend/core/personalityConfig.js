@@ -6,6 +6,14 @@ function normalizeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function clamp01(value, fallback = 0.5) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  if (numeric < 0) return 0;
+  if (numeric > 1) return 1;
+  return numeric;
+}
+
 function compareMetric(left, operator, right) {
   switch (operator) {
     case "lt":
@@ -119,7 +127,8 @@ export function deriveEmotionFromState(state = {}) {
   const rules = normalizeArray(config.emotionsMap?.rules);
 
   let nextEmotion = defaults.type || "neutral";
-  let nextIntensity = Number(defaults.intensity ?? 0.5);
+  let nextIntensity = clamp01(defaults.intensity ?? 0.5);
+  let winningRule = null;
 
   for (const rule of rules) {
     const metricValue = Number(needs?.[rule.metric]);
@@ -127,10 +136,43 @@ export function deriveEmotionFromState(state = {}) {
       continue;
     }
 
-    if (compareMetric(metricValue, rule.operator, rule.value)) {
-      nextEmotion = rule.emotion || nextEmotion;
-      nextIntensity = Number(rule.intensity ?? nextIntensity);
+    if (!compareMetric(metricValue, rule.operator, rule.value)) {
+      continue;
     }
+
+    const threshold = Number(rule.value);
+    const delta =
+      rule.operator === "lt" || rule.operator === "lte"
+        ? threshold - metricValue
+        : rule.operator === "gt" || rule.operator === "gte"
+          ? metricValue - threshold
+          : Number(metricValue === threshold);
+
+    const candidate = {
+      emotion: rule.emotion || nextEmotion,
+      intensity: clamp01(rule.intensity ?? nextIntensity, nextIntensity),
+      priority: Number(rule.priority ?? 0),
+      delta: Number.isFinite(delta) ? delta : 0
+    };
+
+    const shouldReplace =
+      !winningRule ||
+      candidate.priority > winningRule.priority ||
+      (candidate.priority === winningRule.priority && candidate.delta > winningRule.delta) ||
+      (
+        candidate.priority === winningRule.priority &&
+        candidate.delta === winningRule.delta &&
+        candidate.intensity > winningRule.intensity
+      );
+
+    if (shouldReplace) {
+      winningRule = candidate;
+    }
+  }
+
+  if (winningRule) {
+    nextEmotion = winningRule.emotion;
+    nextIntensity = winningRule.intensity;
   }
 
   const now = Date.now();
@@ -138,9 +180,9 @@ export function deriveEmotionFromState(state = {}) {
   const decayMinutes = Number(defaults.decayMinutes || 5);
   const decayMs = decayMinutes * 60 * 1000;
 
-  if (lastUpdate > 0 && now - lastUpdate > decayMs) {
+  if (!winningRule && lastUpdate > 0 && now - lastUpdate > decayMs) {
     nextEmotion = defaults.decayType || defaults.type || "neutral";
-    nextIntensity = Number(defaults.decayIntensity ?? nextIntensity);
+    nextIntensity = clamp01(defaults.decayIntensity ?? nextIntensity, nextIntensity);
   }
 
   return {
@@ -148,4 +190,14 @@ export function deriveEmotionFromState(state = {}) {
     intensity: nextIntensity,
     lastUpdate: now
   };
+}
+
+export function syncEmotionFromState(state = {}) {
+  if (!state || typeof state !== "object") {
+    return null;
+  }
+
+  const nextEmotion = deriveEmotionFromState(state);
+  state.emotion = nextEmotion;
+  return nextEmotion;
 }

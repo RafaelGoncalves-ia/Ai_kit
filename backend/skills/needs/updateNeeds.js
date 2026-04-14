@@ -2,6 +2,7 @@ import kitState, { updateState } from "../../core/stateManager.js";
 import { applyDecay } from "./needs.decay.js";
 import { evaluateNeeds } from "./needs.rules.js";
 import { NEEDS_LIMITS, clampNeed } from "./needs.state.js";
+import { syncEmotionFromState } from "../../core/personalityConfig.js";
 
 /**
  * Atualiza Needs a cada tick (deltaTime fixo = 1s por tick)
@@ -24,6 +25,7 @@ export default function updateNeeds() {
   // Calcula efeitos das necessidades
   const effects = evaluateNeeds(currentNeeds);
   updateState("needsEffects", { ...effects });
+  updateState("emotion", syncEmotionFromState(kitState));
 
   // Atualiza timestamp do tick
   updateState("system", { ...kitState.system, lastTick: Date.now() });

@@ -33,16 +33,21 @@ export function buildPromptPreview(prompt, maxLength = 140) {
 }
 
 export function hasUsableAssistantText(text) {
+  const raw = String(text || "").trim();
   const normalized = normalizeComparableText(text);
   if (!normalized) {
     return false;
   }
 
-  if (["null", "undefined", "...", "sem resposta.", "sem resposta"].includes(normalized)) {
+  if (!raw) {
     return false;
   }
 
-  return normalized.length >= 3;
+  if (["null", "undefined", "..."].includes(normalized)) {
+    return false;
+  }
+
+  return normalized.length >= 2;
 }
 
 export function isBlockedGenericAssistantText(text) {
@@ -59,48 +64,12 @@ function getRecentMessagesStore(context) {
 }
 
 export function shouldSuppressAssistantMessage(context, text, options = {}) {
-  const {
-    source = "unknown",
-    allowGeneric = false,
-    duplicateWindowMs = 3 * 60 * 1000
-  } = options;
+  const { source = "unknown" } = options;
 
   if (!hasUsableAssistantText(text)) {
     return {
       blocked: true,
       reason: "empty_or_invalid",
-      source
-    };
-  }
-
-  if (!allowGeneric && isBlockedGenericAssistantText(text)) {
-    return {
-      blocked: true,
-      reason: "generic_fallback",
-      source
-    };
-  }
-
-  if (!context) {
-    return {
-      blocked: false,
-      reason: null,
-      source
-    };
-  }
-
-  const now = Date.now();
-  const normalized = normalizeComparableText(text);
-  const store = getRecentMessagesStore(context);
-
-  const filteredStore = store.filter((entry) => now - entry.timestamp < duplicateWindowMs);
-  ensureAssistantRuntime(context).recentMessages = filteredStore;
-
-  const duplicate = filteredStore.find((entry) => entry.normalized === normalized);
-  if (duplicate) {
-    return {
-      blocked: true,
-      reason: "duplicate_recent_message",
       source
     };
   }

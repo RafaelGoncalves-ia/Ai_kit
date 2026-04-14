@@ -1,7 +1,7 @@
 import { getDB, initDB } from "./sqlite.js";
+import { getVocabularySkill } from "../vocabulary/VocabularySkill.js";
 
 const MEMORY_DUPLICATE_WINDOW_MS = 1000 * 60 * 60 * 24 * 30;
-const VOCAB_DUPLICATE_WINDOW_MS = 1000 * 60 * 60 * 24 * 30;
 const STOPWORDS = new Set([
   "a", "o", "e", "de", "do", "da", "dos", "das", "em", "no", "na", "nos", "nas",
   "por", "para", "com", "sem", "um", "uma", "uns", "umas", "me", "te", "se", "eu",
@@ -15,6 +15,13 @@ function db() {
 
 function normalizeText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeComparableText(value) {
+  return normalizeText(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function normalizeRole(role) {
@@ -60,16 +67,106 @@ function parseConversationRow(row) {
   };
 }
 
-function parseVocabularyRow(row) {
+function getLastConversationMessage(groupId = "default") {
+  const row = db().prepare(`
+    SELECT id, group_id, role, content, created_at
+    FROM conversations
+    WHERE group_id = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `).get(normalizeGroupId(groupId));
+
+  return row ? parseConversationRow(row) : null;
+}
+
+export function validateConversationMessage({
+  groupId = "default",
+  role = "user",
+  content
+} = {}) {
+  const normalizedRole = normalizeRole(role);
+  const normalizedContent = normalizeText(content);
+
+  if (!normalizedContent) {
+    return {
+      ok: false,
+      reason: "empty"
+    };
+  }
+
+  const lastMessage = getLastConversationMessage(groupId);
+  if (!lastMessage) {
+    return {
+      ok: true,
+      reason: null,
+      role: normalizedRole,
+      content: normalizedContent
+    };
+  }
+
+  const sameContent =
+    normalizeComparableText(lastMessage.content) === normalizeComparableText(normalizedContent);
+
+  if (sameContent && lastMessage.role === normalizedRole) {
+    return {
+      ok: false,
+      reason: "duplicate_consecutive",
+      lastMessage,
+      role: normalizedRole,
+      content: normalizedContent
+    };
+  }
+
+  if (sameContent && normalizedRole === "assistant" && lastMessage.role === "user") {
+    return {
+      ok: false,
+      reason: "user_echo_as_assistant",
+      lastMessage,
+      role: normalizedRole,
+      content: normalizedContent
+    };
+  }
+
   return {
-    id: row.id,
-    phrase: row.phrase,
-    groupId: row.group_id || null,
-    source: row.source || null,
-    weight: Number(row.weight || 0.5),
-    createdAt: Number(row.created_at || 0),
-    updatedAt: Number(row.updated_at || row.created_at || 0)
+    ok: true,
+    reason: null,
+    lastMessage,
+    role: normalizedRole,
+    content: normalizedContent
   };
+}
+
+function sanitizeConversationMessages(messages = []) {
+  const sanitized = [];
+
+  for (const message of messages) {
+    const role = normalizeRole(message.role);
+    const content = normalizeText(message.content);
+
+    if (!content) {
+      continue;
+    }
+
+    const lastAccepted = sanitized[sanitized.length - 1] || null;
+    const sameAsLast = lastAccepted &&
+      normalizeComparableText(lastAccepted.content) === normalizeComparableText(content);
+
+    if (sameAsLast && lastAccepted.role === role) {
+      continue;
+    }
+
+    if (sameAsLast && role === "assistant" && lastAccepted.role === "user") {
+      continue;
+    }
+
+    sanitized.push({
+      ...message,
+      role,
+      content
+    });
+  }
+
+  return sanitized;
 }
 
 function extractSearchTerms(text = "", limit = 6) {
@@ -84,8 +181,13 @@ function extractSearchTerms(text = "", limit = 6) {
 }
 
 export function saveConversationMessage({ groupId = "default", role = "user", content, createdAt = Date.now() }) {
-  const normalizedContent = normalizeText(content);
-  if (!normalizedContent) {
+  const validation = validateConversationMessage({
+    groupId,
+    role,
+    content
+  });
+
+  if (!validation.ok) {
     return null;
   }
 
@@ -94,8 +196,8 @@ export function saveConversationMessage({ groupId = "default", role = "user", co
     VALUES (?, ?, ?, ?)
   `).run(
     normalizeGroupId(groupId),
-    normalizeRole(role),
-    normalizedContent,
+    validation.role,
+    validation.content,
     Number(createdAt || Date.now())
   );
 
@@ -111,7 +213,10 @@ export function getConversationMessages({ groupId = "default", limit = 20, newes
     LIMIT ?
   `).all(normalizeGroupId(groupId), Math.max(1, Number(limit || 20)));
 
-  return rows.map(parseConversationRow);
+  const parsed = rows.map(parseConversationRow);
+  const chronological = newestFirst ? parsed.slice().reverse() : parsed;
+  const sanitized = sanitizeConversationMessages(chronological);
+  return newestFirst ? sanitized.reverse() : sanitized;
 }
 
 export function getRecentConversationMessages({ groupId = "default", limit = 6 } = {}) {
@@ -231,66 +336,6 @@ export function saveMemory({
   return result.lastInsertRowid;
 }
 
-export function saveVocabulary({
-  phrase,
-  groupId = null,
-  source = "rule",
-  weight = 0.5,
-  createdAt = Date.now()
-}) {
-  const normalizedPhrase = normalizeText(phrase);
-  if (!normalizedPhrase) {
-    return null;
-  }
-
-  const normalizedGroupId = normalizeNullableText(groupId);
-  const normalizedSource = normalizeNullableText(source);
-  const timestamp = Number(createdAt || Date.now());
-
-  const existing = db().prepare(`
-    SELECT id, weight
-    FROM vocabulary
-    WHERE phrase = ?
-      AND COALESCE(group_id, '') = COALESCE(?, '')
-      AND updated_at >= ?
-    ORDER BY updated_at DESC
-    LIMIT 1
-  `).get(
-    normalizedPhrase,
-    normalizedGroupId,
-    timestamp - VOCAB_DUPLICATE_WINDOW_MS
-  );
-
-  if (existing) {
-    db().prepare(`
-      UPDATE vocabulary
-      SET weight = ?, source = ?, updated_at = ?
-      WHERE id = ?
-    `).run(
-      Math.max(Number(existing.weight || 0.5), Number(weight || 0.5)),
-      normalizedSource,
-      timestamp,
-      existing.id
-    );
-
-    return existing.id;
-  }
-
-  const result = db().prepare(`
-    INSERT INTO vocabulary (phrase, group_id, source, weight, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(
-    normalizedPhrase,
-    normalizedGroupId,
-    normalizedSource,
-    Number(weight || 0.5),
-    timestamp,
-    timestamp
-  );
-
-  return result.lastInsertRowid;
-}
-
 export function getRecentMemory(limit = 10) {
   const rows = db().prepare(`
     SELECT *
@@ -389,33 +434,22 @@ export function getRelevantMemory({ groupId = null, query = "", limit = 8 } = {}
 }
 
 export function getVocabulary(limit = 10, options = {}) {
-  const normalizedGroupId = options.groupId ? normalizeGroupId(options.groupId) : null;
-  const query = normalizeText(options.query).toLowerCase();
-  const terms = extractSearchTerms(query);
-  const conditions = [];
-  const params = [];
+  const skill = getVocabularySkill();
+  const query = normalizeText(options.query);
+  const rows = skill.search(query, Math.max(1, Number(limit || 10)));
 
-  if (normalizedGroupId) {
-    conditions.push("(group_id = ? OR group_id IS NULL)");
-    params.push(normalizedGroupId);
-  }
-
-  if (terms.length > 0) {
-    const clause = terms.map(() => "LOWER(phrase) LIKE ?").join(" OR ");
-    conditions.push(`(${clause})`);
-    for (const term of terms) {
-      params.push(`%${term}%`);
-    }
-  }
-
-  const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const rows = db().prepare(`
-    SELECT *
-    FROM vocabulary
-    ${whereClause}
-    ORDER BY weight DESC, updated_at DESC
-    LIMIT ?
-  `).all(...params, Math.max(1, Number(limit || 10)));
-
-  return rows.map(parseVocabularyRow);
+  return rows.map((row) => ({
+    id: row.id,
+    term: row.term,
+    phrase: row.term,
+    synonyms: row.synonyms || null,
+    meaning: row.meaning || null,
+    groupName: row.group_name || null,
+    groupId: row.group_name || null,
+    source: row.source || null,
+    weight: Number(row.weight || 0),
+    rowIndex: Number(row.row_index || 0),
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null
+  }));
 }

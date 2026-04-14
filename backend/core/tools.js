@@ -368,6 +368,17 @@ export default function createTools(context) {
 
     const response = await aiService.chat(prompt, {
       images: input.images || [],
+      stream: input.stream,
+      num_ctx: input.num_ctx || input.numCtx,
+      num_predict: input.num_predict || input.numPredict,
+      temperature: input.temperature,
+      top_p: input.top_p || input.topP,
+      top_k: input.top_k || input.topK,
+      repeat_penalty: input.repeat_penalty || input.repeatPenalty,
+      keep_alive: input.keep_alive || input.keepAlive,
+      stop: input.stop,
+      hasTools: input.hasTools,
+      document: input.document,
       ...input.options,
       meta
     }, meta);

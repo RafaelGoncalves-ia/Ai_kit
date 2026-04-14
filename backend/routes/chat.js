@@ -7,7 +7,7 @@ import {
   resolveSafePath,
   resolveSessionMediaPath
 } from "../core/security/workspaceGuard.js";
-import { setLastSessionId } from "../utils/runtimeState.js";
+import { getLastSessionId, setLastSessionId } from "../utils/runtimeState.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -172,12 +172,24 @@ function resolveBodyMedia(req, sessionId, session) {
 export default function createChatRoutes(context) {
   const router = express.Router();
 
+  function resolveActiveSessionId(req) {
+    const requestedSessionId = req.body?.sessionId || req.body?.conversationId || null;
+
+    if (requestedSessionId === "widget") {
+      return getLastSessionId(context);
+    }
+
+    return requestedSessionId || getLastSessionId(context) || "default";
+  }
+
   router.post("/", upload.any(), async (req, res) => {
     try {
       const text = typeof req.body?.text === "string" ? req.body.text : "";
-      const activeSessionId = req.body?.sessionId || req.body?.conversationId || "default";
+      const activeSessionId = resolveActiveSessionId(req);
       const session = ensureSession(context, activeSessionId);
       const media = resolveBodyMedia(req, activeSessionId, session);
+      const persistedUserText =
+        text.trim() || `<Imagem enviada: ${media?.fileName || media?.path || "sem-nome"}>`;
 
       if (!text.trim() && !media) {
         return res.status(400).json({
@@ -192,7 +204,7 @@ export default function createChatRoutes(context) {
 
       addMessage({
         role: "user",
-        text: text.trim() || `<Imagem enviada: ${media?.fileName || media?.path || "sem-nome"}>`,
+        text: persistedUserText,
         timestamp: new Date().toISOString(),
         groupId: activeSessionId
       });
@@ -220,6 +232,14 @@ export default function createChatRoutes(context) {
           timestamp: Date.now()
         });
       }
+
+      context.core?.eventBus?.emit("user:message", {
+        sessionId: activeSessionId,
+        role: "user",
+        text: persistedUserText,
+        timestamp: Date.now(),
+        origin: "chat.route"
+      });
 
       const orchestrator = context.core.orchestrator;
       if (!orchestrator) {

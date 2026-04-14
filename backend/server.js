@@ -30,7 +30,7 @@ import kitState, { persistStateNow } from "./core/stateManager.js";
 import createAIService from "./services/ai.js";
 import createTTSService from "./services/tts.js";
 import { loadConfig } from "./core/configLoader.js";
-import { loadPersonalityConfig } from "./core/personalityConfig.js";
+import { loadPersonalityConfig, syncEmotionFromState } from "./core/personalityConfig.js";
 import { eventBus } from "./core/eventBus.js";
 import { ensureWorkspace } from "./core/security/workspaceGuard.js";
 import { getCurrentExecutionStatus, listExecutionStatuses } from "./utils/executionStatus.js";
@@ -42,6 +42,7 @@ import createChatRoutes from "./routes/chat.js";
 import createSkillsRoutes from "./routes/skills.js";
 import createConfigRoutes from "./routes/config.js";
 import createTasksRoutes from "./routes/tasks.js";
+import vocabularyRouter from "./routes/vocabulary.js";
 import sttRoute from "./routes/stt.js";
 import { initSkills } from "./skills/needs/startup.js";
 
@@ -81,7 +82,7 @@ const context = {
       defaultModel:
         process.env.DEFAULT_MODEL ||
         persistedConfig?.system?.aiModel ||
-        "huihui_ai/qwen3-vl-abliterated:4b",
+        "huihui_ai/qwen3.5-abliterated:4b",
       maxConcurrentTasks: 1,
       maxConcurrentLlmCalls: Number(process.env.OLLAMA_MAX_CONCURRENT || 1),
       ollamaTimeoutMs: Number(process.env.OLLAMA_TIMEOUT_MS || 45000),
@@ -171,12 +172,34 @@ context.core.eventBus.on("task:completed", (data) => {
   sendSSE({ type: "task:completed", payload: data.payload || data });
 });
 
+context.core.eventBus.on("assistant:message", (data) => {
+  sendSSE({ type: "assistant_message", payload: data });
+});
+
 context.core.eventBus.on("execution:status", (data) => {
   sendSSE({ type: "execution:status", payload: data });
 });
 
 context.core.eventBus.on("action:status", (data) => {
-  sendSSE({ type: "action:status", payload: data });
+  sendSSE({
+    type: "system_notification",
+    payload: {
+      ...data,
+      kind: "status"
+    }
+  });
+});
+
+context.core.eventBus.on("llm:token", (data) => {
+  sendSSE({ type: "llm:token", payload: data });
+});
+
+context.core.eventBus.on("llm:started", (data) => {
+  sendSSE({ type: "llm:started", payload: data });
+});
+
+context.core.eventBus.on("llm:completed", (data) => {
+  sendSSE({ type: "llm:completed", payload: data });
 });
 
 app.get("/events", (req, res) => {
@@ -233,15 +256,37 @@ app.get("/models", async (req, res) => {
   }
 });
 
+app.get("/llm/diagnostics", async (req, res) => {
+  try {
+    const diagnostics = await context.services.ai.getLiveDiagnostics();
+    res.json({
+      success: true,
+      ...diagnostics
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message || "Falha ao coletar diagnostico do LLM."
+    });
+  }
+});
+
 app.get("/conversations", (req, res) => res.json(listConversations()));
 app.get("/conversations/:id", (req, res) => res.json(loadConversationById(req.params.id)));
-app.post("/conversations/new", (req, res) => { createNewConversation(); res.json({ ok: true }); });
+app.post("/conversations/new", (req, res) => {
+  const conversation = createNewConversation();
+  res.json({
+    ok: true,
+    conversation
+  });
+});
 app.delete("/conversations/:id", (req, res) => { deleteConversation(req.params.id); res.json({ ok: true }); });
 
 app.use("/chat", createChatRoutes(context));
 app.use("/skills", createSkillsRoutes(context));
 app.use("/config", createConfigRoutes(context));
 app.use("/tasks", createTasksRoutes(context));
+app.use("/api/vocabulary", vocabularyRouter);
 
 app.get("/history", (req, res) => {
   const conversations = listConversations();
@@ -293,6 +338,7 @@ shopRouter.post("/gift", (req, res) => {
           if (state.needs[key] < 0) state.needs[key] = 0;
         }
       });
+      syncEmotionFromState(state);
     }
 
     // ðŸ”¹ skin (visual) â†’ adiciona ao inventÃ¡rio
@@ -346,6 +392,7 @@ app.get("/logs/:name", (req, res) => {
 // ======================
 const server = app.listen(PORT, () => {
   logger.info(`Kit IA rodando em http://localhost:${PORT}`);
+  void context.services.ai.warmup?.();
 });
 
 server.on("error", (err) => {

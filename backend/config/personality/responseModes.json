@@ -4,10 +4,9 @@
       "usePersona": true,
       "plannerRole": "Conversa casual em tempo real.",
       "instructions": [
-        "Responda como fala direta, natural e curta, pensada para leitura por XTTS.",
+        "Responda como fala direta, curta, pensada para leitura por XTTS.",
         "Nao escreva como post de rede social.",
-        "Nao use hashtags.",
-        "Nao use linguagem masculina como mano, bro, parca ou equivalentes."
+        "Nao use hashtags."
       ]
     },
     "task": {

@@ -16,12 +16,14 @@ const EVENTS_URL = `${API_BASE}/events`;
 
 let currentConversationId = null;
 let selectedFile = null;
+let activeAssistantStream = null;
 
 window.chatBox = chatBox;
 window.addMessage = addMessage;
 window.clearChat = clearChat;
 window.loadConversation = loadConversation;
 window.createNewChat = createNewChat;
+window.getCurrentConversationId = () => currentConversationId;
 
 marked.setOptions({
   breaks: true,
@@ -43,6 +45,63 @@ function addMessage(author, text) {
   msg.classList.add(author === "Você" ? "user-msg" : "ai-msg");
 
   chatBox.appendChild(clone);
+  scrollBottom();
+}
+
+function createAssistantStream() {
+  if (activeAssistantStream?.element?.isConnected) {
+    return activeAssistantStream;
+  }
+
+  const clone = messageTemplate.content.cloneNode(true);
+  const msg = clone.querySelector(".message");
+  const authorNode = clone.querySelector(".author");
+  const textNode = clone.querySelector(".text");
+
+  authorNode.textContent = "Kit IA:";
+  textNode.innerHTML = "";
+  msg.classList.add("ai-msg");
+  msg.dataset.streaming = "true";
+
+  chatBox.appendChild(clone);
+  activeAssistantStream = {
+    element: chatBox.lastElementChild,
+    textNode,
+    text: ""
+  };
+
+  scrollBottom();
+  return activeAssistantStream;
+}
+
+function appendAssistantStream(token) {
+  if (!token) return;
+  const stream = createAssistantStream();
+  stream.text += token;
+  stream.textNode.innerHTML = marked.parse(stream.text);
+  scrollBottom();
+}
+
+function finalizeAssistantStream(finalText = "") {
+  if (!activeAssistantStream?.element?.isConnected) {
+    if (finalText) {
+      addMessage("Kit IA", finalText);
+    }
+    return;
+  }
+
+  const finalMessage = String(finalText || activeAssistantStream.text || "").trim();
+  if (!finalMessage) {
+    activeAssistantStream.element.remove();
+    activeAssistantStream = null;
+    return;
+  }
+
+  activeAssistantStream.text = finalMessage;
+  activeAssistantStream.textNode.innerHTML = marked.parse(finalMessage);
+  activeAssistantStream.element.dataset.streaming = "false";
+  renderedMessages.add(`Kit IA-${finalMessage}`);
+  activeAssistantStream = null;
   scrollBottom();
 }
 
@@ -124,6 +183,12 @@ async function sendMessage() {
         })
       });
     }
+
+    if (window.refreshSidebar) {
+      await window.refreshSidebar({
+        selectId: currentConversationId
+      });
+    }
   } catch (err) {
     console.error(err);
     hideProcessing();
@@ -173,20 +238,22 @@ async function loadConversation(id) {
 
 async function createNewChat() {
   try {
-    await fetch(`${API_BASE}/conversations/new`, {
+    const response = await fetch(`${API_BASE}/conversations/new`, {
       method: "POST"
     });
+    const data = await response.json().catch(() => ({}));
+    const newConversationId = data?.conversation?.id || null;
 
-    const res = await fetch(`${API_BASE}/conversations`);
-    const list = await res.json();
-    const last = list[list.length - 1];
-
-    if (last) {
-      await loadConversation(last.id);
+    if (newConversationId) {
+      currentConversationId = newConversationId;
+      clearChat();
+      hideProcessing();
     }
 
     if (window.refreshSidebar) {
-      window.refreshSidebar();
+      await window.refreshSidebar({
+        selectId: newConversationId
+      });
     }
   } catch (err) {
     console.error("Erro ao criar chat:", err);
@@ -214,21 +281,32 @@ function connectEvents() {
     try {
       const data = JSON.parse(event.data);
 
-      if (data.type === "task:completed") {
-        addMessage("Kit IA", data.payload.result);
-        animateAvatar();
-        hideProcessing();
+      if (data.type === "assistant_message") {
+        if (
+          data.payload?.role === "assistant" &&
+          (!data.payload?.sessionId || data.payload.sessionId === currentConversationId)
+        ) {
+          finalizeAssistantStream(data.payload.text || "");
+          animateAvatar();
+          hideProcessing();
+        }
       }
 
-      if (data.type === "chat:response") {
-        addMessage("Kit IA", data.payload.text);
-        animateAvatar();
-        hideProcessing();
+      if (data.type === "llm:started") {
+        if (!data.payload?.sessionId || data.payload.sessionId === currentConversationId) {
+          createAssistantStream();
+        }
       }
 
-      if (data.type === "action:status") {
-        if (data.message) {
-          showProcessing(data.message);
+      if (data.type === "llm:token") {
+        if (!data.payload?.sessionId || data.payload.sessionId === currentConversationId) {
+          appendAssistantStream(data.payload.token || "");
+        }
+      }
+
+      if (data.type === "system_notification") {
+        if (data.payload?.message) {
+          showProcessing(data.payload.message);
         } else {
           hideProcessing();
         }

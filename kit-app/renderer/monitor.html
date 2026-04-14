@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kit Log</title>
+  <link rel="stylesheet" href="./monitor.css">
+</head>
+<body>
+  <header class="log-header">
+    <div>
+      <h1>Log da KIT</h1>
+      <p id="statusLine">Carregando logs...</p>
+    </div>
+
+    <div class="toolbar">
+      <button id="refreshBtn" type="button">Atualizar</button>
+      <button id="clearBtn" type="button">Limpar Tela</button>
+      <label class="toggle">
+        <input id="autoScrollToggle" type="checkbox" checked>
+        <span>Auto-scroll</span>
+      </label>
+    </div>
+  </header>
+
+  <main class="log-shell">
+    <pre id="logOutput" class="log-output">Aguardando historico...</pre>
+  </main>
+
+  <script src="./monitor.js"></script>
+</body>
+</html>

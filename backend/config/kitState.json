@@ -1,25 +1,25 @@
 {
   "needs": {
-    "energy": 98.05000000000278,
-    "hunger": 47.81999999996441,
+    "energy": 59.070000000000434,
+    "hunger": 10.889999999951263,
     "mood": 100,
-    "aura": 91.11039999999957,
-    "hygiene": 88.32999999999403
+    "aura": 69.57949999997915,
+    "hygiene": 37.620000000010755
   },
   "emotion": {
-    "type": "neutral",
-    "intensity": 0.5,
-    "lastUpdate": 1775527758203
+    "type": "hype",
+    "intensity": 0.8,
+    "lastUpdate": 1776132874716
   },
   "routine": {
-    "currentAction": "sleep",
-    "startedAt": 1775966887543,
-    "duration": 480000,
+    "currentAction": "stream_live",
+    "startedAt": 1776132818208,
+    "duration": 60000,
     "forced": null,
     "lockedUntil": 0
   },
   "world": {
-    "location": "bed",
+    "location": "pc",
     "isMoving": false
   },
   "user": {
@@ -32,6 +32,6 @@
   },
   "tokens": 0,
   "system": {
-    "lastTick": 1775967274842
+    "lastTick": 1776132874716
   }
 }

@@ -302,6 +302,7 @@ Regras:
     try {
       const rawPlan = await callLLM(prompt, {
         source: "agent-engine.plan",
+        hasTools: true,
         sessionId: session?.id || null,
         executionId: execution.id
       });

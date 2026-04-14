@@ -13,7 +13,7 @@ export function buildContext(options = {}) {
     groupId: options.sessionId || null,
     query: options.query || ""
   })
-    .map(v => v.phrase)
+    .map((v) => v.term || v.phrase)
     .join("\n");
 
   return {

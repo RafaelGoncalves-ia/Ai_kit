@@ -1,11 +1,14 @@
-import { speak as speakXTTS, speakByLines as speakXTTSByLines } from "./xttsClient.js";
+import { speak as speakXTTS } from "./xttsClient.js";
 import { exec } from "child_process";
 import os from "os";
 import fetch from "node-fetch";
+import { buildSpeechPayload, sanitizeSpeechText } from "./speechFilter.js";
 
-/**
- * Converte texto para Base64 (UTF-16LE - compatível com PowerShell)
- */
+const XTTS_PORT = process.env.XTTS_PORT || 5005;
+const XTTS_HEALTH_URL = `http://localhost:${XTTS_PORT}/health`;
+const XTTS_STATUS_MAX_AGE_MS = 3000;
+const XTTS_HEALTH_TIMEOUT_MS = 1500;
+
 function toBase64PS(text) {
   return Buffer.from(text, "utf16le").toString("base64");
 }
@@ -13,86 +16,99 @@ function toBase64PS(text) {
 export default function createTTSService(context) {
   let enabled = true;
   const platform = os.platform();
-
-  // 🔥 estado real do XTTS
   let xttsAvailable = false;
-  let lastStatus = null; // 👈 controle de mudança
+  let lastStatus = null;
+  let lastCheckAt = 0;
 
-  // ======================
-  // CHECK XTTS
-  // ======================
-  async function checkXTTS() {
+  async function checkXTTS(reason = "periodic") {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), XTTS_HEALTH_TIMEOUT_MS);
+
     try {
-      const res = await fetch("http://localhost:5005/health");
-      const data = await res.json();
+      const res = await fetch(XTTS_HEALTH_URL, {
+        signal: controller.signal
+      });
+      const data = await res.json().catch(() => ({}));
+      clearTimeout(timeout);
 
-      const newStatus = data.status === "ok";
+      const newStatus = res.ok && data.status === "ok";
+      lastCheckAt = Date.now();
 
-      // 🔥 loga apenas se mudou
       if (newStatus !== lastStatus) {
-        console.log("[TTS] XTTS status:", newStatus ? "ON" : "OFF");
+        console.log(`[TTS] XTTS status=${newStatus ? "ON" : "OFF"} reason=${reason}`);
         lastStatus = newStatus;
       }
 
       xttsAvailable = newStatus;
-
+      return xttsAvailable;
     } catch (err) {
+      clearTimeout(timeout);
+      lastCheckAt = Date.now();
+
       if (lastStatus !== false) {
-        console.log("[TTS] XTTS OFF");
+        console.log(`[TTS] XTTS status=OFF reason=${reason} error=${err.message}`);
         lastStatus = false;
       }
 
       xttsAvailable = false;
+      return false;
     }
   }
 
-  // inicia verificação
   checkXTTS();
+  setInterval(() => {
+    void checkXTTS("interval");
+  }, 10000);
 
-  // revalida a cada 10s
-  setInterval(checkXTTS, 10000);
-
-  // ======================
-  // SPEAK
-  // ======================
   async function speak(text) {
     if (!enabled || !text) return;
+    const speechPayload = buildSpeechPayload({
+      uiText: text,
+      speakText: text,
+      source: "tts.service"
+    });
 
-    // 🔥 PRIORIDADE: XTTS COM FILA POR LINHA
+    if (!speechPayload.shouldSpeak) {
+      console.log(`[TTS] fala descartada reason=${speechPayload.reason}`);
+      return;
+    }
+
+    const speechText = sanitizeSpeechText(speechPayload.text);
+    if (!speechText) {
+      return;
+    }
+
+    const now = Date.now();
+    if (!xttsAvailable || now - lastCheckAt > XTTS_STATUS_MAX_AGE_MS) {
+      await checkXTTS("speak");
+    }
+
     if (xttsAvailable) {
       try {
-        console.log("[TTS] usando XTTS com fila por linhas...");
-        // ✅ NOVO: Usa processamento por linhas (mais rápido)
-        await speakXTTSByLines(text);
+        console.log("[TTS] usando XTTS reason=xtts_online mode=queue");
+        await speakXTTS(speechText);
         return;
       } catch (err) {
-        console.error("[TTS] XTTS por linhas falhou, tentando clássico:", err.message);
-        // Fallback para o método clássico
-        try {
-          await speakXTTS(text);
-          return;
-        } catch (err2) {
-          console.error("[TTS] XTTS clássico também falhou:", err2.message);
-        }
+        console.error(`[TTS] erro ao usar XTTS mode=classic error=${err.message}`);
+        xttsAvailable = false;
+        lastStatus = false;
       }
     }
 
-    // 🔁 FALLBACK SISTEMA
-    console.log("[TTS] usando fallback (sistema)");
+    console.log(`[TTS] usando fallback reason=${xttsAvailable ? "xtts_failed" : "xtts_offline_or_loading"}`);
 
     return new Promise((resolve, reject) => {
       let command = "";
 
       if (platform === "win32") {
-        // 🔐 Usa Base64 + UTF-16LE para evitar quebra com textos grandes e caracteres especiais
-        const encodedText = toBase64PS(text);
+        const encodedText = toBase64PS(speechText);
         const psScript = `Add-Type -AssemblyName System.Speech; $text = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('${encodedText}')); (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak($text);`;
         const encodedCommand = Buffer.from(psScript, "utf16le").toString("base64");
         command = `PowerShell -EncodedCommand ${encodedCommand}`;
       } else if (platform === "linux") {
-        command = `espeak "${sanitize(text)}"`;
+        command = `espeak "${sanitize(speechText)}"`;
       } else if (platform === "darwin") {
-        command = `say "${sanitize(text)}"`;
+        command = `say "${sanitize(speechText)}"`;
       }
 
       if (!command) return resolve();
@@ -107,16 +123,13 @@ export default function createTTSService(context) {
     });
   }
 
-  // ======================
-  // UTILS
-  // ======================
   function sanitize(text) {
     return text
       .replace(/'/g, "")
       .replace(/"/g, "")
       .replace(/`/g, "")
       .replace(/\*\*/g, "")
-      .replace(/[\u{1F600}-\u{1F64F}]/gu, "") // emojis
+      .replace(/[\u{1F600}-\u{1F64F}]/gu, "")
       .replace(/[\u{1F300}-\u{1F5FF}]/gu, "")
       .replace(/[\u{1F680}-\u{1F6FF}]/gu, "")
       .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "")

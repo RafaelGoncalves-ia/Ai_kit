@@ -7,41 +7,43 @@ document.addEventListener("DOMContentLoaded", () => {
   const API_BASE = "http://localhost:3001";
 
   if (!sidebar || !toggleBtn) {
-    console.error("Sidebar não encontrada");
+    console.error("Sidebar nao encontrada");
     return;
   }
 
-  // =============================
-  // TOGGLE SIDEBAR
-  // =============================
   toggleBtn.addEventListener("click", () => {
     sidebar.classList.toggle("open");
   });
 
-  // =============================
-  // LOAD CHATS (BACKEND)
-  // =============================
-  async function loadChats() {
+  async function loadChats(options = {}) {
+    const selectId = options.selectId || window.getCurrentConversationId?.() || null;
+
     try {
       const res = await fetch(`${API_BASE}/conversations`);
       const chats = await res.json();
+      const chatItems = Array.isArray(chats) ? chats.slice() : [];
+
+      if (selectId && !chatItems.some((chat) => chat.id === selectId)) {
+        chatItems.unshift({
+          id: selectId,
+          title: "Novo Chat"
+        });
+      }
 
       chatList.innerHTML = "";
 
-      chats.forEach(chat => {
+      chatItems.forEach((chat) => {
         const div = document.createElement("div");
         div.className = "chat-item";
         div.dataset.id = chat.id;
 
-        // Título
         const titleSpan = document.createElement("span");
         titleSpan.className = "chat-title";
         titleSpan.textContent = chat.title || "Novo Chat";
 
-        // Botão apagar
         const delBtn = document.createElement("span");
         delBtn.className = "chat-delete";
-        delBtn.textContent = "✖";
+        delBtn.textContent = "x";
         delBtn.title = "Excluir chat";
         delBtn.style.display = "none";
 
@@ -49,9 +51,6 @@ document.addEventListener("DOMContentLoaded", () => {
         div.appendChild(delBtn);
         chatList.appendChild(div);
 
-        // =============================
-        // INTERAÇÕES
-        // =============================
         div.addEventListener("click", () => {
           if (window.loadConversation) {
             window.loadConversation(chat.id);
@@ -59,7 +58,6 @@ document.addEventListener("DOMContentLoaded", () => {
           highlightSelected(div);
         });
 
-        // Renomear (duplo clique)
         titleSpan.addEventListener("dblclick", () => {
           const input = document.createElement("input");
           input.type = "text";
@@ -73,7 +71,6 @@ document.addEventListener("DOMContentLoaded", () => {
             titleSpan.textContent = newName;
             input.replaceWith(titleSpan);
 
-            // Atualiza backend
             await fetch(`${API_BASE}/conversations/${chat.id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
@@ -81,67 +78,68 @@ document.addEventListener("DOMContentLoaded", () => {
             });
           });
 
-          input.addEventListener("keypress", (e) => {
-            if (e.key === "Enter") input.blur();
+          input.addEventListener("keypress", (event) => {
+            if (event.key === "Enter") input.blur();
           });
         });
 
-        // Mostrar botão X ao passar o mouse
-        div.addEventListener("mouseenter", () => delBtn.style.display = "inline");
-        div.addEventListener("mouseleave", () => delBtn.style.display = "none");
+        div.addEventListener("mouseenter", () => {
+          delBtn.style.display = "inline";
+        });
 
-        // Deletar chat
-        delBtn.addEventListener("click", async (e) => {
-          e.stopPropagation(); // não seleciona o chat
-          if (confirm("Deseja realmente excluir este chat?")) {
-            await fetch(`${API_BASE}/conversations/${chat.id}`, { method: "DELETE" });
-            div.remove();
-            // opcional: carregar outro chat
-            const first = chatList.querySelector(".chat-item");
-            if (first && window.loadConversation) {
-              window.loadConversation(first.dataset.id);
-            }
+        div.addEventListener("mouseleave", () => {
+          delBtn.style.display = "none";
+        });
+
+        delBtn.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          if (!confirm("Deseja realmente excluir este chat?")) {
+            return;
+          }
+
+          await fetch(`${API_BASE}/conversations/${chat.id}`, { method: "DELETE" });
+          div.remove();
+
+          const first = chatList.querySelector(".chat-item");
+          if (first && window.loadConversation) {
+            window.loadConversation(first.dataset.id);
           }
         });
-      });
 
+        if (selectId && chat.id === selectId) {
+          highlightSelected(div);
+        }
+      });
     } catch (err) {
       console.error("Erro ao carregar chats:", err);
     }
   }
 
-  // =============================
-  // NOVO CHAT
-  // =============================
   if (newChatBtn) {
     newChatBtn.addEventListener("click", async () => {
       try {
-        await fetch(`${API_BASE}/conversations/new`, { method: "POST" });
-        await loadChats();
-
-        // abrir automaticamente último chat
-        const res = await fetch(`${API_BASE}/conversations`);
-        const list = await res.json();
-        const last = list[list.length - 1];
-        if (last && window.loadConversation) {
-          window.loadConversation(last.id);
+        if (window.createNewChat) {
+          await window.createNewChat();
+          return;
         }
+
+        const response = await fetch(`${API_BASE}/conversations/new`, { method: "POST" });
+        const data = await response.json().catch(() => ({}));
+        await loadChats({
+          selectId: data?.conversation?.id || null
+        });
       } catch (err) {
         console.error("Erro ao criar chat:", err);
       }
     });
   }
 
-  // =============================
-  // AUX: Highlight selecionado
-  // =============================
   function highlightSelected(div) {
-    document.querySelectorAll(".chat-item").forEach(d => d.classList.remove("selected"));
+    document.querySelectorAll(".chat-item").forEach((item) => item.classList.remove("selected"));
     div.classList.add("selected");
   }
 
-  // =============================
-  // INIT
-  // =============================
+  window.refreshSidebar = loadChats;
+
   loadChats();
 });

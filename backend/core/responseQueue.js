@@ -3,15 +3,25 @@ import {
   registerAssistantMessage,
   shouldSuppressAssistantMessage
 } from "../utils/assistantMessageGuard.js";
+import { validateConversationMessage } from "../skills/memory/memory.repository.js";
 import { getLastSessionId } from "../utils/runtimeState.js";
+import { buildSpeechPayload } from "../services/speechFilter.js";
 
 export default function createResponseQueue(context) {
+  let lastSpokenNormalized = "";
+  let lastSpokenAt = 0;
+
   function shouldProcessAssistantMemory(source = "unknown") {
     return !/(error|search|system|audio|empty-input)/i.test(String(source || ""));
   }
 
+  function normalizeForSpeechDedup(text = "") {
+    return String(text || "").replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
   function enqueue({
     text,
+    speakText = "",
     speak = true,
     priority = 0,
     source = "unknown",
@@ -19,30 +29,51 @@ export default function createResponseQueue(context) {
     sessionId = null,
     userFacing = false
   }) {
-    const suppression = shouldSuppressAssistantMessage(context, text, {
+    const uiText = String(text || "").trim();
+    const suppression = shouldSuppressAssistantMessage(context, uiText, {
       source,
       allowGeneric
     });
 
-    if (suppression.blocked) {
+    if (suppression.blocked && suppression.reason === "empty_or_invalid") {
       console.warn(
         `[RESPONSE-QUEUE] Mensagem bloqueada source=${source} reason=${suppression.reason}`
       );
       return false;
     }
 
+    if (suppression.blocked) {
+      console.warn(
+        `[RESPONSE-QUEUE] Bloqueio ignorado para UI source=${source} reason=${suppression.reason}`
+      );
+    }
+
     const messageId = `${Date.now()}-${Math.random()}`;
     const resolvedSessionId = sessionId || getLastSessionId(context);
     const shouldDeliverToChat = userFacing === true;
     const shouldSpeak = shouldDeliverToChat && speak === true;
+    const conversationValidation = shouldDeliverToChat
+      ? validateConversationMessage({
+        groupId: resolvedSessionId,
+        role: "assistant",
+        content: uiText
+      })
+      : { ok: true, content: uiText, role: "assistant" };
+
+    if (shouldDeliverToChat && !conversationValidation.ok) {
+      console.warn(
+        `[RESPONSE-QUEUE] Mensagem de assistant bloqueada source=${source} reason=${conversationValidation.reason}`
+      );
+      return false;
+    }
 
     if (shouldDeliverToChat) {
-      registerAssistantMessage(context, text, { source });
+      registerAssistantMessage(context, conversationValidation.content, { source });
 
       addMessage({
         id: messageId,
         role: "assistant",
-        text,
+        text: conversationValidation.content,
         groupId: resolvedSessionId
       });
     } else {
@@ -52,7 +83,7 @@ export default function createResponseQueue(context) {
     if (shouldDeliverToChat && shouldProcessAssistantMemory(source)) {
       void context.invokeTool?.("memory_access", {
         action: "process_ai_response",
-        text,
+        text: conversationValidation.content,
         source: `${source}.memory-response`,
         sessionId: resolvedSessionId
       }).catch((err) => {
@@ -61,22 +92,43 @@ export default function createResponseQueue(context) {
     }
 
     if (shouldDeliverToChat && context.core?.eventBus) {
-      context.core.eventBus.emit("task:completed", {
-        payload: {
-          id: messageId,
-          result: text
-        }
+      context.core.eventBus.emit("assistant:message", {
+        id: messageId,
+        role: "assistant",
+        text: conversationValidation.content,
+        sessionId: resolvedSessionId,
+        source
       });
 
       console.log("[RESPONSE-QUEUE] Texto exibido na UI");
     }
 
+    const speechPayload = buildSpeechPayload({
+      uiText: text,
+      speakText,
+      source
+    });
+
     if (speak && !shouldSpeak) {
       console.log(`[RESPONSE-QUEUE] TTS bloqueado source=${source} userFacing=${userFacing}`);
     }
 
-    if (shouldSpeak && text.length > 0) {
-      enqueueToTTSQueue(text, priority, source);
+    if (shouldSpeak && !speechPayload.shouldSpeak) {
+      console.log(`[RESPONSE-QUEUE] TTS filtrado source=${source} reason=${speechPayload.reason}`);
+    }
+
+    if (shouldSpeak && speechPayload.shouldSpeak) {
+      const normalizedSpeech = normalizeForSpeechDedup(speechPayload.text);
+      const now = Date.now();
+      const repeatedSpeech = normalizedSpeech && normalizedSpeech === lastSpokenNormalized && now - lastSpokenAt < 15000;
+
+      if (repeatedSpeech) {
+        console.log(`[RESPONSE-QUEUE] TTS duplicado suprimido source=${source}`);
+      } else {
+        lastSpokenNormalized = normalizedSpeech;
+        lastSpokenAt = now;
+        enqueueToTTSQueue(speechPayload.text, priority, source);
+      }
     }
 
     return true;

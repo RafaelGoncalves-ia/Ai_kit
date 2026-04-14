@@ -255,7 +255,6 @@ export default {
   cancelQueue() {
     const itemsRemoved = this._queue.length;
     this._queue = [];
-    this._isProcessing = false;
 
     console.log(`[TTS-QUEUE] Fila cancelada (${itemsRemoved} items removidos)`);
 

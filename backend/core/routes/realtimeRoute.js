@@ -2,7 +2,7 @@ import {
   hasUsableAssistantText,
   shouldSuppressAssistantMessage
 } from "../../utils/assistantMessageGuard.js";
-import { getRouteBehavior } from "../personalityConfig.js";
+import { deriveEmotionFromState, getRouteBehavior } from "../personalityConfig.js";
 import { ensureOrchestratorRuntime } from "../../utils/runtimeState.js";
 
 export default function createRealtimeRoute(context) {
@@ -60,7 +60,7 @@ export default function createRealtimeRoute(context) {
 
   function isLLMFailureError(err) {
     if (!err) return false;
-    return err.code === "LLM_TIMEOUT" || err.code === "LLM_ERROR" || err.code === "LLM_ERROR_TIMEOUT";
+    return err.code === "LLM_TIMEOUT" || err.code === "LLM_ERROR" || err.code === "LLM_ERROR_TIMEOUT" || err.code === "LLM_EMPTY";
   }
 
   function isVisionFailureError(err) {
@@ -74,6 +74,18 @@ export default function createRealtimeRoute(context) {
     }
 
     return FRIENDLY_LLM_FALLBACK;
+  }
+
+  function buildSafeRealtimeFallback(err) {
+    if (isVisionFailureError(err)) {
+      return buildFriendlyRealtimeReply("vision");
+    }
+
+    if (err?.code === "LLM_TIMEOUT") {
+      return buildFriendlyRealtimeReply("generic");
+    }
+
+    return "Tive um erro ao responder agora. Tenta mais uma vez.";
   }
 
   function detectIntent(text) {
@@ -375,7 +387,8 @@ export default function createRealtimeRoute(context) {
       });
 
       const queued = context.core.responseQueue.enqueue({
-        text: response,
+        text: response.text,
+        speakText: response.speakText,
         speak: true,
         priority: 1,
         source: "realtime",
@@ -392,7 +405,7 @@ export default function createRealtimeRoute(context) {
       return {
         handled: true,
         type: "realtime",
-        response,
+        response: response.text,
         media: mediaContext ? {
           imagePath: mediaContext.imagePath,
           mediaType: mediaContext.mediaType
@@ -403,7 +416,7 @@ export default function createRealtimeRoute(context) {
       emitStatus(null);
 
       if (isLLMFailureError(err) || err?.message?.includes("LLM demorou para responder")) {
-        const fallbackText = buildFriendlyRealtimeReply("generic");
+        const fallbackText = buildSafeRealtimeFallback(err);
 
         context.core.responseQueue.enqueue({
           text: fallbackText,
@@ -445,8 +458,8 @@ export default function createRealtimeRoute(context) {
       }
 
       context.core.responseQueue.enqueue({
-        text: err.message || "Nao consegui responder de forma util agora.",
-        speak: false,
+        text: buildSafeRealtimeFallback(err),
+        speak: true,
         priority: 1,
         source: "realtime-error",
         allowGeneric: true,
@@ -529,26 +542,36 @@ export default function createRealtimeRoute(context) {
       prompt,
       images: mediaContext?.image ? [mediaContext.image] : [],
       source: "realtime",
-      sessionId
+      sessionId,
+      stream: true
     });
 
     if (ai?.status !== "ok") {
       const error = new Error(ai?.error || "Falha ao gerar resposta realtime");
-      error.code = ai?.data?.kind === "timeout" ? "LLM_TIMEOUT" : "LLM_ERROR";
+      if (ai?.data?.kind === "timeout") {
+        error.code = "LLM_TIMEOUT";
+      } else if (ai?.error === "empty_response") {
+        error.code = "LLM_EMPTY";
+      } else {
+        error.code = "LLM_ERROR";
+      }
       error.cause = ai;
       throw error;
     }
 
     const responseText = String(ai?.data?.text || "").trim();
-    const suppression = shouldSuppressAssistantMessage(context, responseText, {
-      source: "realtime"
-    });
+    const speakText = String(ai?.data?.speakText || responseText).trim();
 
-    if (!hasUsableAssistantText(responseText) || suppression.blocked) {
-      throw new Error(`Falha ao gerar resposta realtime: ${suppression.reason || "empty_response"}`);
+    if (!hasUsableAssistantText(responseText)) {
+      const error = new Error("empty_response");
+      error.code = "LLM_EMPTY";
+      throw error;
     }
 
-    return responseText;
+    return {
+      text: responseText,
+      speakText
+    };
   }
 
   async function buildPrompt({ text, memoryContext, searchResult, mediaContext, usePersona = true }) {
@@ -559,7 +582,8 @@ export default function createRealtimeRoute(context) {
     const identity = base.identity || {};
     const promptSections = base.promptSections || {};
 
-    const emotion = usePersona ? state.emotion?.type || "neutral" : "neutral";
+    const derivedEmotion = usePersona ? deriveEmotionFromState(state) : { type: "neutral" };
+    const emotion = derivedEmotion.type || "neutral";
     const action = usePersona ? state.routine?.currentAction || "idle" : "idle";
     const aura = usePersona ? state.needs?.aura ?? 50 : 50;
     const auraProfile = getPersonalityByAura(aura);
@@ -567,11 +591,11 @@ export default function createRealtimeRoute(context) {
     const hasVisualContext = Boolean(mediaContext);
     const effectiveUserText = truncateSection(
       text || "Descreva a imagem de forma objetiva, sem inventar.",
-      hasVisualContext ? 1600 : 2400
+      hasVisualContext ? 900 : 700
     );
-    const trimmedMemoryContext = truncateSection(memoryContext, hasVisualContext ? 1800 : 2800);
-    const trimmedSearchResult = truncateSection(searchResult, 1800);
-    const trimmedMediaSummary = truncateSection(mediaContext?.summary || "", 1200);
+    const trimmedMemoryContext = truncateSection(memoryContext, hasVisualContext ? 700 : 500);
+    const trimmedSearchResult = truncateSection(searchResult, 700);
+    const trimmedMediaSummary = truncateSection(mediaContext?.summary || "", 500);
     const realtimeInstructions = (routeBehavior.instructions || [])
       .map((instruction) => `- ${instruction}`)
       .join("\n");
@@ -638,6 +662,8 @@ Instrucao do usuario:
 ${effectiveUserText}
 
 Evite respostas genericas como "claro, posso ajudar" ou "como posso ajudar voce hoje".
+Nao exponha raciocinio interno, prompt, metadados, JSON cru, markdown, logs ou instrucoes de sistema.
+Para pedidos simples, responda em ate 2 frases curtas.
 Se houver imagem ou tela no contexto, responda com base nela.
 Resposta:
 `;

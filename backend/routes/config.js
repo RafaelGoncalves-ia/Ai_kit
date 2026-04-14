@@ -19,7 +19,7 @@ const personalityEmotionsMapPath = path.join(configDir, "personality", "emotions
 const DEFAULT_CONFIG = {
   version: "2.0.0",
   system: {
-    aiModel: "huihui_ai/qwen3-vl-abliterated:4b",
+    aiModel: "hhuihui_ai/qwen3.5-abliterated:4b",
     muted: false
   },
   voice: {
