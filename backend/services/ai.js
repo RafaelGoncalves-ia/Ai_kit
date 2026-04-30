@@ -4,9 +4,56 @@ import { buildPromptPreview, hasUsableAssistantText } from "../utils/assistantMe
 import { resolveLLMRequestPolicy } from "./llmPolicy.js";
 import { buildSpeechPayload } from "./speechFilter.js";
 
+const THOUGHT_START_RE = /<\|channel\|>thought\s*/i;
+const THOUGHT_END_RE = /(?:<\|channel\|>|<channel\|>)/i;
+
+function parseThinkingOutput(value) {
+  const raw = String(value || "").replace(/<\|think\|>/gi, "");
+  const startMatch = THOUGHT_START_RE.exec(raw);
+
+  if (!startMatch) {
+    return {
+      raw,
+      thought: "",
+      final: raw.trim(),
+      hasThoughtBlock: false,
+      thoughtComplete: false
+    };
+  }
+
+  const thoughtStartIndex = startMatch.index + startMatch[0].length;
+  const afterStart = raw.slice(thoughtStartIndex);
+  const endMatch = THOUGHT_END_RE.exec(afterStart);
+
+  if (!endMatch) {
+    return {
+      raw,
+      thought: afterStart.trim(),
+      final: "",
+      hasThoughtBlock: true,
+      thoughtComplete: false
+    };
+  }
+
+  const thought = afterStart.slice(0, endMatch.index).trim();
+  const final = afterStart.slice(endMatch.index + endMatch[0].length).trim();
+
+  return {
+    raw,
+    thought,
+    final,
+    hasThoughtBlock: true,
+    thoughtComplete: true
+  };
+}
+
+function sanitizeAssistantOutput(value) {
+  return parseThinkingOutput(value).final;
+}
+
 function salvageAssistantText(value) {
   if (typeof value === "string") {
-    return value.trim();
+    return sanitizeAssistantOutput(value);
   }
 
   if (!value || typeof value !== "object") {
@@ -22,11 +69,249 @@ function salvageAssistantText(value) {
 
   for (const candidate of candidates) {
     if (typeof candidate === "string" && candidate.trim()) {
-      return candidate.trim();
+      return sanitizeAssistantOutput(candidate);
     }
   }
 
   return "";
+}
+
+function salvageAssistantThought(value) {
+  if (typeof value === "string") {
+    return parseThinkingOutput(value).thought;
+  }
+
+  if (!value || typeof value !== "object") {
+    return "";
+  }
+
+  const candidates = [
+    value?.message?.content,
+    value?.response,
+    value?.content,
+    value?.text
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return parseThinkingOutput(candidate).thought;
+    }
+  }
+
+  return "";
+}
+
+function normalizeMediaPart(part = {}) {
+  const type = String(part.type || part.mediaType || "").toLowerCase();
+  const data = String(part.data || part.base64 || "").trim();
+  if (!type || !data) {
+    return null;
+  }
+
+  return {
+    type,
+    data,
+    mimeType: part.mimeType || null,
+    name: part.name || part.fileName || null,
+    textHint: part.textHint || null,
+    transcript: part.transcript || null,
+    tokenBudget: Number(part.tokenBudget || 0) || null
+  };
+}
+
+function buildSystemPrompt({ thinkEnabled }) {
+  const prefix = thinkEnabled ? "<|think|>\n" : "";
+  return `${prefix}Voce responde para a KIT. Nunca exponha raciocinio interno; entregue apenas a resposta final para o usuario.`;
+}
+
+function buildChatMessages({ prompt, images = [], media = [], thinkEnabled = false }) {
+  const normalizedMedia = (Array.isArray(media) ? media : [])
+    .map(normalizeMediaPart)
+    .filter(Boolean);
+
+  const imageParts = normalizedMedia.filter((part) => part.type === "image");
+  const audioParts = normalizedMedia.filter((part) => part.type === "audio");
+  const videoParts = normalizedMedia.filter((part) => part.type === "video");
+  const hasRichMedia = audioParts.length > 0 || videoParts.length > 0;
+
+  if (!hasRichMedia) {
+    return [
+      {
+        role: "system",
+        content: buildSystemPrompt({ thinkEnabled })
+      },
+      {
+        role: "user",
+        content: prompt,
+        images: images.length
+          ? images
+          : imageParts.length
+            ? imageParts.map((part) => part.data)
+            : undefined
+      }
+    ];
+  }
+
+  const content = [];
+
+  for (const part of imageParts) {
+    content.push({
+      type: "image",
+      image: part.data,
+      mime_type: part.mimeType || undefined,
+      token_budget: part.tokenBudget || undefined
+    });
+  }
+
+  for (const part of audioParts) {
+    content.push({
+      type: "audio",
+      audio: part.data,
+      mime_type: part.mimeType || undefined
+    });
+  }
+
+  for (const part of videoParts) {
+    content.push({
+      type: "video",
+      video: part.data,
+      mime_type: part.mimeType || undefined,
+      token_budget: part.tokenBudget || undefined
+    });
+  }
+
+  content.push({
+    type: "text",
+    text: prompt
+  });
+
+  return [
+    {
+      role: "system",
+      content: buildSystemPrompt({ thinkEnabled })
+    },
+    {
+      role: "user",
+      content
+    }
+  ];
+}
+
+function buildFallbackPromptWithMediaHints(prompt, media = []) {
+  const hints = (Array.isArray(media) ? media : [])
+    .map(normalizeMediaPart)
+    .filter(Boolean)
+    .map((part, index) => {
+      const label = `${part.type} ${index + 1}`;
+      const extras = [];
+      if (part.transcript) {
+        extras.push(`transcricao: ${part.transcript}`);
+      }
+      if (part.textHint) {
+        extras.push(`contexto: ${part.textHint}`);
+      }
+      return extras.length ? `- ${label}: ${extras.join(" | ")}` : `- ${label}: anexado`;
+    });
+
+  if (!hints.length) {
+    return prompt;
+  }
+
+  return `${prompt}\n\nContexto adicional de midia anexada:\n${hints.join("\n")}`.trim();
+}
+
+async function postChatRequest({
+  ollamaUrl,
+  model,
+  stream,
+  think,
+  keepAlive,
+  options,
+  messages,
+  signal
+}) {
+  return fetch(`${ollamaUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    signal,
+    body: JSON.stringify({
+      model,
+      stream,
+      think,
+      keep_alive: keepAlive,
+      options,
+      messages
+    })
+  });
+}
+
+async function postChatRequestWithFallback({
+  ollamaUrl,
+  model,
+  stream,
+  think,
+  keepAlive,
+  options,
+  prompt,
+  images,
+  media,
+  signal
+}) {
+  const thinkEnabled = think === true;
+  let response = await postChatRequest({
+    ollamaUrl,
+    model,
+    stream,
+    think,
+    keepAlive,
+    options,
+    messages: buildChatMessages({
+      prompt,
+      images,
+      media,
+      thinkEnabled
+    }),
+    signal
+  });
+
+  const hasRichMedia = Array.isArray(media) && media.some((part) => {
+    const type = String(part?.type || part?.mediaType || "").toLowerCase();
+    return type === "audio" || type === "video";
+  });
+
+  if (response.ok || !hasRichMedia) {
+    return response;
+  }
+
+  response = await postChatRequest({
+    ollamaUrl,
+    model,
+    stream,
+    think,
+    keepAlive,
+    options,
+    messages: buildChatMessages({
+      prompt: buildFallbackPromptWithMediaHints(prompt, media),
+      images,
+      media: media.filter((part) => String(part?.type || part?.mediaType || "").toLowerCase() === "image"),
+      thinkEnabled
+    }),
+    signal
+  });
+
+  return response;
+}
+
+function decodeResponseChunk(chunk) {
+  if (Buffer.isBuffer(chunk)) {
+    return chunk.toString("utf8");
+  }
+
+  if (chunk instanceof Uint8Array) {
+    return Buffer.from(chunk).toString("utf8");
+  }
+
+  return String(chunk || "");
 }
 
 async function readNonStreamingChatResponse({
@@ -36,6 +321,7 @@ async function readNonStreamingChatResponse({
   prompt,
   options,
   images = [],
+  media = [],
   think = false,
   timeoutMs = 20000
 }) {
@@ -43,24 +329,17 @@ async function readNonStreamingChatResponse({
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model,
-        stream: false,
-        think,
-        keep_alive: keepAlive,
-        options,
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-            images: images.length ? images : undefined
-          }
-        ]
-      })
+    const response = await postChatRequestWithFallback({
+      ollamaUrl,
+      model,
+      stream: false,
+      think,
+      keepAlive,
+      options,
+      prompt,
+      images,
+      media,
+      signal: controller.signal
     });
 
     if (!response.ok) {
@@ -70,6 +349,7 @@ async function readNonStreamingChatResponse({
     const data = await response.json().catch(() => ({}));
     return {
       text: salvageAssistantText(data),
+      thought: salvageAssistantThought(data),
       raw: data
     };
   } finally {
@@ -92,12 +372,16 @@ function normalizeMeta(prompt, options = {}, meta = {}) {
 }
 
 export default function createAIService(context) {
-  const OLLAMA_URL = context.config.system?.ollamaUrl || "http://localhost:11434";
+  const OLLAMA_URL = context.config.system?.ollamaUrl || "http://127.0.0.1:11434";
   const singleModelMode = process.env.OLLAMA_SINGLE_MODEL_MODE !== "false";
+  const warmupTimeoutMs = Math.max(
+    30000,
+    Number(process.env.OLLAMA_WARMUP_TIMEOUT_MS || 180000)
+  );
 
   let currentModel =
     context.config.system?.defaultModel ||
-    "huihui_ai/qwen3.5-abliterated:4b";
+    "fredrezones55/Gemma-4-Uncensored-HauhauCS-Aggressive:e4b";
 
   const defaultRequestTimeoutMs = Math.max(
     1000,
@@ -106,7 +390,16 @@ export default function createAIService(context) {
 
   const timeoutBySource = {
     "realtime.memory-input": 15000,
-    "realtime.screenshot-capture": 45000,
+    "realtime.image-upload": 120000,
+    "realtime.audio-upload": 120000,
+    "realtime.video-upload": 90000,
+    "realtime.image-inline": 120000,
+    "realtime.session-media": 120000,
+    "realtime.screenshot-path": 120000,
+    "realtime.screenshot-capture": 90000,
+    "analyze-image": 150000,
+    "analyze-audio": 120000,
+    "analyze-video": 90000,
     realtime: 45000,
     task: 120000
   };
@@ -122,6 +415,7 @@ export default function createAIService(context) {
   let activeRequests = 0;
   const pendingRequests = [];
   const recentCalls = [];
+  let warmupRunning = false;
 
   function flushQueue() {
     while (activeRequests < maxConcurrent && pendingRequests.length > 0) {
@@ -192,6 +486,8 @@ export default function createAIService(context) {
       return Math.max(1000, Number(options.timeoutMs));
     }
 
+    const thinkEnabled = options.think === true;
+
     if (source === "realtime.memory-input") {
       return timeoutBySource["realtime.memory-input"];
     }
@@ -200,7 +496,24 @@ export default function createAIService(context) {
       return timeoutBySource["realtime.screenshot-capture"];
     }
 
+    if (
+      source === "realtime.image-upload" ||
+      source === "realtime.audio-upload" ||
+      source === "realtime.video-upload" ||
+      source === "realtime.image-inline" ||
+      source === "realtime.session-media" ||
+      source === "realtime.screenshot-path" ||
+      source === "analyze-image" ||
+      source === "analyze-audio" ||
+      source === "analyze-video"
+    ) {
+      return timeoutBySource[source];
+    }
+
     if (source === "realtime") {
+      if (thinkEnabled) {
+        return Math.max(timeoutBySource.realtime, 90000);
+      }
       return timeoutBySource.realtime;
     }
 
@@ -231,11 +544,14 @@ export default function createAIService(context) {
       prompt,
       options
     });
+    const shouldEmitEvents = options.emitEvents !== false;
 
     return runWithConcurrencyLimit(async () => {
       const controller = new AbortController();
       const startedAt = Date.now();
       const timeout = setTimeout(() => controller.abort(), resolvedTimeoutMs);
+      const requestThink = options.think ?? context.config.system?.thinkingEnabled ?? false;
+      const requestStream = policy.stream;
       let firstTokenAt = null;
       let promptEvalCount = null;
       let evalCount = null;
@@ -248,40 +564,36 @@ export default function createAIService(context) {
         `sessionId=${requestMeta.sessionId || "-"} executionId=${requestMeta.executionId || "-"} ` +
         `mode=${policy.mode} profile=${policy.profileId} model=${currentModel} ` +
         `num_ctx=${policy.options.num_ctx} num_predict=${policy.options.num_predict} ` +
-        `keep_alive=${policy.keepAlive} stream=${policy.stream} ` +
+        `keep_alive=${policy.keepAlive} stream=${requestStream} think=${requestThink} ` +
         `prompt_tokens=${policy.promptTokens}/${policy.promptTokensBeforeTrim} ` +
         `queued=${pendingRequests.length} active=${activeRequests} timeoutMs=${resolvedTimeoutMs} ` +
         `preview="${requestMeta.preview}"`
       );
 
       try {
-        context.core?.eventBus?.emit("llm:started", {
-          source: requestMeta.source,
-          sessionId: requestMeta.sessionId || null,
-          executionId: requestMeta.executionId || null,
-          model: currentModel,
-          mode: policy.mode,
-          profile: policy.profileId
-        });
-
-        const res = await fetch(`${OLLAMA_URL}/api/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({
+        if (shouldEmitEvents) {
+          context.core?.eventBus?.emit("llm:started", {
+            source: requestMeta.source,
+            sessionId: requestMeta.sessionId || null,
+            executionId: requestMeta.executionId || null,
             model: currentModel,
-            stream: policy.stream,
-            think: options.think ?? false,
-            keep_alive: policy.keepAlive,
-            options: policy.options,
-            messages: [
-              {
-                role: "user",
-                content: policy.prompt,
-                images: options.images?.length ? options.images : undefined
-              }
-            ]
-          })
+            mode: policy.mode,
+            profile: policy.profileId,
+            think: requestThink
+          });
+        }
+
+        const res = await postChatRequestWithFallback({
+          ollamaUrl: OLLAMA_URL,
+          model: currentModel,
+          stream: requestStream,
+          think: requestThink,
+          keepAlive: policy.keepAlive,
+          options: policy.options,
+          prompt: policy.prompt,
+          images: options.images || [],
+          media: options.media || [],
+          signal: controller.signal
         });
 
         if (!res.ok) {
@@ -289,13 +601,24 @@ export default function createAIService(context) {
         }
 
         let responseText = "";
+        let responseThought = "";
         const rawChunks = [];
 
-        if (!res.body) {
-          const data = await res.json();
+        if (!requestStream) {
+          const data = await res.json().catch(() => ({}));
+          rawChunks.push(data);
           responseText = salvageAssistantText(data);
+          responseThought = salvageAssistantThought(data);
+        } else if (!res.body) {
+          const data = await res.json().catch(() => ({}));
+          rawChunks.push(data);
+          responseText = salvageAssistantText(data);
+          responseThought = salvageAssistantThought(data);
         } else {
           let buffer = "";
+          let streamedRaw = "";
+          let emittedThoughtLength = 0;
+          let emittedFinalLength = 0;
           const parseChunkLine = (line) => {
             const trimmedLine = line.trim();
             if (!trimmedLine) {
@@ -307,22 +630,47 @@ export default function createAIService(context) {
             const token = String(data?.message?.content || "");
 
             if (token) {
-              responseText += token;
+              streamedRaw += token;
+              const parsed = parseThinkingOutput(streamedRaw);
+              responseThought = parsed.thought;
+              responseText = parsed.final;
+
+              const thoughtDelta = parsed.thought.slice(emittedThoughtLength);
+              const finalDelta = parsed.final.slice(emittedFinalLength);
+              emittedThoughtLength = parsed.thought.length;
+              emittedFinalLength = parsed.final.length;
 
               if (!firstTokenAt) {
                 firstTokenAt = Date.now();
               }
 
-              if (typeof options.onToken === "function") {
-                options.onToken(token);
+              if (thoughtDelta && typeof options.onThoughtToken === "function") {
+                options.onThoughtToken(thoughtDelta);
               }
 
-              context.core?.eventBus?.emit("llm:token", {
-                source: requestMeta.source,
-                sessionId: requestMeta.sessionId || null,
-                executionId: requestMeta.executionId || null,
-                token
-              });
+              if (finalDelta && typeof options.onToken === "function") {
+                options.onToken(finalDelta);
+              }
+
+              if (shouldEmitEvents) {
+                if (thoughtDelta) {
+                  context.core?.eventBus?.emit("llm:thought-token", {
+                    source: requestMeta.source,
+                    sessionId: requestMeta.sessionId || null,
+                    executionId: requestMeta.executionId || null,
+                    token: thoughtDelta
+                  });
+                }
+
+                if (finalDelta) {
+                  context.core?.eventBus?.emit("llm:token", {
+                    source: requestMeta.source,
+                    sessionId: requestMeta.sessionId || null,
+                    executionId: requestMeta.executionId || null,
+                    token: finalDelta
+                  });
+                }
+              }
             }
 
             if (data?.done) {
@@ -335,7 +683,7 @@ export default function createAIService(context) {
           };
 
           for await (const chunk of res.body) {
-            buffer += chunk.toString("utf8");
+            buffer += decodeResponseChunk(chunk);
             const lines = buffer.split("\n");
             buffer = lines.pop() || "";
 
@@ -356,12 +704,13 @@ export default function createAIService(context) {
             const salvaged = salvageAssistantText(rawChunks[index]);
             if (salvaged) {
               responseText = salvaged;
+              responseThought = salvageAssistantThought(rawChunks[index]);
               break;
             }
           }
         }
 
-        if (!hasUsableAssistantText(responseText) && policy.stream) {
+        if (!hasUsableAssistantText(responseText) && requestStream) {
           logger.warn(
             `[OLLAMA RETRY] source=${requestMeta.source} mode=${policy.mode} model=${currentModel} reason=empty_stream_response`
           );
@@ -373,12 +722,37 @@ export default function createAIService(context) {
             prompt: policy.prompt,
             options: policy.options,
             images: options.images || [],
-            think: options.think ?? false,
+            media: options.media || [],
+            think: requestThink,
             timeoutMs: Math.min(20000, resolvedTimeoutMs)
           });
 
           if (hasUsableAssistantText(retryResult.text)) {
             responseText = String(retryResult.text || "").trim();
+            responseThought = String(retryResult.thought || "").trim();
+          }
+        }
+
+        if (!hasUsableAssistantText(responseText) && requestThink) {
+          logger.warn(
+            `[OLLAMA RETRY] source=${requestMeta.source} mode=${policy.mode} model=${currentModel} reason=empty_response_retry_without_think`
+          );
+
+          const retryWithoutThink = await readNonStreamingChatResponse({
+            ollamaUrl: OLLAMA_URL,
+            model: currentModel,
+            keepAlive: policy.keepAlive,
+            prompt: policy.prompt,
+            options: policy.options,
+            images: options.images || [],
+            media: options.media || [],
+            think: false,
+            timeoutMs: Math.min(Math.max(30000, resolvedTimeoutMs), 120000)
+          });
+
+          if (hasUsableAssistantText(retryWithoutThink.text)) {
+            responseText = String(retryWithoutThink.text || "").trim();
+            responseThought = "";
           }
         }
 
@@ -403,7 +777,8 @@ export default function createAIService(context) {
           numCtx: policy.options.num_ctx,
           numPredict: policy.options.num_predict,
           keepAlive: policy.keepAlive,
-          streaming: policy.stream,
+          streaming: requestStream,
+          think: requestThink,
           promptTokens: policy.promptTokens,
           promptTokensBeforeTrim: policy.promptTokensBeforeTrim,
           historyLoad: policy.flags.historyLoad,
@@ -423,23 +798,28 @@ export default function createAIService(context) {
           `model=${currentModel} num_ctx=${policy.options.num_ctx} num_predict=${policy.options.num_predict} ` +
           `prompt_tokens=${policy.promptTokens} ttftMs=${timeToFirstTokenMs} totalMs=${totalDurationMs} ` +
           `prompt_eval=${promptEvalCount || 0} eval=${evalCount || 0} ` +
-          `loadMs=${loadDurationMs || 0} evalMs=${evalDurationMs || 0} done=${doneReason || "-"} ` +
+          `loadMs=${loadDurationMs || 0} evalMs=${evalDurationMs || 0} done=${doneReason || "-"} think=${requestThink} ` +
           `sessionId=${requestMeta.sessionId || "-"} executionId=${requestMeta.executionId || "-"}`
         );
 
-        context.core?.eventBus?.emit("llm:completed", {
-          source: requestMeta.source,
-          sessionId: requestMeta.sessionId || null,
-          executionId: requestMeta.executionId || null,
-          model: currentModel,
-          mode: policy.mode,
-          profile: policy.profileId,
-          timeToFirstTokenMs,
-          totalDurationMs
-        });
+        if (shouldEmitEvents) {
+          context.core?.eventBus?.emit("llm:completed", {
+            source: requestMeta.source,
+            sessionId: requestMeta.sessionId || null,
+            executionId: requestMeta.executionId || null,
+            model: currentModel,
+            mode: policy.mode,
+            profile: policy.profileId,
+            think: requestThink,
+            hasThought: Boolean(responseThought),
+            timeToFirstTokenMs,
+            totalDurationMs
+          });
+        }
 
         return {
           text: responseText,
+          thought: responseThought,
           speakText: speech.shouldSpeak ? speech.text : "",
           speak: speech.shouldSpeak,
           diagnostics: {
@@ -490,12 +870,20 @@ export default function createAIService(context) {
   }
 
   async function warmup() {
+    if (warmupRunning || activeRequests > 0 || pendingRequests.length > 0 || context.runtime?.agentActive) {
+      logger.info(
+        `[OLLAMA WARMUP] ignorado active=${activeRequests} queued=${pendingRequests.length} agentActive=${context.runtime?.agentActive === true}`
+      );
+      return;
+    }
+
+    warmupRunning = true;
     const startedAt = Date.now();
     logger.info(`[OLLAMA WARMUP] iniciando model=${currentModel}`);
 
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
+      const timeout = setTimeout(() => controller.abort(), warmupTimeoutMs);
       const response = await fetch(`${OLLAMA_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -510,12 +898,10 @@ export default function createAIService(context) {
             num_predict: 8,
             temperature: 0.1
           },
-          messages: [
-            {
-              role: "user",
-              content: "Responda apenas com OK."
-            }
-          ]
+          messages: buildChatMessages({
+            prompt: "Responda apenas com OK.",
+            thinkEnabled: false
+          })
         })
       });
       clearTimeout(timeout);
@@ -536,6 +922,50 @@ export default function createAIService(context) {
       }
     } catch (err) {
       logger.warn(`[OLLAMA WARMUP] falhou model=${currentModel} durationMs=${Date.now() - startedAt} error=${err.message}`);
+    } finally {
+      warmupRunning = false;
+    }
+  }
+
+  async function unload() {
+    const startedAt = Date.now();
+    logger.info(`[OLLAMA UNLOAD] iniciando model=${currentModel}`);
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: currentModel,
+          prompt: "",
+          stream: false,
+          keep_alive: 0
+        })
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      await response.json().catch(() => ({}));
+      logger.info(`[OLLAMA UNLOAD] concluido model=${currentModel} durationMs=${Date.now() - startedAt}`);
+      return {
+        ok: true,
+        model: currentModel
+      };
+    } catch (err) {
+      logger.warn(
+        `[OLLAMA UNLOAD] falhou model=${currentModel} durationMs=${Date.now() - startedAt} error=${err.message}`
+      );
+      return {
+        ok: false,
+        model: currentModel,
+        error: err.message
+      };
     }
   }
 
@@ -578,5 +1008,5 @@ export default function createAIService(context) {
     }
   }
 
-  return { chat, listModels, setModel, getModel, getDiagnostics, getLiveDiagnostics, warmup };
+  return { chat, listModels, setModel, getModel, getDiagnostics, getLiveDiagnostics, warmup, unload };
 }

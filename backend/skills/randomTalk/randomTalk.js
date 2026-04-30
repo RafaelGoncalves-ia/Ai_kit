@@ -144,7 +144,8 @@ export default {
       const request = await buildPrompt(ctx, interactionType);
       const response = await ctx.invokeTool("ai_chat", {
         ...request,
-        source: request.source || "randomTalk"
+        source: request.source || "randomTalk",
+        emitEvents: false
       });
       const text = String(response?.data?.text || "").trim();
       const suppression = shouldSuppressAssistantMessage(ctx, text, {

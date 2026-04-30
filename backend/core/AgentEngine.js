@@ -43,6 +43,14 @@ function hasMeaningfulText(value) {
   return String(value || "").trim().length >= 3;
 }
 
+function normalizeComparableText(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 function fileExistsWithContent(filePath) {
   if (!filePath) return false;
 
@@ -53,23 +61,50 @@ function fileExistsWithContent(filePath) {
   }
 }
 
+function isBatchGoal(goal) {
+  const lower = normalizeComparableText(goal);
+  if (!lower) return false;
+
+  const batchPatterns = [
+    /\b(comprovante|comprovantes|maquininha|nota)\b/,
+    /\b(tabela|lista|legenda|legendas|roteiro|documento descritivo)\b.*\b(pasta|imagens|lote)\b/,
+    /\b(cachorro|dog)\b.*\b(pasta|imagens|lote)\b/,
+    /\bdados[\\/]/,
+    /\bagent-workspace[\\/]dados[\\/]/
+  ];
+
+  return batchPatterns.some((pattern) => pattern.test(lower));
+}
+
 function isExplicitExecutionGoal(goal) {
-  const lower = String(goal || "").trim().toLowerCase();
+  const lower = normalizeComparableText(goal);
   if (!lower) return false;
 
   const explicitPatterns = [
-    /\b(crie|criar|gere|gerar|escreva|escrever|desenvolva|desenvolver|monte|montar|produza|produzir|salve|salvar)\b.*\b(arquivo|pasta|projeto|campanha|legenda|roteiro|texto|audio|imagem|documento|codigo|post|conteudo)\b/,
+    /\b(crie|criar|gere|gerar|escreva|escrever|desenvolva|desenvolver|monte|montar|produza|produzir|salve|salvar)\b.*\b(arquivo|pasta|projeto|campanha|legenda|roteiro|texto|audio|imagem|documento|codigo|post|conteudo|lista|tabela|relatorio|empresas?|fornecedores?|provedores?|contatos?|telefones?|opcoes?|programacao|cronograma|calendario|postagens?)\b/,
+    /\b(explique|explicar|o que e|o que eh|qual e o conceito|conceito de)\b/,
     /\b(corrija|corrigir)\b.*\b(codigo|arquivo|texto|erro|bug|projeto)\b/,
-    /\b(pesquise|pesquisar|busque|buscar|analise|analisar)\b.*\b(imagem|imagens|tela|foto|assunto|tema|conteudo|documento|relatorio)\b/,
+    /\b(pesquise|pesquisar|busque|buscar|procure|procurar|analise|analisar)\b.*\b(imagem|imagens|tela|foto|assunto|tema|conteudo|documento|relatorio|lista|tabela|empresas?|fornecedores?|provedores?|operadoras?|locais?|enderecos?|telefones?|contatos?|opcoes?|produtos?|links?|eleicoes?|eleitoral|candidatos?|votos?|intencoes?\s+de\s+voto)\b/,
     /\b(gera|gere|cria|crie)\b.*\b(audio|legenda|campanha|arquivo|pasta|imagem)\b/,
     /\b(faca|faça|monte|organize|liste|listar|resuma|resumir)\b.*\b(lista|resumo|relatorio|documento|plano)\b/
   ];
+
+  if (isBatchGoal(lower)) {
+    return true;
+  }
+
+  const structuredOutput = /\b(lista|liste|listar|tabela|opcoes?|fornecedores?|programacao|cronograma|calendario|postagens?)\b/.test(lower) ||
+    /\b\d+\s+(opcoes?|fornecedores?|empresas?|produtos?|itens?|links?)\b/.test(lower);
+
+  if (structuredOutput) {
+    return true;
+  }
 
   return explicitPatterns.some((pattern) => pattern.test(lower));
 }
 
 function isConversationalGoal(goal) {
-  const lower = String(goal || "").trim().toLowerCase();
+  const lower = normalizeComparableText(goal);
   if (!lower) return true;
 
   const conversationalPatterns = [
@@ -82,6 +117,53 @@ function isConversationalGoal(goal) {
   ];
 
   return conversationalPatterns.some((pattern) => pattern.test(lower));
+}
+
+function needsWebSearchForGoal(goal = "") {
+  const lower = normalizeComparableText(goal);
+  if (!lower) return false;
+
+  const explicitSearch = /\b(pesquise|pesquisar|pesquisa|busque|buscar|busca|procure|procurar|google|web|online)\b/.test(lower);
+  const publicData = /\b(hoje|agora|atual|atuais|recente|recentes|noticia|noticias|preco|valor|telefone|telefones|endereco|enderecos|site|sites|contato|contatos|cinema|filmes?|cartaz|anime|animes|manga|mangas|temporada|episodios?|crunchyroll|myanimelist|anilist|eleicoes?|eleitoral|candidatos?|votos?|intencoes?\s+de\s+voto|pesquisa\s+eleitoral|20\d{2})\b/.test(lower);
+  const purchaseLink = /\b(link|links?)\b.*\b(compra|comprar|produto|produtos?)\b/.test(lower) || /\b(compra|comprar|produto|produtos?)\b.*\b(link|links?)\b/.test(lower);
+  const listLike = /\b(lista|liste|listar|monte|gere|gerar|crie|criar|encontre|tabela|opcoes?)\b/.test(lower) || /\b\d+\s+(opcoes?|fornecedores?|empresas?|produtos?|itens?|links?)\b/.test(lower);
+  const genericLocation = /\bem\s+(?!forma\b|tabela\b|portugues\b|ingles\b|espanhol\b|arquivo\b|pdf\b|texto\b|lista\b|planilha\b)[a-z0-9][a-z0-9\s.-]{2,}\b/.test(lower);
+  const localList = listLike && genericLocation && /\b(fornecedores?|empresas?|lojas?|servicos?|contatos?|telefones?|enderecos?)\b/.test(lower);
+
+  return explicitSearch || publicData || purchaseLink || localList;
+}
+
+function buildSearchFallbackText(goal = "", searchResult = {}) {
+  const sources = Array.isArray(searchResult?.sources) ? searchResult.sources : [];
+  const searchText = String(searchResult?.text || "").trim();
+
+  if (!sources.length) {
+    return searchText;
+  }
+
+  const sourceLines = sources.slice(0, 5).map((source, index) => {
+    const title = String(source.title || "Fonte sem titulo").trim();
+    const detail = String(source.excerpt || source.snippet || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return `${index + 1}. ${title}${detail ? ` - ${detail}` : ""}`;
+  });
+
+  const links = sources
+    .slice(0, 5)
+    .map((source) => source.url)
+    .filter(Boolean);
+
+  return [
+    "Nao consegui finalizar a sintese pelo modelo a tempo, mas a pesquisa web encontrou estas referencias:",
+    "",
+    ...sourceLines,
+    "",
+    goal ? `Pedido original: ${goal}` : "",
+    "",
+    "Fontes:",
+    ...(links.length ? links.map((url) => `- ${url}`) : ["- sem fontes confirmadas"])
+  ].filter((line) => line !== "").join("\n");
 }
 
 function filterExecutablePlan(steps, availableTools) {
@@ -103,14 +185,19 @@ function getExecutionProfile(mode = "task") {
 }
 
 function buildExecutionSummary(execution) {
+  const hasGeneratedText = execution.results.some((item) => item?.toolName === "generate_text" && hasMeaningfulText(item?.data?.text));
   const generatedText = execution.results
+    .filter((item) => !hasGeneratedText || item?.toolName !== "web_search")
     .map((item) => item?.data?.text || "")
     .filter(hasMeaningfulText)
     .join("\n\n")
     .trim();
 
   const savedFiles = execution.results
-    .map((item) => item?.data?.path || item?.data?.file || null)
+    .flatMap((item) => {
+      const outputFiles = Array.isArray(item?.data?.outputFiles) ? item.data.outputFiles : [];
+      return [item?.data?.path || null, item?.data?.file || null, ...outputFiles];
+    })
     .filter(fileExistsWithContent);
 
   const distinctFiles = [...new Set(savedFiles)];
@@ -178,21 +265,51 @@ export default function createAgentEngine(context) {
       options,
       source: options.source || "agent-engine",
       sessionId: options.sessionId || null,
-      executionId: options.executionId || null
+      executionId: options.executionId || null,
+      stream: options.stream ?? true,
+      think: options.think ?? true,
+      emitEvents: options.emitEvents ?? false
     });
 
     return result?.data?.text || "";
   }
 
-  function buildFallbackPlan(goal, mode = "task") {
-    const lower = String(goal || "").toLowerCase();
+  function buildFallbackPlan(goal, mode = "task", allowWebSearch = true) {
+    const lower = normalizeComparableText(goal);
     const steps = [];
     const profile = getExecutionProfile(mode);
-    const needsText = /\b(legenda|texto|roteiro|descricao|copy|post|campanha|lista|resumo|relatorio|documento|analise)\b/.test(lower);
+    const needsBatchProcessing = /\b(pasta|lote|imagens|comprovantes|comprovante|legenda|instagram|cachorro|dog)\b/.test(lower);
+    const needsSearch = allowWebSearch !== false && needsWebSearchForGoal(goal);
+    const needsText = /\b(legenda|texto|roteiro|descricao|copy|post|postagens?|campanha|conteudo|lista|liste|listar|monte|tabela|opcoes?|resumo|relatorio|documento|analise|explique|explicar|conceito|programacao|cronograma|calendario|dia|semana|mes|objetivo|empresas?|fornecedores?|provedores?|operadoras?|produtos?|links?|servicos?|anime|animes|manga|mangas|pesquisa|resultado|eleicoes?|eleitoral|candidatos?|votos?|intencoes?\s+de\s+voto)\b/.test(lower);
     const needsAudio = /\b(audio|voz|locucao)\b/.test(lower);
     const needsImage = /\b(imagem|imagens|foto|fotos|tela|screen)\b/.test(lower);
     const needsFolder = /\b(pasta|projeto|diretorio)\b/.test(lower);
     const needsFile = /\b(salve|salvar|arquivo|txt|documento|resultado)\b/.test(lower);
+
+    if (needsBatchProcessing) {
+      steps.push({
+        type: "process_batch",
+        label: "Processando lote de imagens",
+        toolName: "process_batch",
+        input: {
+          goal
+        }
+      });
+      return normalizePlanSteps(steps);
+    }
+
+    if (needsSearch) {
+      steps.push({
+        type: "web_search",
+        label: "Pesquisando na web",
+        toolName: "web_search",
+        input: {
+          query: goal,
+          maxSources: 5,
+          maxSearchResults: 10
+        }
+      });
+    }
 
     if (needsImage) {
       steps.push({
@@ -204,12 +321,22 @@ export default function createAgentEngine(context) {
     }
 
     if (needsText || needsAudio || needsFile) {
+      const searchInstruction = needsSearch
+        ? "Use obrigatoriamente o resultado da pesquisa web abaixo como fonte principal. Se a pesquisa nao confirmar algum dado, diga que nao foi confirmado."
+        : "Atenda ao objetivo abaixo sem inventar contexto ausente. Se faltar informacao essencial, responda de forma curta indicando o que falta.";
+
       steps.push({
         type: "generate_text",
         label: needsText ? "Gerando texto" : "Gerando conteudo base",
         toolName: "generate_text",
         input: {
-          prompt: `${profile.responseStyle}\n\nAtenda ao objetivo abaixo sem inventar contexto ausente. Se faltar informacao essencial, responda de forma curta indicando o que falta.\n\nObjetivo:\n${goal}`
+          prompt: `${profile.responseStyle}\n\n${searchInstruction}\n\nObjetivo:\n${goal}`,
+          searchResultFromSessionKey: needsSearch ? "lastWebSearchText" : null,
+          stream: needsSearch ? false : undefined,
+          think: needsSearch ? false : undefined,
+          timeoutMs: needsSearch ? 90000 : undefined,
+          numPredict: needsSearch ? 520 : undefined,
+          source: needsSearch ? "agent-engine.search-synthesis" : undefined
         }
       });
     }
@@ -262,7 +389,22 @@ export default function createAgentEngine(context) {
       progressText: execution.progressText
     });
 
-    const availableTools = Object.keys(context.tools || {});
+    if (isBatchGoal(goal)) {
+      session.memory.lastPlanSource = "forced-batch-fallback";
+      return filterExecutablePlan(buildFallbackPlan(goal, execution.mode, execution.allowWebSearch), context.tools || {});
+    }
+
+    if (execution.allowWebSearch !== false && needsWebSearchForGoal(goal)) {
+      session.memory.lastPlanSource = "forced-search-fallback";
+      return filterExecutablePlan(buildFallbackPlan(goal, execution.mode, execution.allowWebSearch), context.tools || {});
+    }
+
+    const executableTools = { ...(context.tools || {}) };
+    if (execution.allowWebSearch === false) {
+      delete executableTools.web_search;
+    }
+
+    const availableTools = Object.keys(executableTools);
     const prompt = `
 ${profile.plannerRole}
 
@@ -294,6 +436,8 @@ Regras:
 - Maximo 10 passos
 - Use apenas toolName da lista
 - Nao invente pesquisa, imagem, audio, arquivo ou pasta se o objetivo nao pedir isso explicitamente
+- Se o objetivo pedir pesquisar, buscar, procurar, dados atuais/publicos ou lista de empresas/servicos locais, use web_search antes de generate_text
+- Quando usar web_search e depois generate_text, passe "searchResultFromSessionKey": "lastWebSearchText" no input de generate_text
 - Se faltar contexto critico, retorne steps vazios
 - Nao inclua save_file sem conteudo gerado antes
 - Nao inclua generate_audio sem texto real antes
@@ -307,7 +451,7 @@ Regras:
         executionId: execution.id
       });
       const parsed = extractJson(rawPlan);
-      const steps = filterExecutablePlan(parsed?.steps || [], context.tools || {});
+      const steps = filterExecutablePlan(parsed?.steps || [], executableTools);
 
       if (steps.length > 0) {
         session.memory.lastPlanSource = "llm";
@@ -318,7 +462,7 @@ Regras:
     }
 
     session.memory.lastPlanSource = "fallback";
-    return filterExecutablePlan(buildFallbackPlan(goal, execution.mode), context.tools || {});
+    return filterExecutablePlan(buildFallbackPlan(goal, execution.mode, execution.allowWebSearch), executableTools);
   }
 
   function resolveInput(input = {}, session) {
@@ -337,6 +481,21 @@ Regras:
     if (resolved.folderFromSessionKey) {
       resolved.folderPath = session.memory[resolved.folderFromSessionKey] || resolved.folderPath || "";
       delete resolved.folderFromSessionKey;
+    }
+
+    if (resolved.searchResultFromSessionKey) {
+      const searchResult = String(session.memory[resolved.searchResultFromSessionKey] || "").trim();
+      delete resolved.searchResultFromSessionKey;
+
+      if (searchResult) {
+        resolved.searchResult = searchResult;
+        resolved.prompt = [
+          resolved.prompt || resolved.goal || "",
+          "",
+          "Resultado da pesquisa web:",
+          searchResult
+        ].join("\n");
+      }
     }
 
     return resolved;
@@ -393,6 +552,11 @@ Regras:
       session.memory.lastGeneratedText = result.data?.text || result.data || "";
     }
 
+    if (toolName === "web_search") {
+      session.memory.lastWebSearch = result.data || null;
+      session.memory.lastWebSearchText = result.data?.text || "";
+    }
+
     if (toolName === "generate_audio") {
       session.memory.lastGeneratedAudio = result.data || null;
     }
@@ -407,6 +571,10 @@ Regras:
 
     if (toolName === "save_file") {
       session.memory.lastSavedFile = result.data?.path || result.data || "";
+    }
+
+    if (toolName === "process_batch") {
+      session.memory.lastBatchOutput = result.data || null;
     }
   }
 
@@ -447,6 +615,11 @@ Regras:
           return "Pasta nao foi criada";
         }
         return null;
+      case "process_batch":
+        if ((!Array.isArray(data.outputFiles) || data.outputFiles.length === 0) && !Array.isArray(data.rows)) {
+          return "Processamento em lote sem artefato ou linhas uteis";
+        }
+        return null;
       default:
         return null;
     }
@@ -484,6 +657,10 @@ Regras:
       }
 
       if (fileExistsWithContent(result?.data?.file)) {
+        return true;
+      }
+
+      if (Array.isArray(result?.data?.outputFiles) && result.data.outputFiles.some((filePath) => fileExistsWithContent(filePath))) {
         return true;
       }
 
@@ -585,13 +762,35 @@ Regras:
     }
 
     if (!result || result.status !== "ok") {
-      const errorMessage = result?.error || `Tool ${toolName} falhou ao concluir o passo`;
-      throw new Error(errorMessage);
+      if (toolName === "generate_text" && hasMeaningfulText(session.memory.lastWebSearchText)) {
+        result = {
+          status: "ok",
+          data: {
+            text: buildSearchFallbackText(execution.goal, session.memory.lastWebSearch),
+            fallbackUsed: true,
+            fallbackReason: result?.error || "generate_text_failed_after_web_search"
+          }
+        };
+      } else {
+        const errorMessage = result?.error || `Tool ${toolName} falhou ao concluir o passo`;
+        throw new Error(errorMessage);
+      }
     }
 
     const validationError = validateToolResult(toolName, result);
     if (validationError) {
-      throw new Error(validationError);
+      if (toolName === "generate_text" && hasMeaningfulText(session.memory.lastWebSearchText)) {
+        result = {
+          status: "ok",
+          data: {
+            text: buildSearchFallbackText(execution.goal, session.memory.lastWebSearch),
+            fallbackUsed: true,
+            fallbackReason: validationError
+          }
+        };
+      } else {
+        throw new Error(validationError);
+      }
     }
 
     persistToolResult(session, toolName, result);
@@ -604,7 +803,7 @@ Regras:
     return result;
   }
 
-  async function run({ goal, sessionId = "default", mode = "task", executionId = null }) {
+  async function run({ goal, sessionId = "default", mode = "task", executionId = null, allowWebSearch = true }) {
     const normalizedGoal = String(goal || "").trim();
     const session = getSession(sessionId);
 
@@ -653,7 +852,8 @@ Regras:
       totalSteps: 0,
       currentLabel: "Planejando",
       progressText: "Preparando execucao",
-      error: null
+      error: null,
+      allowWebSearch: allowWebSearch !== false
     };
 
     const workspace = createProjectWorkspace(execution.id);

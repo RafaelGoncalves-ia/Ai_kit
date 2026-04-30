@@ -1,8 +1,26 @@
 {
   "version": "2.0.0",
   "system": {
-    "aiModel": "huihui_ai/qwen3.5-abliterated:4b",
-    "muted": false
+    "aiModel": "fredrezones55/Gemma-4-Uncensored-HauhauCS-Aggressive:e4b",
+    "muted": false,
+    "thinkingEnabled": true,
+    "realtimeStreamingEnabled": true,
+    "sampling": {
+      "temperature": 1,
+      "topP": 0.95,
+      "topK": 64
+    },
+    "multimodal": {
+      "visionTokenBudget": 280,
+      "screenshotTokenBudget": 560,
+      "ocrTokenBudget": 1120,
+      "videoTokenBudget": 140,
+      "autoOcrBoost": true,
+      "audioTranscriptionFallback": true
+    }
+  },
+  "vision": {
+    "detailTokenBudget": "auto"
   },
   "voice": {
     "xttsEnabled": true,

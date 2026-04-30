@@ -1,30 +1,136 @@
 {
-  "skillCommands": [
+  "version": 2,
+  "title": "Comandos da Kit",
+  "description": "Catalogo de comandos de ajuda exibido pelo /help. Mantido alinhado aos comandos reais do sistema.",
+  "commands": [
     {
-      "skill": "audio",
-      "commands": ["gere um audio", "gerar audio", "audio"]
+      "id": "help",
+      "patterns": ["/help"],
+      "description": "Mostra esta lista de comandos disponiveis.",
+      "examples": ["/help"]
     },
     {
-      "skill": "randomTalk",
-      "commands": ["falar", "perguntar"]
+      "id": "open_app",
+      "patterns": [
+        "abra *",
+        "abre *",
+        "abri *",
+        "abrir *",
+        "kit abra *",
+        "kit abre *",
+        "kit abrir *",
+        "kita abre *",
+        "kita abrir *",
+        "kit ia abre *"
+      ],
+      "description": "Abre um aplicativo configurado em open.app.json.",
+      "examples": [
+        "abre o chrome",
+        "kit abrir whatsapp",
+        "abra o photoshop"
+      ]
+    },
+    {
+      "id": "play_music",
+      "patterns": [
+        "toca *",
+        "tocar *",
+        "coloca *",
+        "colocar *",
+        "ouvir *",
+        "musica *",
+        "kit toca *",
+        "kita toca *"
+      ],
+      "description": "Toca musica local ou abre a busca no YouTube, conforme a configuracao do player.",
+      "examples": [
+        "toca legiao urbana",
+        "coloca ozzy",
+        "ouvir musica ozzy",
+        "tocar lo-fi no youtube"
+      ]
+    },
+    {
+      "id": "generate_audio",
+      "patterns": [
+        "gere um audio *",
+        "gerar audio *",
+        "gera audio *",
+        "crie um audio *",
+        "grave um audio *"
+      ],
+      "description": "Gera um audio com a voz escolhida. Se faltar texto ou voz, a Kit pergunta o restante.",
+      "examples": [
+        "gere um audio com a voz feminina dizendo ola",
+        "grave um audio com voz de Daisy Studious dizendo promocao relampago"
+      ]
+    },
+    {
+      "id": "search_web",
+      "patterns": [
+        "pesquise *",
+        "busque *",
+        "pesquisa *",
+        "procure *",
+        "noticias *",
+        "noticia *",
+        "busca *"
+      ],
+      "description": "Faz uma pesquisa web rapida e responde com base no resultado encontrado.",
+      "examples": [
+        "pesquise cotacao do dolar",
+        "busque noticias do ollama"
+      ]
+    },
+    {
+      "id": "vision",
+      "patterns": [
+        "olha a tela",
+        "ve a tela",
+        "analisa a tela",
+        "descreve o print",
+        "descreva a imagem",
+        "descreva o audio",
+        "analise o audio",
+        "descreva o video",
+        "analise o video"
+      ],
+      "description": "Analisa imagem, print, audio ou video anexado e tambem captura de tela quando houver contexto visual.",
+      "examples": [
+        "olha a tela",
+        "descreva a imagem",
+        "analisa o print",
+        "analise o audio",
+        "descreva o video"
+      ]
+    },
+    {
+      "id": "click",
+      "patterns": [
+        "clica",
+        "clique"
+      ],
+      "description": "Aciona o comando de clique simulado disponivel na rota realtime.",
+      "examples": [
+        "clica",
+        "clique"
+      ]
+    },
+    {
+      "id": "task_route",
+      "patterns": [
+        "crie * arquivo",
+        "gere * documento",
+        "corrija * codigo",
+        "desenvolva *",
+        "escreva *"
+      ],
+      "description": "Pedidos longos ou de producao vao para TaskRoute ou AgentRoute, em vez da resposta curta realtime.",
+      "examples": [
+        "crie um arquivo html com landing page",
+        "corrija esse codigo",
+        "desenvolva um roteiro de vendas"
+      ]
     }
-  ],
-  "orchestratorTriggers": {
-    "searchTriggers": ["pesquise", "busque", "pesquisa", "noticias", "noticia", "procure", "busca"],
-    "longTriggers": ["arquivo", "escreva", "corrija", "crie", "desenvolva"],
-    "visionTriggers": ["olha", "ve", "ver", "tela", "print", "olhar"]
-  },
-  "assuntosWeb": {
-    "enabled": true,
-    "updateFrequencyHours": 24,
-    "lastUpdate": null,
-    "topics": [
-      "animes lancamentos recentes",
-      "novos episodios anime",
-      "jogos lancamentos",
-      "games trending",
-      "tech news",
-      "AI updates"
-    ]
-  }
+  ]
 }

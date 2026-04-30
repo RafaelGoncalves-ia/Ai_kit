@@ -1,0 +1,80 @@
+{
+  "google.com": {
+    "noiseScore": 30,
+    "lastIssue": "popup",
+    "blockedCount": 30,
+    "lastSeen": "2026-04-27T18:30:07.535Z"
+  },
+  "lista.mercadolivre.com.br": {
+    "noiseScore": 20,
+    "lastIssue": "popup",
+    "blockedCount": 10,
+    "lastSeen": "2026-04-27T05:21:55.203Z"
+  },
+  "mercadolivre.com.br": {
+    "noiseScore": 20,
+    "lastIssue": "popup",
+    "blockedCount": 10,
+    "lastSeen": "2026-04-27T05:22:07.612Z"
+  },
+  "yupicommerce.com.br": {
+    "noiseScore": 20,
+    "lastIssue": "popup",
+    "blockedCount": 10,
+    "lastSeen": "2026-04-27T05:22:28.612Z"
+  },
+  "leagueoflegends.com": {
+    "noiseScore": 8,
+    "lastIssue": "cookie",
+    "blockedCount": 2,
+    "lastSeen": "2026-04-27T17:12:05.260Z"
+  },
+  "leagueoflegends.fandom.com": {
+    "noiseScore": 5,
+    "lastIssue": "floating_video",
+    "blockedCount": 2,
+    "lastSeen": "2026-04-27T17:12:08.376Z"
+  },
+  "en.wikipedia.org": {
+    "noiseScore": 4,
+    "lastIssue": "popup",
+    "blockedCount": 2,
+    "lastSeen": "2026-04-27T17:15:35.475Z"
+  },
+  "fr.wikipedia.org": {
+    "noiseScore": 20,
+    "lastIssue": "popup",
+    "blockedCount": 10,
+    "lastSeen": "2026-04-27T17:15:50.770Z"
+  },
+  "gazetadopovo.com.br": {
+    "noiseScore": 15,
+    "lastIssue": "popup",
+    "blockedCount": 10,
+    "lastSeen": "2026-04-27T17:48:02.467Z"
+  },
+  "facebook.com": {
+    "noiseScore": 8,
+    "lastIssue": "popup",
+    "blockedCount": 6,
+    "lastSeen": "2026-04-27T17:48:17.501Z"
+  },
+  "datafolha.folha.uol.com.br": {
+    "noiseScore": 20,
+    "lastIssue": "popup",
+    "blockedCount": 10,
+    "lastSeen": "2026-04-27T17:48:38.885Z"
+  },
+  "cnnbrasil.com.br": {
+    "noiseScore": 16,
+    "lastIssue": "modal",
+    "blockedCount": 10,
+    "lastSeen": "2026-04-27T17:49:03.452Z"
+  },
+  "veja.abril.com.br": {
+    "noiseScore": 23,
+    "lastIssue": "floating_video",
+    "blockedCount": 11,
+    "lastSeen": "2026-04-27T18:30:22.297Z"
+  }
+}

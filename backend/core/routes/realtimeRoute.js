@@ -4,6 +4,7 @@ import {
 } from "../../utils/assistantMessageGuard.js";
 import { deriveEmotionFromState, getRouteBehavior } from "../personalityConfig.js";
 import { ensureOrchestratorRuntime } from "../../utils/runtimeState.js";
+import { buildHelpText, isHelpCommand } from "../CommandHelp.js";
 
 export default function createRealtimeRoute(context) {
   const state = context.state;
@@ -44,6 +45,24 @@ export default function createRealtimeRoute(context) {
     return text?.trim() || "";
   }
 
+  function stripAccents(text) {
+    return String(text || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  }
+
+  function normalizeComparableText(text) {
+    return stripAccents(text).toLowerCase().trim();
+  }
+
+  function isDifferenceComparisonRequest(text) {
+    const normalized = stripAccents(text).toLowerCase();
+    return (
+      /\b(diferenca|diferencas|compare|comparar|comparacao|mudanca|mudancas)\b/.test(normalized) &&
+      /\b(cima|baixo|superior|inferior|duas imagens|imagem de cima|imagem de baixo)\b/.test(normalized)
+    );
+  }
+
   function truncateSection(value, maxChars, suffix = "\n[trecho truncado]") {
     const text = String(value || "").trim();
     if (!text || text.length <= maxChars) {
@@ -68,9 +87,27 @@ export default function createRealtimeRoute(context) {
     return err.code === "VISION_TIMEOUT" || err.code === "VISION_UNAVAILABLE";
   }
 
+  function isAudioFailureError(err) {
+    if (!err) return false;
+    return err.code === "AUDIO_TIMEOUT" || err.code === "AUDIO_UNAVAILABLE";
+  }
+
+  function isVideoFailureError(err) {
+    if (!err) return false;
+    return err.code === "VIDEO_TIMEOUT" || err.code === "VIDEO_UNAVAILABLE";
+  }
+
   function buildFriendlyRealtimeReply(kind = "generic") {
     if (kind === "vision") {
-      return "Demorei demais para analisar a imagem ou a tela. Tenta de novo ou manda algo mais direto.";
+      return "A analise da imagem ou da tela realmente demorou demais desta vez. Se quiser, tenta de novo que eu refaço com calma.";
+    }
+
+    if (kind === "audio") {
+      return "Demorei demais para analisar o audio. Tenta de novo ou manda um trecho menor.";
+    }
+
+    if (kind === "video") {
+      return "Demorei demais para analisar o video. Tenta de novo ou manda um trecho menor.";
     }
 
     return FRIENDLY_LLM_FALLBACK;
@@ -81,6 +118,14 @@ export default function createRealtimeRoute(context) {
       return buildFriendlyRealtimeReply("vision");
     }
 
+    if (isAudioFailureError(err)) {
+      return buildFriendlyRealtimeReply("audio");
+    }
+
+    if (isVideoFailureError(err)) {
+      return buildFriendlyRealtimeReply("video");
+    }
+
     if (err?.code === "LLM_TIMEOUT") {
       return buildFriendlyRealtimeReply("generic");
     }
@@ -88,7 +133,117 @@ export default function createRealtimeRoute(context) {
     return "Tive um erro ao responder agora. Tenta mais uma vez.";
   }
 
+  function buildSearchFallbackReply(searchResult, userText = "") {
+    const raw = String(searchResult || "").trim();
+    if (!raw) {
+      return null;
+    }
+
+    const normalized = raw.toLowerCase();
+    if (
+      normalized.includes("nao consegui acessar a pesquisa agora") ||
+      normalized.includes("não consegui acessar a pesquisa agora") ||
+      normalized.includes("nao consegui ver isso agora") ||
+      normalized.includes("não consegui ver isso agora")
+    ) {
+      return null;
+    }
+
+    const summaryMatch = raw.match(/RESUMO:\s*([\s\S]*?)(?:\n\s*\nFONTES:|$)/i);
+    const sourcesBlockMatch = raw.match(/FONTES:\s*([\s\S]*)$/i);
+    const summary = String(summaryMatch?.[1] || raw)
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const sourceLines = String(sourcesBlockMatch?.[1] || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((line) => line.replace(/\s+/g, " "));
+
+    const intro = userText
+      ? `Encontrei isso sobre ${String(userText).replace(/[.!?]+$/g, "").trim()}:`
+      : "Encontrei isso:";
+
+    const compactSummary = truncateSection(summary, 420, "...");
+    const compactSources = sourceLines.length
+      ? ` Fontes citadas: ${sourceLines.map((line) => truncateSection(line, 110, "...")).join(" | ")}`
+      : "";
+
+    return `${intro} ${compactSummary}${compactSources}`.trim();
+  }
+
+  function emitSyntheticRealtimeStream({
+    text = "",
+    sessionId = "default",
+    source = "realtime",
+    chunkSize = 18
+  }) {
+    const finalText = String(text || "").trim();
+    if (!finalText || !context.core?.eventBus) {
+      return;
+    }
+
+    context.core.eventBus.emit("llm:started", {
+      source,
+      sessionId,
+      executionId: null,
+      model: "synthetic",
+      mode: "realtime",
+      profile: "synthetic",
+      think: false
+    });
+
+    for (let index = 0; index < finalText.length; index += chunkSize) {
+      context.core.eventBus.emit("llm:token", {
+        source,
+        sessionId,
+        executionId: null,
+        token: finalText.slice(index, index + chunkSize)
+      });
+    }
+
+    context.core.eventBus.emit("llm:completed", {
+      source,
+      sessionId,
+      executionId: null,
+      model: "synthetic",
+      mode: "realtime",
+      profile: "synthetic",
+      think: false,
+      hasThought: false,
+      timeToFirstTokenMs: 0,
+      totalDurationMs: 0
+    });
+  }
+
+  function extractCommandPayload(text, patterns = []) {
+    const normalized = String(text || "").trim();
+    for (const pattern of patterns) {
+      const match = normalized.match(pattern);
+      if (match?.[1]) {
+        return match[1].trim().replace(/[.!?]+$/g, "").trim();
+      }
+    }
+    return "";
+  }
+
+  function cleanPlayMediaQuery(text) {
+    return stripAccents(text)
+      .replace(/\b(kita|kit|kit ia)\b/gi, "")
+      .replace(/\b(toca|tocar|toque|coloca|colocar|coloque|ouve|ouvir|escuta|escutar|escute)\b/gi, "")
+      .replace(/\b(musica|som|faixa|playlist)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .replace(/^[,.:;\-]+|[,.:;\-]+$/g, "")
+      .trim();
+  }
+
   function detectIntent(text) {
+    if (isHelpCommand(text)) {
+      return { helpCommand: true };
+    }
+
     const lower = String(text || "").toLowerCase();
     const includesTerm = (term) => {
       if (term.includes(" ")) {
@@ -105,20 +260,28 @@ export default function createRealtimeRoute(context) {
       /\b(olha|olhar|ve|ver|mostra|mostrar|analisa|analisar|descreve|descrever)\b.*\b(tela|print|screenshot)\b/i,
       /\b(tela|print|screenshot)\b.*\b(olha|olhar|ve|ver|mostra|mostrar|analisa|analisar|descreve|descrever)\b/i
     ];
-    const imageContextTriggers = [
-      "imagem",
-      "foto",
-      "print",
-      "tela",
-      "screenshot",
-      "descreva a imagem",
-      "analise a imagem",
-      "descreva o print"
+    const explicitMediaContextPatterns = [
+      /\b(descreva|analise|explique|identifique|leia)\b.*\b(imagem|foto|print|screenshot|tela)\b/i,
+      /\b(imagem|foto|print|screenshot|tela)\b.*\b(descreva|analise|explique|identifique|leia)\b/i,
+      /\b(descreva|analise|explique|identifique|transcreva|ouca|escute)\b.*\b(audio|áudio|som|gravacao|gravação|voz)\b/i,
+      /\b(audio|áudio|som|gravacao|gravação|voz)\b.*\b(descreva|analise|explique|identifique|transcreva|ouca|escute)\b/i,
+      /\b(descreva|analise|explique|identifique|resuma|assista)\b.*\b(video|vídeo)\b/i,
+      /\b(video|vídeo)\b.*\b(descreva|analise|explique|identifique|resuma|assista)\b/i
     ];
     const longTriggers = ["arquivo", "escreva", "corrija", "crie", "desenvolva"];
+    const openAppTarget = extractCommandPayload(text, [
+      /^\s*(?:(?:kit|kita|kit\s*ia)\s*[:,;-]?\s*)?abr(?:a|e|i|ir)\s+(?:(?:o|a|os|as|um|uma)\s+)?(.+)$/i
+    ]);
+    const normalizedText = stripAccents(text).toLowerCase();
+    const playMediaTriggers = /\b(toca|tocar|toque|coloca|colocar|coloque|ouve|ouvir|escuta|escutar|escute|musica)\b/i;
+    const playMediaQuery = playMediaTriggers.test(normalizedText) ? cleanPlayMediaQuery(text) : "";
 
-    if (lower.includes("abre") || lower.includes("abrir")) {
-      if (lower.includes("chrome")) return { systemCommand: "open_chrome" };
+    if (openAppTarget) {
+      return { toolCommand: "open_app", toolInput: { target: openAppTarget } };
+    }
+
+    if (playMediaQuery) {
+      return { toolCommand: "play_music", toolInput: { query: playMediaQuery } };
     }
 
     if (lower.includes("clica") || lower.includes("clique")) {
@@ -131,9 +294,428 @@ export default function createRealtimeRoute(context) {
       requiresSearch: searchTriggers.some((trigger) => includesTerm(trigger)),
       useVision: legacyScreenCommand || visionTriggers.some((trigger) => includesTerm(trigger)),
       legacyScreenCommand,
-      requiresImageContext: imageContextTriggers.some((trigger) => includesTerm(trigger)),
+      requiresMediaContext: explicitMediaContextPatterns.some((pattern) => pattern.test(text)),
       requiresLongTask: longTriggers.some((trigger) => includesTerm(trigger))
     };
+  }
+
+  function extractAllowedDomainsFromText(text = "") {
+    const normalized = normalizeComparableText(text);
+    const siteMatches = String(text || "").match(/\bsite:([a-z0-9.-]+\.[a-z]{2,})\b/gi) || [];
+    const inferred = siteMatches.map((item) => item.replace(/^site:/i, "").toLowerCase());
+
+    const namedDomains = [
+      ["mercado livre", "mercadolivre.com.br"],
+      ["amazon", "amazon.com.br"],
+      ["kabum", "kabum.com.br"],
+      ["magalu", "magazineluiza.com.br"],
+      ["magazine luiza", "magazineluiza.com.br"],
+      ["wikipedia", "wikipedia.org"],
+      ["github", "github.com"],
+      ["stackoverflow", "stackoverflow.com"],
+      ["mdn", "developer.mozilla.org"],
+      ["g1", "g1.globo.com"],
+      ["imdb", "imdb.com"],
+      ["myanimelist", "myanimelist.net"],
+      ["anilist", "anilist.co"]
+    ];
+
+    for (const [label, domain] of namedDomains) {
+      if (normalized.includes(label)) {
+        inferred.push(domain);
+      }
+    }
+
+    return Array.from(new Set(inferred.filter(Boolean)));
+  }
+
+  function inferWebSearchIntent(text = "") {
+    const normalized = normalizeComparableText(text);
+
+    if (
+      /\b(lol|league of legends|campeao|campeoes|champion|champions|anime|manga|personagem|filme|serie|temporada|episodio|elenco|fandom|crunchyroll|imdb|anilist|myanimelist)\b/.test(normalized)
+    ) {
+      return "media";
+    }
+
+    if (
+      /\b(em cartaz|cartaz hoje|cinema hoje|filmes hoje|sessoes de cinema|sessões de cinema|programacao do cinema|programação do cinema)\b/.test(normalized)
+    ) {
+      return "news";
+    }
+
+    if (
+      /\b(preco|valor|vale|custa|quanto custa|quanto vale|fipe|faixa de preco|comparar preco|comparacao de preco|mais barato|produto|notebook|pc gamer|celular|carro|moto|veiculo)\b/.test(normalized)
+    ) {
+      return "price";
+    }
+
+    if (
+      /\b(noticia|noticias|hoje|agora|ultima|ultimo|mais recente|recentes|atual|atualizado)\b/.test(normalized)
+    ) {
+      return "news";
+    }
+
+    if (
+      /\b(erro|bug|stack|traceback|exception|typeerror|referenceerror|syntaxerror|docs|documentacao|api|stackoverflow|github|mdn)\b/.test(normalized)
+    ) {
+      return "debug";
+    }
+
+    return "general";
+  }
+
+  function shouldAutoSearch(text = "", mediaContext = null, intent = {}) {
+    const normalized = normalizeComparableText(text);
+
+    if (intent.requiresSearch) {
+      return true;
+    }
+
+    if (!normalized) {
+      return false;
+    }
+
+    if (userIsCorrectingAssistant(text)) {
+      return true;
+    }
+
+    if (
+      /\b(preco|valor|vale|custa|quanto custa|quanto vale|fipe|mercado|comparar|comparacao|mais barato|noticia|noticias|hoje|agora|ultima|ultimo|mais recente|atual)\b/.test(normalized)
+    ) {
+      return true;
+    }
+
+    if (
+      /\b(erro|bug|traceback|exception|typeerror|referenceerror|syntaxerror|documentacao|docs|api)\b/.test(normalized)
+    ) {
+      return true;
+    }
+
+    if (
+      /\b(lol|league of legends|campeao|campeoes|champion|champions|anime|filme|serie|personagem|temporada|episodio|elenco)\b/.test(normalized)
+    ) {
+      return true;
+    }
+
+    if (
+      /\b(quem e|quem foi|idade de|altura de|fortuna de|presidente|ceo|ator|atriz|cantor|cantora)\b/.test(normalized)
+    ) {
+      return true;
+    }
+
+    if (
+      mediaContext?.summary &&
+      /\b(o que e|quem e|que produto e|que personagem e|que anime e|que erro e|identifica|identifique)\b/.test(normalized)
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function buildWebSearchPlan({ text, mediaContext = null, intent = {} }) {
+    const normalized = normalizeComparableText(text);
+    if (!shouldAutoSearch(text, mediaContext, intent)) {
+      return null;
+    }
+
+    const inferredIntent = inferWebSearchIntent(text);
+    const allowedDomainsOnly = extractAllowedDomainsFromText(text);
+    let query = String(text || "").trim();
+
+    if (
+      mediaContext?.summary &&
+      /\b(o que e|quem e|que produto e|que personagem e|que anime e|que erro e|identifica|identifique)\b/.test(normalized)
+    ) {
+      query = `${query} ${truncateSection(mediaContext.summary, 180, "...")}`.trim();
+    }
+
+    if (
+      /\b(ultima|ultimo|mais recente|atual|hoje|agora)\b/.test(normalized) &&
+      !/\b20\d{2}\b/.test(query)
+    ) {
+      query = `${query} ${new Date().getFullYear()}`.trim();
+    }
+
+    if (/\b(lol|league of legends)\b/.test(normalized)) {
+      query = `${query} Riot Games League of Legends`.trim();
+    }
+
+    if (
+      /\b(ultimo|ultima|mais recente)\b/.test(normalized) &&
+      /\b(campeao|campeoes|champion|champions)\b/.test(normalized)
+    ) {
+      query = `${query} newest released official`.trim();
+    }
+
+    if (/\bone piece\b/.test(normalized)) {
+      query = `${query} official latest season arc`.trim();
+    }
+
+    if (/\b(em cartaz|cartaz hoje|cinema hoje|filmes hoje)\b/.test(normalized)) {
+      query = `${query} brasil cinemas hoje em cartaz`.trim();
+    }
+
+    return {
+      intent: inferredIntent,
+      query,
+      maxSources: inferredIntent === "news" ? 4 : 3,
+      allowedDomainsOnly
+    };
+  }
+
+  function cleanSearchQueryHeuristically(text = "", intent = "general") {
+    const raw = String(text || "").trim();
+    const normalized = normalizeComparableText(raw);
+    if (!normalized) {
+      return raw;
+    }
+
+    let cleaned = normalized
+      .replace(/\b(kit|kita|por favor|pesquisa ai|pesquisa isso|procura ai|me diz|me fala|quero saber|voce viu|vc viu|entao pq vc falou|entao porque voce falou)\b/g, " ")
+      .replace(/\b(qual e|qual o|qual a|quais sao|me diga|me mostra|sera que|tem como)\b/g, " ")
+      .replace(/\b(vc|vcs|voce|voces)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (/\b(samsung|galaxy)\b/.test(cleaned) && /\b(ultimo|ultima|mais recente|lancado|lançado)\b/.test(cleaned)) {
+      cleaned = `${cleaned} flagship latest official samsung galaxy`;
+    }
+
+    if (/\b(celular|smartphone)\b/.test(cleaned) && /\b(samsung)\b/.test(cleaned)) {
+      cleaned = `${cleaned} samsung galaxy official`;
+    }
+
+    if (/\b(lol|league of legends)\b/.test(cleaned) && /\b(campeao|campeoes|champion|champions)\b/.test(cleaned)) {
+      cleaned = `${cleaned} newest released official riot`;
+    }
+
+    if (/\b(em cartaz|filmes hoje|cinema hoje)\b/.test(cleaned)) {
+      cleaned = `${cleaned} brasil cinemas hoje em cartaz`;
+    }
+
+    if (intent === "price") {
+      cleaned = `${cleaned} preco brasil`;
+    }
+
+    return cleaned.replace(/\s+/g, " ").trim();
+  }
+
+  function isSearchPlanTooLiteral(originalText = "", plannedQuery = "") {
+    const original = normalizeComparableText(originalText)
+      .replace(/[?!.;,:"']/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const planned = normalizeComparableText(plannedQuery)
+      .replace(/[?!.;,:"']/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!original || !planned) {
+      return false;
+    }
+
+    return original === planned || planned.includes(original) || original.includes(planned);
+  }
+
+  function userIsCorrectingAssistant(text = "") {
+    const normalized = normalizeComparableText(text);
+    if (!normalized) {
+      return false;
+    }
+
+    return (
+      /\b(voce nao viu|vc nao viu|você nao viu|entao pq vc falou|entao porque voce falou|pesquisa ai|pesquisa isso|ja tem|já tem|tem sim|na verdade)\b/.test(normalized) ||
+      /\b(ta errado|esta errado|tá errado|errou|voce falou errado|vc falou errado)\b/.test(normalized)
+    );
+  }
+
+  function parseSearchPlannerJson(value = "") {
+    const raw = String(value || "").trim();
+    if (!raw) {
+      return null;
+    }
+
+    const fencedMatch = raw.match(/```json\s*([\s\S]*?)```/i);
+    const candidate = fencedMatch?.[1] || raw;
+    const objectMatch = candidate.match(/\{[\s\S]*\}/);
+    const jsonText = objectMatch?.[0] || candidate;
+
+    try {
+      return JSON.parse(jsonText);
+    } catch {
+      return null;
+    }
+  }
+
+  function emitSearchPlannerThought({ sessionId = "default", thought = "" }) {
+    const finalThought = String(thought || "").trim();
+    if (!finalThought || !context.core?.eventBus) {
+      return;
+    }
+
+    context.core.eventBus.emit("llm:started", {
+      source: "realtime-search-planner",
+      sessionId,
+      executionId: null,
+      model: "search-planner",
+      mode: "realtime",
+      profile: "search-planner",
+      think: true
+    });
+
+    context.core.eventBus.emit("llm:thought-token", {
+      source: "realtime-search-planner",
+      sessionId,
+      executionId: null,
+      token: finalThought
+    });
+
+    context.core.eventBus.emit("llm:completed", {
+      source: "realtime-search-planner",
+      sessionId,
+      executionId: null,
+      model: "search-planner",
+      mode: "realtime",
+      profile: "search-planner",
+      think: true,
+      hasThought: true,
+      timeToFirstTokenMs: 0,
+      totalDurationMs: 0
+    });
+  }
+
+  async function refineWebSearchPlan({
+    sessionId = "default",
+    text = "",
+    mediaContext = null,
+    basePlan = null
+  } = {}) {
+    if (!basePlan) {
+      return null;
+    }
+
+    try {
+      const plannerPrompt = [
+        "Voce e um planner de busca web.",
+        "Sua tarefa e transformar o pedido do usuario em uma consulta curta, limpa e objetiva para Google.",
+        "Nao copie a fala coloquial inteira do usuario.",
+        "Mantenha somente entidades, produto, assunto, tempo e filtros realmente uteis.",
+        "Se houver tema atual ou temporal, preserve isso.",
+        "Se houver franquia/jogo/marca oficial, adicione termos oficiais uteis.",
+        "Responda somente JSON valido.",
+        "",
+        "Schema:",
+        '{',
+        '  "intent": "price|news|media|debug|general",',
+        '  "query": "consulta limpa",',
+        '  "maxSources": 3,',
+        '  "allowedDomainsOnly": ["opcional.com"]',
+        '}',
+        "",
+        `Data atual: ${new Date().toISOString().slice(0, 10)}`,
+        `Pedido do usuario: ${text}`,
+        mediaContext?.summary ? `Contexto de midia: ${truncateSection(mediaContext.summary, 220, "...")}` : "",
+        `Plano base: ${JSON.stringify(basePlan)}`
+      ].filter(Boolean).join("\n");
+
+      const plannerResult = await context.invokeTool("ai_chat", {
+        prompt: plannerPrompt,
+        source: "task.search-planner",
+        sessionId,
+        stream: false,
+        think: true,
+        emitEvents: false,
+        timeoutMs: 60000,
+        numPredict: 220
+      });
+
+      if (plannerResult?.status !== "ok") {
+        return basePlan;
+      }
+
+      emitSearchPlannerThought({
+        sessionId,
+        thought: plannerResult?.data?.thought || ""
+      });
+
+      const parsed = parseSearchPlannerJson(plannerResult?.data?.text || "");
+      if (!parsed || typeof parsed !== "object") {
+        return basePlan;
+      }
+
+      const nextQuery = String(parsed.query || "").trim();
+      const nextIntent = String(parsed.intent || "").trim().toLowerCase();
+      const nextMaxSources = Number(parsed.maxSources || basePlan.maxSources || 3);
+      const nextAllowedDomainsOnly = Array.isArray(parsed.allowedDomainsOnly)
+        ? parsed.allowedDomainsOnly.map((item) => String(item || "").trim()).filter(Boolean)
+        : basePlan.allowedDomainsOnly;
+
+      const resolvedQuery = (() => {
+        if (!nextQuery) {
+          return cleanSearchQueryHeuristically(text, basePlan.intent);
+        }
+
+        if (isSearchPlanTooLiteral(text, nextQuery)) {
+          return cleanSearchQueryHeuristically(nextQuery, nextIntent || basePlan.intent);
+        }
+
+        return nextQuery;
+      })();
+
+      return {
+        intent: ["price", "news", "media", "debug", "general"].includes(nextIntent)
+          ? nextIntent
+          : basePlan.intent,
+        query: resolvedQuery || basePlan.query,
+        maxSources: Math.max(1, Math.min(nextMaxSources || basePlan.maxSources || 3, 6)),
+        allowedDomainsOnly: nextAllowedDomainsOnly
+      };
+    } catch (err) {
+      console.error("[REALTIME] Falha ao refinar plano de busca:", err);
+      return {
+        ...basePlan,
+        query: cleanSearchQueryHeuristically(basePlan.query, basePlan.intent)
+      };
+    }
+  }
+
+  function isDetailedVisualRequest(text) {
+    const normalized = stripAccents(text).toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+
+    return [
+      "descreva",
+      "descricao",
+      "analise",
+      "detalh",
+      "completa",
+      "completo",
+      "profunda",
+      "profundo",
+      "elabore",
+      "liste",
+      "todos",
+      "todas",
+      "sete erros",
+      "7 erros"
+    ].some((term) => normalized.includes(term));
+  }
+
+  function shouldPreferDirectMediaReply(text, mediaContext) {
+    if (!mediaContext?.summary) {
+      return false;
+    }
+
+    const mediaType = String(mediaContext.mediaType || "").toLowerCase();
+    if (mediaType !== "image" && mediaType !== "screenshot") {
+      return false;
+    }
+
+    return isDifferenceComparisonRequest(text) || isDetailedVisualRequest(text);
   }
 
   function rememberSessionMedia(session, media = {}) {
@@ -168,6 +750,8 @@ export default function createRealtimeRoute(context) {
     images = [],
     filePath = null,
     screenshotPath = null,
+    mediaType = null,
+    mimeType = null,
     intent
   }) {
     const memory = session.memory || {};
@@ -177,49 +761,65 @@ export default function createRealtimeRoute(context) {
     const shouldKeepPendingAfterUse = !text && Boolean(filePath || screenshotPath || images.length > 0);
 
     if (filePath) {
-      source = "realtime.image-upload";
-      analysisResult = await context.invokeTool("analyze_image", {
-        imagePath: filePath,
-        goal: text || "Descreva a imagem de forma objetiva, sem inventar.",
+      source = mediaType === "audio"
+        ? "realtime.audio-upload"
+        : mediaType === "video"
+          ? "realtime.video-upload"
+          : "realtime.image-upload";
+      analysisResult = await context.invokeTool("analyze_media", {
+        path: filePath,
+        mediaType: mediaType || "image",
+        mimeType,
+        goal: text || "Descreva a midia de forma objetiva, sem inventar.",
         source,
-        sessionId: session.id
+        sessionId: session.id,
+        think: false,
+        stream: true
       });
     } else if (screenshotPath) {
       source = "realtime.screenshot-path";
-      analysisResult = await context.invokeTool("analyze_image", {
-        imagePath: screenshotPath,
+      analysisResult = await context.invokeTool("analyze_media", {
+        path: screenshotPath,
         goal: text || "Descreva a tela de forma objetiva, sem inventar.",
         source,
         sessionId: session.id,
-        mediaType: "screenshot"
+        mediaType: "screenshot",
+        think: false,
+        stream: true
       });
     } else if (images.length > 0) {
       source = "realtime.image-inline";
-      analysisResult = await context.invokeTool("analyze_image", {
+      analysisResult = await context.invokeTool("analyze_media", {
         image: images[0],
         goal: text || "Descreva a imagem de forma objetiva, sem inventar.",
         source,
-        sessionId: session.id
+        sessionId: session.id,
+        think: false,
+        stream: true
       });
     } else if (memory.pendingMedia && memory.lastMediaPath) {
       source = "realtime.session-media";
       consumePendingMedia = true;
-      analysisResult = await context.invokeTool("analyze_image", {
-        imagePath: memory.lastMediaPath,
-        goal: text || "Descreva a imagem de forma objetiva, sem inventar.",
+      analysisResult = await context.invokeTool("analyze_media", {
+        path: memory.lastMediaPath,
+        goal: text || "Descreva a midia de forma objetiva, sem inventar.",
         source,
         sessionId: session.id,
-        mediaType: memory.lastMediaType || "image"
+        mediaType: memory.lastMediaType || "image",
+        think: false,
+        stream: true
       });
     } else if (intent.useVision) {
       source = "realtime.screenshot-capture";
       console.log(`[REALTIME] Comando legado de tela acionado (sessionId=${session.id})`);
-      analysisResult = await context.invokeTool("analyze_image", {
+      analysisResult = await context.invokeTool("analyze_media", {
         capture: true,
         goal: text || "Descreva a tela de forma objetiva, sem inventar.",
         source,
         sessionId: session.id,
-        mediaType: "screenshot"
+        mediaType: "screenshot",
+        think: false,
+        stream: true
       });
     }
 
@@ -228,10 +828,20 @@ export default function createRealtimeRoute(context) {
     }
 
     if (analysisResult.status !== "ok") {
-      const error = new Error(analysisResult.error || "Falha ao analisar imagem");
+      const resolvedMediaType =
+        analysisResult.data?.mediaType ||
+        mediaType ||
+        (screenshotPath ? "screenshot" : "image");
+      const mediaErrorPrefix =
+        resolvedMediaType === "audio"
+          ? "AUDIO"
+          : resolvedMediaType === "video"
+            ? "VIDEO"
+            : "VISION";
+      const error = new Error(analysisResult.error || "Falha ao analisar midia");
       error.code = analysisResult?.data?.kind === "timeout"
-        ? "VISION_TIMEOUT"
-        : "VISION_UNAVAILABLE";
+        ? `${mediaErrorPrefix}_TIMEOUT`
+        : `${mediaErrorPrefix}_UNAVAILABLE`;
       error.cause = analysisResult;
       throw error;
     }
@@ -241,7 +851,13 @@ export default function createRealtimeRoute(context) {
     }
 
     rememberSessionMedia(session, {
-      imagePath: analysisResult.data?.imagePath || filePath || screenshotPath || null,
+      mediaPath:
+        analysisResult.data?.imagePath ||
+        analysisResult.data?.audioPath ||
+        analysisResult.data?.videoPath ||
+        filePath ||
+        screenshotPath ||
+        null,
       mediaType: analysisResult.data?.mediaType || (screenshotPath ? "screenshot" : "image")
     });
 
@@ -258,20 +874,55 @@ export default function createRealtimeRoute(context) {
     return {
       summary: analysisResult.data?.summary || "",
       image: analysisResult.data?.image || null,
+      audio: analysisResult.data?.audio || null,
+      video: analysisResult.data?.video || null,
       imagePath: analysisResult.data?.imagePath || null,
+      audioPath: analysisResult.data?.audioPath || null,
+      videoPath: analysisResult.data?.videoPath || null,
+      transcript: analysisResult.data?.transcript || "",
       mediaType: analysisResult.data?.mediaType || "image"
     };
   }
 
-  async function handle({ input, images = [], sessionId = "default", filePath = null, screenshotPath = null }) {
+  function buildVisualReplyFromSummary(text, mediaContext) {
+    const summary = String(mediaContext?.summary || "").trim();
+    if (!summary) {
+      return "";
+    }
+
+    const request = stripAccents(text).toLowerCase();
+    const asksForComparison =
+      /\b(diferenca|diferencas|compare|comparar|comparacao|qual a diferenca|quais sao as diferencas)\b/.test(request) &&
+      /\b(cima|baixo|superior|inferior)\b/.test(request);
+
+    if (asksForComparison) {
+      return `Analisei a midia, mas a resposta final falhou. Pelo que consegui extrair: ${summary}`;
+    }
+
+    return summary;
+  }
+
+  async function handle({
+    input,
+    images = [],
+    sessionId = "default",
+    filePath = null,
+    screenshotPath = null,
+    mediaType = null,
+    mimeType = null,
+    realtimeThinkingEnabled = false,
+    webSearchEnabled = true
+  }) {
     const text = normalize(input);
     const session = ensureSession(sessionId);
     const intent = detectIntent(text);
+    const realtimeStreamingEnabled = context.config?.system?.realtimeStreamingEnabled !== false;
     const hasIncomingMedia = Boolean(filePath || screenshotPath || images.length > 0 || session.memory?.pendingMedia);
+    let mediaContext = null;
 
     if (!text && !hasIncomingMedia) {
       context.core.responseQueue.enqueue({
-        text: "Preciso de texto ou de uma imagem valida para continuar.",
+        text: "Preciso de texto ou de uma midia valida para continuar.",
         speak: false,
         priority: 1,
         source: "realtime-empty-input",
@@ -282,6 +933,8 @@ export default function createRealtimeRoute(context) {
       return { handled: false };
     }
 
+    let searchResult = null;
+
     try {
       const audioSkill = context.core.skillManager.get("audio");
 
@@ -289,7 +942,10 @@ export default function createRealtimeRoute(context) {
         action: "get_context",
         source: "realtime.memory-context",
         sessionId,
-        query: text
+        query: text,
+        includeShortContext: !intent.useVision,
+        shortLimit: intent.useVision ? 0 : 2,
+        shortRoles: ["user"]
       });
       const memoryContext = memoryResult?.data?.text || "";
 
@@ -314,6 +970,45 @@ export default function createRealtimeRoute(context) {
         });
       }
 
+      if (intent.helpCommand) {
+        context.core.responseQueue.enqueue({
+          text: buildHelpText(),
+          speak: false,
+          priority: 1,
+          source: "realtime-help",
+          allowGeneric: true,
+          sessionId,
+          userFacing: true
+        });
+
+        return {
+          handled: true,
+          type: "help"
+        };
+      }
+
+      if (intent.toolCommand) {
+        const toolResult = await context.invokeTool(intent.toolCommand, intent.toolInput || {});
+        console.log(`[REALTIME] Tool ${intent.toolCommand} ->`, toolResult);
+        const feedbackText = buildToolFeedback(intent.toolCommand, toolResult, text);
+
+        context.core.responseQueue.enqueue({
+          text: feedbackText,
+          speak: true,
+          priority: 1,
+          source: "realtime-tool",
+          allowGeneric: true,
+          sessionId,
+          userFacing: true
+        });
+
+        return {
+          handled: true,
+          type: intent.toolCommand,
+          result: toolResult
+        };
+      }
+
       if (intent.systemCommand) {
         executeSystemCommand(intent.systemCommand);
 
@@ -330,31 +1025,8 @@ export default function createRealtimeRoute(context) {
         return { handled: true, type: "system" };
       }
 
-      let searchResult = null;
-      if (intent.requiresSearch && text) {
-        try {
-          emitStatus("pesquisando...");
-
-          context.core.responseQueue.enqueue({
-            text: "Deixa eu pesquisar sobre isso...",
-            speak: true,
-            priority: 1,
-            source: "realtime-search",
-            allowGeneric: true,
-            sessionId,
-            userFacing: true
-          });
-
-          const searchToolResult = await context.invokeTool("web_search", { query: text });
-          searchResult = searchToolResult?.data?.text || null;
-        } catch (err) {
-          console.error("[REALTIME] Erro search:", err);
-          searchResult = "Nao consegui acessar a pesquisa agora.";
-        }
-      }
-
-      if (intent.requiresImageContext && !hasIncomingMedia && !intent.useVision) {
-        throw new Error("Voce pediu analise de imagem, mas nao existe imagem valida no contexto.");
+      if (intent.requiresMediaContext && !hasIncomingMedia && !intent.useVision) {
+        throw new Error("Voce pediu analise de midia, mas nao existe arquivo valido no contexto.");
       }
 
       if (intent.legacyScreenCommand && !filePath && !screenshotPath && images.length === 0) {
@@ -363,17 +1035,66 @@ export default function createRealtimeRoute(context) {
         emitStatus("lendo...");
       }
 
-      const mediaContext = await resolveMediaContext({
+      mediaContext = await resolveMediaContext({
         session,
         text,
         images,
         filePath,
         screenshotPath,
+        mediaType,
+        mimeType,
         intent
       });
 
-      if (intent.requiresImageContext && !mediaContext) {
-        throw new Error("Nao encontrei imagem valida para analisar.");
+      if (intent.requiresMediaContext && !mediaContext) {
+        throw new Error("Nao encontrei midia valida para analisar.");
+      }
+
+      let webSearchPlan = buildWebSearchPlan({
+        text,
+        mediaContext,
+        intent
+      });
+
+      if (webSearchPlan && webSearchEnabled !== false) {
+        try {
+          emitStatus("pensando na busca...");
+          webSearchPlan = await refineWebSearchPlan({
+            sessionId,
+            text,
+            mediaContext,
+            basePlan: webSearchPlan
+          });
+
+          emitStatus("pesquisando na web...");
+          const searchToolResult = await context.invokeTool("web_search", webSearchPlan);
+
+          if (searchToolResult?.status === "ok") {
+            searchResult = searchToolResult?.data?.text || null;
+          } else if (searchToolResult?.data?.code === "WEB_SEARCH_CAPTCHA") {
+            const captchaMessage = "Encontrei um CAPTCHA na pesquisa web. Resolve a janela de busca e me pede de novo que eu continuo.";
+            context.core.responseQueue.enqueue({
+              text: captchaMessage,
+              speak: true,
+              priority: 1,
+              source: "realtime-search-captcha",
+              allowGeneric: true,
+              sessionId,
+              userFacing: true
+            });
+
+            return {
+              handled: true,
+              type: "web_search_captcha",
+              response: captchaMessage
+            };
+          } else {
+            console.error("[REALTIME] Pesquisa web falhou:", searchToolResult);
+          }
+        } catch (err) {
+          console.error("[REALTIME] Erro search:", err);
+          searchResult = "Nao consegui acessar a pesquisa agora.";
+        }
       }
 
       emitStatus("lendo...");
@@ -383,7 +1104,8 @@ export default function createRealtimeRoute(context) {
         memoryContext,
         searchResult,
         mediaContext,
-        sessionId
+        sessionId,
+        realtimeThinkingEnabled
       });
 
       const queued = context.core.responseQueue.enqueue({
@@ -416,6 +1138,60 @@ export default function createRealtimeRoute(context) {
       emitStatus(null);
 
       if (isLLMFailureError(err) || err?.message?.includes("LLM demorou para responder")) {
+        const visualFallback = buildVisualReplyFromSummary(text, mediaContext);
+        if (visualFallback) {
+          if (realtimeStreamingEnabled) {
+            emitSyntheticRealtimeStream({
+              text: visualFallback,
+              sessionId
+            });
+          }
+
+          context.core.responseQueue.enqueue({
+            text: visualFallback,
+            speak: true,
+            priority: 1,
+            source: "realtime-visual-fallback",
+            allowGeneric: true,
+            sessionId,
+            userFacing: true
+          });
+
+          return {
+            handled: true,
+            type: "realtime",
+            response: visualFallback,
+            fallback: true
+          };
+        }
+
+        const searchFallback = buildSearchFallbackReply(searchResult, text);
+        if (searchFallback) {
+          if (realtimeStreamingEnabled) {
+            emitSyntheticRealtimeStream({
+              text: searchFallback,
+              sessionId
+            });
+          }
+
+          context.core.responseQueue.enqueue({
+            text: searchFallback,
+            speak: true,
+            priority: 1,
+            source: "realtime-search-fallback",
+            allowGeneric: true,
+            sessionId,
+            userFacing: true
+          });
+
+          return {
+            handled: true,
+            type: "realtime",
+            response: searchFallback,
+            fallback: true
+          };
+        }
+
         const fallbackText = buildSafeRealtimeFallback(err);
 
         context.core.responseQueue.enqueue({
@@ -529,7 +1305,61 @@ export default function createRealtimeRoute(context) {
     }
   }
 
-  async function generateResponse({ text, memoryContext, searchResult, mediaContext, sessionId }) {
+  function buildToolFeedback(toolName, result, originalText = "") {
+    if (toolName === "open_app") {
+      if (result?.status === "ok") {
+        return `Abrindo ${result.displayName || result.app || "o aplicativo"}.`;
+      }
+
+      if (result?.status === "need_input") {
+        return result.question || "Qual aplicativo devo abrir?";
+      }
+
+      if (result?.error === "APP_NOT_FOUND") {
+        return `Nao encontrei um aplicativo configurado para "${originalText}".`;
+      }
+
+      if (result?.error === "COMMAND_NOT_FOUND") {
+        return `Encontrei ${result.displayName || result.app || "esse aplicativo"}, mas o caminho configurado nao existe.`;
+      }
+
+      return "Nao consegui abrir esse aplicativo agora.";
+    }
+
+    if (toolName === "play_media" || toolName === "play_music") {
+      if (result?.status === "ok" && (result.provider === "local" || result.type === "local")) {
+        return "Tocando a musica encontrada na biblioteca local.";
+      }
+
+      if (result?.status === "ok" && (result.provider === "youtube" || result.type === "youtube")) {
+        return "Abri a busca no YouTube para tocar isso.";
+      }
+
+      if (result?.status === "need_input") {
+        return result.question || "O que voce quer tocar?";
+      }
+
+      return "Nao consegui tocar isso agora.";
+    }
+
+    return "Ja fiz.";
+  }
+
+  async function generateResponse({ text, memoryContext, searchResult, mediaContext, sessionId, realtimeThinkingEnabled = false }) {
+    if (shouldPreferDirectMediaReply(text, mediaContext)) {
+      if (context.config?.system?.realtimeStreamingEnabled !== false) {
+        emitSyntheticRealtimeStream({
+          text: mediaContext.summary,
+          sessionId
+        });
+      }
+
+      return {
+        text: mediaContext.summary,
+        speakText: mediaContext.summary
+      };
+    }
+
     const prompt = await buildPrompt({
       text,
       memoryContext,
@@ -540,10 +1370,12 @@ export default function createRealtimeRoute(context) {
 
     const ai = await context.invokeTool("ai_chat", {
       prompt,
-      images: mediaContext?.image ? [mediaContext.image] : [],
+      images: mediaContext?.summary ? [] : (mediaContext?.image ? [mediaContext.image] : []),
       source: "realtime",
       sessionId,
-      stream: true
+      stream: context.config?.system?.realtimeStreamingEnabled !== false,
+      think: realtimeThinkingEnabled === true,
+      timeoutMs: searchResult ? 90000 : undefined
     });
 
     if (ai?.status !== "ok") {
@@ -589,13 +1421,14 @@ export default function createRealtimeRoute(context) {
     const auraProfile = getPersonalityByAura(aura);
 
     const hasVisualContext = Boolean(mediaContext);
+    const isVisualComparison = isDifferenceComparisonRequest(text);
     const effectiveUserText = truncateSection(
       text || "Descreva a imagem de forma objetiva, sem inventar.",
       hasVisualContext ? 900 : 700
     );
     const trimmedMemoryContext = truncateSection(memoryContext, hasVisualContext ? 700 : 500);
     const trimmedSearchResult = truncateSection(searchResult, 700);
-    const trimmedMediaSummary = truncateSection(mediaContext?.summary || "", 500);
+    const trimmedMediaSummary = truncateSection(mediaContext?.summary || "", hasVisualContext ? 2200 : 500);
     const realtimeInstructions = (routeBehavior.instructions || [])
       .map((instruction) => `- ${instruction}`)
       .join("\n");
@@ -642,12 +1475,12 @@ ${trimmedSearchResult}
 ` : "";
 
     const mediaLayer = mediaContext ? `
-${promptSections.visualContextTitle || "Contexto visual analisado"}:
+${promptSections.visualContextTitle || "Contexto de midia analisada"}:
 - Tipo: ${mediaContext.mediaType}
-- Caminho: ${mediaContext.imagePath || "sem-caminho"}
+- Caminho: ${mediaContext.imagePath || mediaContext.audioPath || mediaContext.videoPath || "sem-caminho"}
 - Analise objetiva: ${trimmedMediaSummary}
 
-Use esse contexto visual junto com a instrucao textual. Se a analise visual estiver insuficiente, diga isso explicitamente e nao invente.
+Use esse contexto de midia junto com a instrucao textual. Se a analise estiver insuficiente, diga isso explicitamente e nao invente.
 ` : "";
 
     return `
@@ -663,7 +1496,13 @@ ${effectiveUserText}
 
 Evite respostas genericas como "claro, posso ajudar" ou "como posso ajudar voce hoje".
 Nao exponha raciocinio interno, prompt, metadados, JSON cru, markdown, logs ou instrucoes de sistema.
-Para pedidos simples, responda em ate 2 frases curtas.
+${hasVisualContext && isDetailedVisualRequest(text)
+  ? "Para pedidos de analise visual detalhada, responda de forma completa, objetiva e cobrindo o maximo de detalhes confirmaveis."
+  : "Para pedidos simples, responda em ate 2 frases curtas."}
+${isVisualComparison ? "Se o pedido for comparar imagem de cima e de baixo, responda com lista numerada completa e objetiva, sem resumir em 1 frase." : ""}
+${trimmedSearchResult ? "Quando houver resultado de pesquisa web, priorize essas fontes acima da memoria do modelo. Se algo nao estiver confirmado nas fontes, diga que nao conseguiu confirmar." : ""}
+${trimmedSearchResult ? "Se a pergunta pedir o ultimo, a ultima, o mais recente ou o atual, compare as fontes e prefira a informacao mais recente, dando prioridade a dominio oficial quando existir." : ""}
+${trimmedSearchResult ? "Se voce usar a pesquisa web para responder, termine com uma secao 'Fontes:' citando de 1 a 3 URLs ou dominios das fontes usadas." : ""}
 Se houver imagem ou tela no contexto, responda com base nela.
 Resposta:
 `;

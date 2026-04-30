@@ -74,6 +74,7 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
   const xttsPort = String(process.env.XTTS_PORT || xttsConfig.XTTS_PORT || "5005");
   const sttPort = String(process.env.STT_PORT || "5006");
   const nodeCommand = process.env.KIT_NODE_COMMAND || "node";
+  const autostartStt = process.env.KIT_AUTOSTART_STT !== "false";
 
   const services = {
     backend: {
@@ -404,7 +405,11 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
 
   async function startDefaults() {
     await startService("backend");
-    await startService("stt");
+    if (autostartStt) {
+      await startService("stt");
+    } else {
+      pushLog("stt", "system", "[host] STT configurado para nao iniciar automaticamente");
+    }
 
     if (process.env.KIT_AUTOSTART_XTTS !== "false") {
       await startService("xtts");

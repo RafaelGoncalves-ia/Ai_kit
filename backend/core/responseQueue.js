@@ -11,10 +11,6 @@ export default function createResponseQueue(context) {
   let lastSpokenNormalized = "";
   let lastSpokenAt = 0;
 
-  function shouldProcessAssistantMemory(source = "unknown") {
-    return !/(error|search|system|audio|empty-input)/i.test(String(source || ""));
-  }
-
   function normalizeForSpeechDedup(text = "") {
     return String(text || "").replace(/\s+/g, " ").trim().toLowerCase();
   }
@@ -78,17 +74,6 @@ export default function createResponseQueue(context) {
       });
     } else {
       console.log(`[RESPONSE-QUEUE] Mensagem mantida fora do chat source=${source}`);
-    }
-
-    if (shouldDeliverToChat && shouldProcessAssistantMemory(source)) {
-      void context.invokeTool?.("memory_access", {
-        action: "process_ai_response",
-        text: conversationValidation.content,
-        source: `${source}.memory-response`,
-        sessionId: resolvedSessionId
-      }).catch((err) => {
-        console.warn("[RESPONSE-QUEUE] Falha nao bloqueante ao consolidar memoria:", err?.message || err);
-      });
     }
 
     if (shouldDeliverToChat && context.core?.eventBus) {

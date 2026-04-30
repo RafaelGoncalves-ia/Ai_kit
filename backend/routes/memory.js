@@ -1,13 +1,14 @@
 import express from "express";
-import { getRecentMemory } from "../skills/memory/memory.repository.js";
-import { initDB } from "../skills/memory/sqlite.js";
+import MemoryRepository, { loadMemoryConfig } from "../core/memory/memoryRepository.js";
 
 const router = express.Router();
 
 router.get("/", (req, res) => {
-  initDB();
+  const repository = new MemoryRepository({
+    config: loadMemoryConfig()
+  });
   const limit = Number(req.query.limit || 50);
-  res.json(getRecentMemory(limit));
+  res.json(repository.listRecentMemories(limit));
 });
 
 export default router;

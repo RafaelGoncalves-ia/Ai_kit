@@ -1,3 +1,9 @@
+import {
+  normalizeVisionDetailTokenBudget,
+  resolveVisionDetailTokenBudget,
+  logVisionDetailSelection
+} from "../core/visionDetail.js";
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -38,6 +44,17 @@ function detectProfile(source = "", context = {}, options = {}, prompt = "") {
   }
 
   if (
+    normalizedSource.includes("analyze-image") ||
+    normalizedSource.includes("image-upload") ||
+    normalizedSource.includes("image-inline") ||
+    normalizedSource.includes("session-media") ||
+    normalizedSource.includes("vision") ||
+    normalizedSource.includes("screenshot")
+  ) {
+    return "vision";
+  }
+
+  if (
     normalizedSource.includes("realtime") ||
     normalizedSource.includes("vision") ||
     normalizedSource.includes("screenshot")
@@ -45,8 +62,13 @@ function detectProfile(source = "", context = {}, options = {}, prompt = "") {
     return "quick";
   }
 
-  if (options.images?.length > 0 || normalizedPrompt.includes("contexto visual")) {
-    return "quick";
+  if (
+    options.images?.length > 0 ||
+    options.media?.length > 0 ||
+    normalizedPrompt.includes("contexto visual") ||
+    normalizedPrompt.includes("contexto de midia")
+  ) {
+    return "vision";
   }
 
   return "assistant";
@@ -58,9 +80,9 @@ function createProfiles() {
       mode: "realtime",
       numCtx: 1536,
       numPredict: 80,
-      temperature: 0.4,
-      topP: 0.88,
-      topK: 40,
+      temperature: 1,
+      topP: 0.95,
+      topK: 64,
       repeatPenalty: 1.08,
       keepAlive: "20m",
       maxPromptRatio: 0.6
@@ -69,9 +91,9 @@ function createProfiles() {
       mode: "assistant",
       numCtx: 4096,
       numPredict: 220,
-      temperature: 0.5,
-      topP: 0.9,
-      topK: 50,
+      temperature: 1,
+      topP: 0.95,
+      topK: 64,
       repeatPenalty: 1.08,
       keepAlive: "15m",
       maxPromptRatio: 0.72
@@ -80,20 +102,31 @@ function createProfiles() {
       mode: "agent",
       numCtx: 8192,
       numPredict: 420,
-      temperature: 0.35,
-      topP: 0.92,
-      topK: 60,
+      temperature: 1,
+      topP: 0.95,
+      topK: 64,
       repeatPenalty: 1.05,
       keepAlive: "20m",
       maxPromptRatio: 0.74
+    },
+    vision: {
+      mode: "vision",
+      numCtx: 4096,
+      numPredict: 320,
+      temperature: 1,
+      topP: 0.95,
+      topK: 64,
+      repeatPenalty: 1.05,
+      keepAlive: "30m",
+      maxPromptRatio: 0.7
     },
     social: {
       mode: "social",
       numCtx: 3072,
       numPredict: 160,
-      temperature: 0.75,
-      topP: 0.92,
-      topK: 60,
+      temperature: 1,
+      topP: 0.95,
+      topK: 64,
       repeatPenalty: 1.06,
       keepAlive: "15m",
       maxPromptRatio: 0.68
@@ -158,12 +191,19 @@ export function resolveLLMRequestPolicy({
   const profiles = createProfiles();
   const profileId = detectProfile(source, context, options, prompt);
   const baseProfile = profiles[profileId] || profiles.assistant;
+  const samplingConfig = context?.config?.system?.sampling || {};
+  const multimodalConfig = context?.config?.system?.multimodal || {};
 
   const estimatedPromptTokens = estimateTokenCount(prompt);
   const historyLoad = estimateHistoryLoad(prompt);
   const documentContext = hasDocumentContext(prompt, options);
   const toolContext = hasToolContext(prompt, options);
   const imageContext = Array.isArray(options.images) && options.images.length > 0;
+  const mediaContext = Array.isArray(options.media) && options.media.length > 0;
+  const imageMediaContext = mediaContext && options.media.some((part) => {
+    const type = String(part?.type || part?.mediaType || "").toLowerCase();
+    return type === "image" || type === "screenshot";
+  });
 
   let numCtx = baseProfile.numCtx;
 
@@ -179,7 +219,7 @@ export function resolveLLMRequestPolicy({
     numCtx += 512;
   }
 
-  if (imageContext) {
+  if (imageContext || mediaContext) {
     numCtx += 512;
   }
 
@@ -188,7 +228,7 @@ export function resolveLLMRequestPolicy({
   const numPredict = clamp(
     Number(options.num_predict ?? options.numPredict ?? baseProfile.numPredict),
     32,
-    profileId === "agent" ? 700 : 320
+    profileId === "agent" ? 700 : profileId === "vision" ? 700 : 320
   );
 
   const maxPromptTokens = clamp(
@@ -200,6 +240,23 @@ export function resolveLLMRequestPolicy({
   const trimmedPrompt = trimPromptToBudget(prompt, maxPromptTokens);
   const trimmedPromptTokens = estimateTokenCount(trimmedPrompt);
   const stream = options.stream !== false;
+  const explicitImageBudget = options.image_token_budget ?? options.imageTokenBudget;
+  let imageTokenBudget = normalizeVisionDetailTokenBudget(explicitImageBudget);
+
+  if (imageTokenBudget === "auto" && (imageContext || imageMediaContext)) {
+    const selection = resolveVisionDetailTokenBudget(context?.config || {}, {
+      source,
+      prompt,
+      mediaType: imageMediaContext ? "image" : ""
+    });
+    logVisionDetailSelection(selection);
+    imageTokenBudget = selection.selected;
+  } else if (imageTokenBudget === "auto") {
+    imageTokenBudget = normalizeVisionDetailTokenBudget(multimodalConfig.visionTokenBudget) || 280;
+    if (imageTokenBudget === "auto") {
+      imageTokenBudget = 280;
+    }
+  }
 
   return {
     profileId,
@@ -213,16 +270,24 @@ export function resolveLLMRequestPolicy({
     options: {
       num_ctx: Number(options.num_ctx ?? options.numCtx ?? numCtx),
       num_predict: numPredict,
-      temperature: Number(options.temperature ?? baseProfile.temperature),
-      top_p: Number(options.top_p ?? options.topP ?? baseProfile.topP),
-      top_k: Number(options.top_k ?? options.topK ?? baseProfile.topK),
+      temperature: Number(options.temperature ?? samplingConfig.temperature ?? baseProfile.temperature),
+      top_p: Number(options.top_p ?? options.topP ?? samplingConfig.topP ?? baseProfile.topP),
+      top_k: Number(options.top_k ?? options.topK ?? samplingConfig.topK ?? baseProfile.topK),
       repeat_penalty: Number(options.repeat_penalty ?? options.repeatPenalty ?? baseProfile.repeatPenalty),
-      stop: Array.isArray(options.stop) ? options.stop : []
+      stop: Array.isArray(options.stop) ? options.stop : [],
+      image_token_budget: Number(imageTokenBudget),
+      video_token_budget: Number(
+        options.video_token_budget ??
+        options.videoTokenBudget ??
+        multimodalConfig.videoTokenBudget ??
+        140
+      )
     },
     flags: {
       documentContext,
       toolContext,
       imageContext,
+      mediaContext,
       historyLoad
     }
   };

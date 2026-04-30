@@ -51,11 +51,14 @@ document.addEventListener("DOMContentLoaded", () => {
         div.appendChild(delBtn);
         chatList.appendChild(div);
 
-        div.addEventListener("click", () => {
-          if (window.loadConversation) {
-            window.loadConversation(chat.id);
-          }
+        div.addEventListener("click", async () => {
           highlightSelected(div);
+
+          if (window.loadConversation) {
+            await window.loadConversation(chat.id);
+          }
+
+          sidebar.classList.remove("open");
         });
 
         titleSpan.addEventListener("dblclick", () => {
@@ -102,7 +105,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
           const first = chatList.querySelector(".chat-item");
           if (first && window.loadConversation) {
-            window.loadConversation(first.dataset.id);
+            await window.loadConversation(first.dataset.id);
+            highlightSelected(first);
           }
         });
 
@@ -135,7 +139,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function highlightSelected(div) {
-    document.querySelectorAll(".chat-item").forEach((item) => item.classList.remove("selected"));
+    chatList.querySelectorAll(".chat-item").forEach((item) => item.classList.remove("selected"));
     div.classList.add("selected");
   }
 

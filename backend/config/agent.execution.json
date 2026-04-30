@@ -1,0 +1,29 @@
+{
+  "enabled": true,
+  "maxSteps": 12,
+  "maxToolRounds": 4,
+  "maxPlanTasks": 8,
+  "showTraceInChat": true,
+  "collapseTraceOnFinal": false,
+  "trace": {
+    "maxLineLength": 240,
+    "includeToolInput": true,
+    "includeToolSummary": true,
+    "includeRawToolOutput": false
+  },
+  "plannerFirstTokenTimeout": 12000,
+  "plannerTotalTimeout": 25000,
+  "stepTimeout": 45000,
+  "allowedTools": [
+    "web_search",
+    "search_files",
+    "read_file",
+    "write_file",
+    "edit_file",
+    "create_folder",
+    "create_table",
+    "create_doc",
+    "create_csv",
+    "create_txt"
+  ]
+}

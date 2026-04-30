@@ -1,0 +1,68 @@
+{
+  "settings": {
+    "min_messages_threshold": 10,
+    "idle_time_minutes": 5,
+    "min_confidence": 0.8,
+    "min_content_length": 80,
+    "max_content_length": 600,
+    "max_items_per_batch": 3,
+    "initial_weight": 0.3,
+    "weight_increment": 0.1
+  },
+  "categories": [
+    {
+      "id": "BUSINESS_ADSUNE",
+      "mode": "ENTITY_PER_KEY",
+      "description": "Gestao, estrategia e operacao da Adsune.",
+      "aliases": ["adsune", "agencia", "marketing", "cliente da agencia"]
+    },
+    {
+      "id": "BUSINESS_NITYTELECOM",
+      "mode": "ENTITY_PER_KEY",
+      "description": "Estrategia, operacao e contexto de negocio da Nity Telecom.",
+      "aliases": ["nity", "nity telecom", "provedor", "internet", "isp"]
+    },
+    {
+      "id": "CONSULTING_LUZISOL",
+      "mode": "ENTITY_PER_KEY",
+      "description": "Projetos, manutencao, site e demandas da Luzisol.",
+      "aliases": ["luzisol", "solar system", "site da luzisol", "app luzisol"]
+    },
+    {
+      "id": "CLIENT_ADSUNE",
+      "mode": "ENTITY_PER_KEY",
+      "description": "Informacoes consolidadas de clientes da Adsune.",
+      "aliases": ["cliente", "imobiliaria", "novo centro", "jm", "projetar"]
+    },
+    {
+      "id": "INTERESTS_DEV",
+      "mode": "ENTITY_PER_KEY",
+      "description": "Focos tecnicos e estudos de desenvolvimento.",
+      "aliases": ["dev", "programacao", "codigo", "unity", "llm", "memoria", "memory", "banco", "arquitetura"]
+    },
+    {
+      "id": "INTERESTS_ANIME",
+      "mode": "ENTITY_PER_KEY",
+      "description": "Preferencias e interesses duraveis relacionados a animes.",
+      "aliases": ["anime", "animes", "bleach", "naruto"]
+    },
+    {
+      "id": "INTERESTS_GAME",
+      "mode": "ENTITY_PER_KEY",
+      "description": "Preferencias e interesses duraveis relacionados a jogos.",
+      "aliases": ["jogo", "jogos", "game", "games", "unity3d"]
+    },
+    {
+      "id": "INTERESTS_MUSIC",
+      "mode": "ENTITY_PER_KEY",
+      "description": "Preferencias e interesses duraveis relacionados a musica.",
+      "aliases": ["musica", "artista", "banda"]
+    },
+    {
+      "id": "USER_ROUTINE",
+      "mode": "ENTITY_PER_KEY",
+      "description": "Padroes duraveis de rotina, produtividade e estilo de trabalho do Rafael.",
+      "aliases": ["rotina", "horario", "trabalho", "produtividade", "decisao"]
+    }
+  ]
+}

@@ -1,20 +1,20 @@
 {
   "needs": {
-    "energy": 59.070000000000434,
-    "hunger": 10.889999999951263,
-    "mood": 100,
-    "aura": 69.57949999997915,
-    "hygiene": 37.620000000010755
+    "energy": 49.95000000000053,
+    "hunger": 33.41999999999297,
+    "mood": 97.11999999999989,
+    "aura": 68.14799999981925,
+    "hygiene": 40.65000000026205
   },
   "emotion": {
     "type": "hype",
     "intensity": 0.8,
-    "lastUpdate": 1776132874716
+    "lastUpdate": 1777470972442
   },
   "routine": {
-    "currentAction": "stream_live",
-    "startedAt": 1776132818208,
-    "duration": 60000,
+    "currentAction": "home_office",
+    "startedAt": 1777470875732,
+    "duration": 480000,
     "forced": null,
     "lockedUntil": 0
   },
@@ -32,6 +32,6 @@
   },
   "tokens": 0,
   "system": {
-    "lastTick": 1776132874716
+    "lastTick": 1777470972442
   }
 }

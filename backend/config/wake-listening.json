@@ -1,0 +1,39 @@
+{
+  "enabled": false,
+  "wakeWords": [
+    "sune",
+    "kit sune"
+  ],
+  "wakeWordVariants": [
+    "kit",
+    "quiti",
+    "kite",
+    "quite",
+    "kiti",
+    "kity",
+    "sun",
+    "tsune",
+    "zune",
+    "sane",
+    "sani",
+    "suni",
+    "suny",
+    "suno"
+  ],
+  "confirmationMode": "silent",
+  "confirmationAudio": "F:/AI/Ai_kit/voz/kit/fala.wav",
+  "fallbackAudio": "F:/AI/Ai_kit/voz/kit/bip.wav",
+  "continuousListening": false,
+  "bypassWakeWordOnNoise": true,
+  "passiveCaptureMs": 2200,
+  "activeMaxDurationMs": 12000,
+  "silenceTimeoutMs": 1000,
+  "cooldownMs": 500,
+  "minVoiceDurationMs": 120,
+  "ignoreWhileTts": false,
+  "stripWakeWordFromCommand": true,
+  "debugLogs": true,
+  "voiceActivityThreshold": 0.02,
+  "activeVoiceThreshold": 0.015,
+  "maxInitialSilenceMs": 4000
+}

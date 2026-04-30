@@ -1,0 +1,15 @@
+{
+  "defaultProvider": "local",
+  "providers": {
+    "local": {
+      "enabled": true,
+      "folders": [
+        "G:\\Rafael\\Music\\MP3"
+      ]
+    },
+    "youtube": {
+      "enabled": true,
+      "browser": "chrome"
+    }
+  }
+}

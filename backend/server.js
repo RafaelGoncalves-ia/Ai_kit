@@ -26,10 +26,13 @@ import createOrchestrator from "./core/orchestrator.js";
 import createResponseQueue from "./core/responseQueue.js";
 import createTools from "./core/tools.js";
 import createAgentEngine from "./core/AgentEngine.js";
+import LongTermMemoryConsolidator from "./core/memory/LongTermMemoryConsolidator.js";
+import { loadWakeListeningConfig } from "./core/audio/WakeListeningConfig.js";
 import kitState, { persistStateNow } from "./core/stateManager.js";
 import createAIService from "./services/ai.js";
 import createTTSService from "./services/tts.js";
 import { loadConfig } from "./core/configLoader.js";
+import { normalizeVisionDetailTokenBudget } from "./core/visionDetail.js";
 import { loadPersonalityConfig, syncEmotionFromState } from "./core/personalityConfig.js";
 import { eventBus } from "./core/eventBus.js";
 import { ensureWorkspace } from "./core/security/workspaceGuard.js";
@@ -78,20 +81,39 @@ const LOG_PATH = "F:/AI/Ai_kit/logs";
 const context = {
   config: {
     system: {
-      ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434",
+      ollamaUrl: process.env.OLLAMA_URL || "http://127.0.0.1:11434",
       defaultModel:
         process.env.DEFAULT_MODEL ||
         persistedConfig?.system?.aiModel ||
-        "huihui_ai/qwen3.5-abliterated:4b",
+        "fredrezones55/Gemma-4-Uncensored-HauhauCS-Aggressive:e4b",
       maxConcurrentTasks: 1,
       maxConcurrentLlmCalls: Number(process.env.OLLAMA_MAX_CONCURRENT || 1),
       ollamaTimeoutMs: Number(process.env.OLLAMA_TIMEOUT_MS || 45000),
       safeDiagnosticMode: process.env.SAFE_DIAGNOSTIC_MODE === "true",
       activeConversationWindowMs: Number(process.env.ACTIVE_CONVERSATION_WINDOW_MS || 120000),
       muted: persistedConfig?.system?.muted === true,
-      enableAutonomousTask: persistedConfig?.system?.enableAutonomousTask === true
+      enableAutonomousTask: persistedConfig?.system?.enableAutonomousTask === true,
+      thinkingEnabled: persistedConfig?.system?.thinkingEnabled !== false,
+      sampling: {
+        temperature: Number(persistedConfig?.system?.sampling?.temperature ?? 1),
+        topP: Number(persistedConfig?.system?.sampling?.topP ?? 0.95),
+        topK: Number(persistedConfig?.system?.sampling?.topK ?? 64)
+      },
+      multimodal: {
+        visionTokenBudget: Number(persistedConfig?.system?.multimodal?.visionTokenBudget ?? 280),
+        screenshotTokenBudget: Number(persistedConfig?.system?.multimodal?.screenshotTokenBudget ?? 560),
+        ocrTokenBudget: Number(persistedConfig?.system?.multimodal?.ocrTokenBudget ?? 1120),
+        videoTokenBudget: Number(persistedConfig?.system?.multimodal?.videoTokenBudget ?? 140),
+        autoOcrBoost: persistedConfig?.system?.multimodal?.autoOcrBoost !== false,
+        audioTranscriptionFallback: persistedConfig?.system?.multimodal?.audioTranscriptionFallback !== false
+      }
+    },
+    vision: {
+      detailTokenBudget: normalizeVisionDetailTokenBudget(persistedConfig?.vision?.detailTokenBudget)
     },
     skills: persistedSkills && typeof persistedSkills === "object" ? persistedSkills : {},
+    memory: loadConfig("config.memory.json"),
+    wakeListening: loadWakeListeningConfig(),
     personality: loadPersonalityConfig()
   },
   state: kitState,
@@ -128,6 +150,8 @@ context.core.brain = createBrain(context);
 context.core.responseQueue = createResponseQueue(context);
 context.core.agentEngine = createAgentEngine(context);
 context.core.orchestrator = createOrchestrator(context);
+context.core.longTermMemory = new LongTermMemoryConsolidator(context, context.config.memory || {});
+context.core.longTermMemory.init();
 
 // ======================
 // INIT SKILLS & HISTÃ“RICO
@@ -176,6 +200,10 @@ context.core.eventBus.on("assistant:message", (data) => {
   sendSSE({ type: "assistant_message", payload: data });
 });
 
+context.core.eventBus.on("user:message", (data) => {
+  sendSSE({ type: "user_message", payload: data });
+});
+
 context.core.eventBus.on("execution:status", (data) => {
   sendSSE({ type: "execution:status", payload: data });
 });
@@ -194,12 +222,28 @@ context.core.eventBus.on("llm:token", (data) => {
   sendSSE({ type: "llm:token", payload: data });
 });
 
+context.core.eventBus.on("llm:thought-token", (data) => {
+  sendSSE({ type: "llm:thought-token", payload: data });
+});
+
 context.core.eventBus.on("llm:started", (data) => {
   sendSSE({ type: "llm:started", payload: data });
 });
 
 context.core.eventBus.on("llm:completed", (data) => {
   sendSSE({ type: "llm:completed", payload: data });
+});
+
+context.core.eventBus.on("agent_trace_started", (data) => {
+  sendSSE({ type: "agent_trace_started", payload: data });
+});
+
+context.core.eventBus.on("agent_trace_line", (data) => {
+  sendSSE({ type: "agent_trace_line", payload: data });
+});
+
+context.core.eventBus.on("agent_trace_finished", (data) => {
+  sendSSE({ type: "agent_trace_finished", payload: data });
 });
 
 app.get("/events", (req, res) => {
@@ -227,6 +271,13 @@ app.get("/status", (req, res) => {
     status: "online",
     uptime: process.uptime(),
     state: context.state,
+    audio: {
+      ttsBusy: context.core?.responseQueue?.isTTSBusy?.() ?? false
+    },
+    wakeListening: {
+      enabled: context.config?.wakeListening?.enabled === true,
+      continuousListening: context.config?.wakeListening?.continuousListening === true
+    },
     execution: {
       current: getCurrentExecutionStatus(context),
       all: listExecutionStatuses(context)
@@ -267,6 +318,56 @@ app.get("/llm/diagnostics", async (req, res) => {
     res.status(500).json({
       success: false,
       error: err.message || "Falha ao coletar diagnostico do LLM."
+    });
+  }
+});
+
+app.post("/runtime/activity", (req, res) => {
+  context.lastUserInteraction = Date.now();
+  res.json({
+    success: true,
+    lastUserInteraction: context.lastUserInteraction
+  });
+});
+
+app.post("/llm/warmup", async (req, res) => {
+  try {
+    await context.services.ai.warmup?.();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message || "Falha ao aquecer o modelo."
+    });
+  }
+});
+
+app.post("/llm/unload", async (req, res) => {
+  try {
+    const result = await context.services.ai.unload?.();
+    res.json({
+      success: result?.ok !== false,
+      data: result || null
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message || "Falha ao descarregar o modelo."
+    });
+  }
+});
+
+app.post("/canvas/command", async (req, res) => {
+  try {
+    const result = await context.invokeTool("canvas_control", req.body || {});
+    res.status(result?.status === "ok" ? 200 : 500).json({
+      success: result?.status === "ok",
+      ...result
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message || "Falha ao controlar o Canvas."
     });
   }
 });

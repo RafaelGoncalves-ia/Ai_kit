@@ -37,7 +37,9 @@ async function startRecording() {
 
     const data = await res.json();
 
-    document.getElementById("input").value = data.text;
+    const input = document.getElementById("input");
+    input.value = data.text;
+    input.dispatchEvent(new Event("input"));
 
     // dispara envio automático (opcional)
     document.getElementById("sendBtn").click();

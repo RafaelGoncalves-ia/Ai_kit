@@ -2,7 +2,7 @@ from faster_whisper import WhisperModel
 import sys
 
 model = WhisperModel(
-    "tiny",            # 🔥 aqui está a mudança
+    "small",            # 🔥 aqui está a mudança
     device="cuda",     # usa GPU
     compute_type="float16"
 )

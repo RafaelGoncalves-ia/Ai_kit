@@ -12,22 +12,12 @@ export default {
       role: "user",
       text
     });
-
-    await this.context.invokeTool("memory_access", {
-      action: "process_input",
-      text
-    });
   },
 
   async processAIResponse(text) {
     await this.context.invokeTool("memory_access", {
       action: "log_conversation",
       role: "assistant",
-      text
-    });
-
-    await this.context.invokeTool("memory_access", {
-      action: "process_ai_response",
       text
     });
   },

@@ -1,0 +1,96 @@
+{
+  "apps": {
+    "chrome": {
+      "type": "exe",
+      "displayName": "Google Chrome",
+      "aliases": ["chrome", "google chrome", "navegador"],
+      "command": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    },
+    "photoshop": {
+      "type": "exe",
+      "displayName": "Adobe Photoshop 2020",
+      "aliases": ["photoshop", "photo shop", "adobe photoshop"],
+      "command": "C:\\Program Files\\Adobe\\Adobe Photoshop 2020\\photoshop.exe"
+    },
+    "illustrator": {
+      "type": "exe",
+      "displayName": "Adobe Illustrator 2020",
+      "aliases": ["illustrator", "ilustrator", "adobe illustrator"],
+      "command": "F:\\Program Files\\Adobe\\Adobe Illustrator 2020\\Support Files\\Contents\\Windows\\Illustrator.exe"
+    },
+    "canva": {
+      "type": "exe",
+      "displayName": "Canva",
+      "aliases": ["canva", "canvas"],
+      "command": "C:\\Users\\Rafael\\AppData\\Local\\Programs\\Canva\\Canva.exe"
+    },
+    "capcut": {
+      "type": "exe",
+      "displayName": "CapCut",
+      "aliases": ["capcut", "cap cut"],
+      "command": "C:\\Users\\Rafael\\AppData\\Local\\CapCut\\Apps\\CapCut.exe",
+      "args": ["--src3"]
+    },
+    "steam": {
+      "type": "exe",
+      "displayName": "Steam",
+      "aliases": ["steam"],
+      "command": "F:\\Program Files (x86)\\Steam\\steam.exe"
+    },
+    "vscode": {
+      "type": "exe",
+      "displayName": "VSCode",
+      "aliases": ["vscode", "vs code", "visual studio code"],
+      "command": "C:\\Users\\Rafael\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
+    },
+    "discord": {
+      "type": "exe",
+      "displayName": "Discord",
+      "aliases": ["discord"],
+      "command": "C:\\Users\\Rafael\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Discord Inc\\Discord.lnk"
+    },
+    "excel": {
+      "type": "exe",
+      "displayName": "Microsoft Excel",
+      "aliases": ["excel", "planilha"],
+      "command": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE"
+    },
+    "word": {
+      "type": "exe",
+      "displayName": "Microsoft Word",
+      "aliases": ["word", "documento"],
+      "command": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE"
+    },
+    "league": {
+      "type": "exe",
+      "displayName": "League of Legends",
+      "aliases": ["league", "league of legends", "lol"],
+      "command": "F:\\Riot Games\\Riot Client\\RiotClientServices.exe",
+      "args": ["--launch-product=league_of_legends", "--launch-patchline=live"]
+    },
+    "obsidian": {
+      "type": "exe",
+      "displayName": "Obsidian",
+      "aliases": ["obsidian", "obsidians"],
+      "command": "C:\\Users\\Rafael\\AppData\\Local\\Programs\\obsidian\\Obsidian.exe"
+    },
+    "whatsapp": {
+      "type": "uwp",
+      "displayName": "WhatsApp",
+      "aliases": ["whatsapp", "zap", "whats"],
+      "appId": "5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App"
+    },
+    "calc": {
+      "type": "uwp",
+      "displayName": "Calculadora",
+      "aliases": ["calculadora", "calc"],
+      "appId": "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"
+    },
+    "explorer": {
+      "type": "system",
+      "displayName": "Explorador",
+      "aliases": ["explorer", "arquivos", "pastas"],
+      "command": "explorer.exe"
+    }
+  }
+}

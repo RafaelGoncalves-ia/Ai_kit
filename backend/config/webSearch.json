@@ -1,0 +1,152 @@
+{
+  "enabled": true,
+  "showBrowserWindow": true,
+  "defaultSearchEngine": "google",
+  "maxSources": 3,
+  "maxSearchResults": 8,
+  "requirePermissionForUnknownDomains": true,
+  "browser": {
+    "width": 720,
+    "height": 480,
+    "opacity": 1,
+    "frame": false,
+    "alwaysOnTopOnCaptcha": true,
+    "focusOnOpen": false,
+    "closeWhenDone": true,
+    "autoCloseAfterMs": 3000,
+    "position": "bottom-right",
+    "readerMode": false
+  },
+  "allowlist": [
+    "wikipedia.org",
+    "fandom.com",
+    "imdb.com",
+    "myanimelist.net",
+    "anilist.co",
+    "crunchyroll.com",
+    "animenewsnetwork.com",
+    "livechart.me",
+    "kitsu.app",
+    "animeschedule.net",
+    "riotgames.com",
+    "leagueoflegends.com",
+    "universe.leagueoflegends.com",
+    "mercadolivre.com.br",
+    "amazon.com.br",
+    "kabum.com.br",
+    "magazineluiza.com.br",
+    "google.com",
+    "maps.google.com",
+    "apontador.com.br",
+    "guiamais.com.br",
+    "solutudo.com.br",
+    "g1.globo.com",
+    "adorocinema.com",
+    "ingresso.com",
+    "cinemark.com.br",
+    "uci-kinoplex.com.br",
+    "stackoverflow.com",
+    "github.com",
+    "developer.mozilla.org"
+  ],
+  "blocklist": [
+    "pinterest.com",
+    "tiktok.com",
+    "sitesuspeito.com"
+  ],
+  "searchProfiles": {
+    "price": {
+      "maxSources": 3,
+      "preferredDomains": [
+        "mercadolivre.com.br",
+        "amazon.com.br",
+        "kabum.com.br",
+        "magazineluiza.com.br"
+      ]
+    },
+    "news": {
+      "maxSources": 4,
+      "freshness": "recent"
+    },
+    "media": {
+      "maxSources": 3,
+      "preferredDomains": [
+        "leagueoflegends.com",
+        "universe.leagueoflegends.com",
+        "riotgames.com",
+        "wikipedia.org",
+        "fandom.com",
+        "adorocinema.com",
+        "ingresso.com",
+        "cinemark.com.br",
+        "imdb.com",
+        "myanimelist.net",
+        "anilist.co"
+      ]
+    },
+    "anime": {
+      "maxSources": 5,
+      "preferredDomains": [
+        "myanimelist.net",
+        "anilist.co",
+        "crunchyroll.com",
+        "animenewsnetwork.com",
+        "livechart.me",
+        "animeschedule.net",
+        "kitsu.app",
+        "wikipedia.org",
+        "fandom.com"
+      ],
+      "blocklist": [
+        "instagram.com",
+        "youtube.com",
+        "youtu.be",
+        "tiktok.com",
+        "netflix.com",
+        "imdb.com"
+      ]
+    },
+    "cinema": {
+      "maxSources": 5,
+      "preferredDomains": [
+        "adorocinema.com",
+        "ingresso.com",
+        "cinemark.com.br",
+        "uci-kinoplex.com.br"
+      ],
+      "blocklist": [
+        "instagram.com",
+        "youtube.com",
+        "youtu.be",
+        "imdb.com",
+        "netflix.com"
+      ]
+    },
+    "local_service": {
+      "maxSources": 5,
+      "preferredDomains": [
+        "google.com",
+        "maps.google.com",
+        "apontador.com.br",
+        "guiamais.com.br",
+        "solutudo.com.br"
+      ],
+      "blocklist": [
+        "instagram.com",
+        "youtube.com",
+        "youtu.be",
+        "tiktok.com",
+        "facebook.com",
+        "pinterest.com"
+      ]
+    },
+    "debug": {
+      "maxSources": 4,
+      "preferredDomains": [
+        "stackoverflow.com",
+        "github.com",
+        "developer.mozilla.org"
+      ]
+    }
+  }
+}

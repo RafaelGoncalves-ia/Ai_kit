@@ -1,0 +1,485 @@
+# ROADMAP MESTRE — CANVAS KIT IA
+
+IMPORTANTE:
+Este arquivo é o plano completo do módulo Canvas KIT IA.
+Não execute tudo de uma vez.
+Quando o usuário pedir "executar etapa X", execute somente aquela etapa.
+Nunca remova etapas futuras.
+Nunca reescreva a arquitetura sem necessidade.
+Antes de editar, leia o estado atual do projeto.
+Ao finalizar uma etapa, marcar como concluída no checklist deste arquivo.
+
+==================================================
+0. VISÃO GERAL
+==================================================
+
+O Canvas KIT IA é um editor modular local-first integrado ao Electron da KIT IA.
+
+Objetivo:
+Criar um motor híbrido de criação visual:
+- Automação por templates
+- Edição manual criativa
+- Integração futura com IA local
+- Exportação para redes sociais
+- Suporte futuro a áudio, vídeo e timeline
+
+O sistema deve rodar offline sempre que possível, usando GPU local para IA e processamento gráfico.
+
+==================================================
+1. ARQUITETURA DE ARQUIVOS
+==================================================
+
+O sistema usa dois tipos principais de arquivo:
+
+1.1 Arquivo .kit
+
+Arquivo global de marca.
+
+Contém:
+- Identidade visual
+- Logos PNG/SVG
+- Paleta de cores HEX
+- Fontes padrão
+- Voz da marca
+- Configuração XTTS
+- Assets globais
+- Molduras
+- Marcas d'água
+- Elementos recorrentes
+
+1.2 Arquivo .kia
+
+Arquivo local de projeto.
+
+Contém:
+- Referência ao .kit pai
+- Estado serializado do Fabric.js
+- Posições
+- Escalas
+- Camadas
+- Metadados de IA
+- Prompts usados
+- Histórico de gerações
+- Máscaras de inpainting
+- Timeline
+- Slides
+- Áudios
+- Vídeos
+- Duração dos elementos
+
+Regra:
+O .kia herda dados do .kit, mas pode sobrescrever configurações locais quando necessário.
+
+==================================================
+2. INTERFACE PRINCIPAL
+==================================================
+
+Workspace:
+
+- Centro: lousa/canvas branco
+- Fundo geral: cinza escuro
+- Zoom dinâmico focado no mouse
+- Pan da tela
+- Layout minimalista
+
+Painel esquerdo:
+
+- Selecionar
+- Pincel
+- Formas
+- Texto
+- Projeto
+- Elementos
+
+Painel direito:
+
+- Layers
+- Propriedades do objeto selecionado
+- Brand Kit
+- Módulo IA
+- Stable Diffusion
+- Prompt positivo
+- Prompt negativo
+- Geração
+- Inpainting
+
+Painel inferior:
+
+- Timeline
+- Slides de carrossel
+- Camada de áudio
+- Camada de vídeo
+- Duração
+- Corte
+- Redimensionamento
+
+==================================================
+3. FUNCIONALIDADES DE IA
+==================================================
+
+3.1 XTTS
+
+- Monitorar pasta de saída de áudio
+- Ao detectar novo .wav, inserir na timeline
+- Permitir ajustar duração do slide ao áudio
+
+3.2 Stable Diffusion Local
+
+- Campo prompt positivo
+- Campo prompt negativo
+- Seleção de modelo
+- Geração de imagem
+- Inpainting por máscara desenhada
+- Outpainting para adaptar formato
+- Inserção automática no canvas
+
+3.3 LLM Copilot
+
+- Criar textos publicitários
+- Sugerir legendas
+- Analisar imagem
+- Adaptar copy por rede social
+- Criar variações de texto
+
+==================================================
+4. PERFORMANCE
+==================================================
+
+O sistema deve ter Resource Manager.
+
+Responsabilidades:
+
+- Monitorar uso de VRAM quando possível
+- Desligar XTTS/STT ao entrar em modo pesado
+- Evitar Stable Diffusion + XTTS ao mesmo tempo
+- Controlar fila de geração
+- Evitar travar UI
+- Usar WebGL/WebGPU quando disponível
+- Processar vídeo com FFmpeg local
+- Processar imagem com Sharp
+
+==================================================
+5. PRESETS DE ARTBOARD
+==================================================
+
+Instagram:
+- Post
+- Story
+- Reels
+
+YouTube:
+- Thumb
+- Banner
+- Shorts
+- Ads
+
+TikTok:
+- Vídeo
+- Story
+
+Facebook/X:
+- Post
+- Capa
+- Anúncio
+
+Custom:
+- Largura livre
+- Altura livre
+
+==================================================
+6. ROADMAP DE EXECUÇÃO
+==================================================
+
+[x] ETAPA 1 — Base do módulo Canvas
+Objetivo:
+Criar a estrutura inicial do módulo Canvas dentro do Electron.
+
+Inclui:
+- Janela canvas.html
+- canvas.css
+- canvas.js
+- layout com painel esquerdo, centro, painel direito e timeline inferior
+- botão/atalho para abrir a janela Canvas
+- arquitetura de pastas modular
+
+Não incluir ainda:
+- Fabric.js avançado
+- IA
+- timeline real
+- vídeo
+- XTTS
+
+Critério de conclusão:
+A janela Canvas abre corretamente e mostra o layout base.
+
+--------------------------------------------------
+
+[x] ETAPA 2 — Integração Fabric.js
+Objetivo:
+Ativar o editor visual real.
+
+Inclui:
+- Inicialização Fabric.js
+- artboard branco central
+- zoom com mouse wheel
+- pan
+- seleção
+- mover objeto
+- resize
+- rotação
+- adicionar retângulo
+- adicionar círculo
+- adicionar texto
+- adicionar imagem local
+
+Critério de conclusão:
+Usuário consegue criar e manipular objetos no canvas.
+
+--------------------------------------------------
+
+[x] ETAPA 3 — Presets de Artboard
+Objetivo:
+Adicionar tamanhos prontos para redes sociais.
+
+Inclui:
+- Instagram Post
+- Instagram Story
+- Reels
+- YouTube Thumb
+- YouTube Banner
+- TikTok Video
+- Facebook Post
+- Custom width/height
+
+Critério de conclusão:
+Usuário consegue trocar o tamanho da lousa sem quebrar o canvas.
+
+--------------------------------------------------
+
+[x] ETAPA 4 — Sistema .kit
+Objetivo:
+Criar arquivo global de marca.
+
+Inclui:
+- Schema .kit
+- Loader .kit
+- Criar novo Brand Kit
+- Abrir Brand Kit existente
+- Salvar Brand Kit
+- Paleta de cores
+- Logos
+- Fontes
+- Configuração XTTS
+- Assets globais
+
+Critério de conclusão:
+Sistema lê e grava arquivo .kit válido.
+
+--------------------------------------------------
+
+[x] ETAPA 5 — Sistema .kia
+Objetivo:
+Criar arquivo local de projeto.
+
+Inclui:
+- Schema .kia
+- Loader .kia
+- Criar projeto novo
+- Abrir projeto
+- Salvar projeto
+- Referência ao .kit pai
+- Serialização Fabric.js
+- Metadados básicos
+- Histórico de alterações simples
+
+Critério de conclusão:
+Usuário consegue salvar e abrir um projeto mantendo objetos no canvas.
+
+--------------------------------------------------
+
+[x] ETAPA 6 — Herança .kit → .kia
+Objetivo:
+Fazer o projeto herdar a marca.
+
+Inclui:
+- Carregar cores do .kit no projeto
+- Carregar logos
+- Carregar fontes
+- Aplicar assets globais
+- Permitir override local no .kia
+- Resolver caminhos relativos
+
+Critério de conclusão:
+Ao abrir um .kia, ele encontra o .kit pai e mostra os dados da marca no painel.
+
+--------------------------------------------------
+
+[x] ETAPA 7 — Painel Brand Kit
+Objetivo:
+Criar atalhos visuais da marca.
+
+Inclui:
+- Lista de cores
+- Botão aplicar cor ao objeto selecionado
+- Lista de logos
+- Inserir logo no canvas
+- Lista de fontes
+- Aplicar fonte ao texto selecionado
+
+Critério de conclusão:
+Usuário consegue aplicar identidade visual do .kit no canvas.
+
+--------------------------------------------------
+
+[x] ETAPA 8 — Painel Layers
+Objetivo:
+Controlar camadas do Fabric.js.
+
+Inclui:
+- Listar objetos
+- Renomear camada
+- Ocultar/mostrar
+- Bloquear/desbloquear
+- Reordenar camada
+- Selecionar objeto pelo painel
+- Remover camada
+
+Critério de conclusão:
+Layers refletem o estado real do canvas.
+
+--------------------------------------------------
+
+[x] ETAPA 9 — Painel Contextual
+Objetivo:
+Editar propriedades do objeto selecionado.
+
+Inclui:
+- Posição X/Y
+- Largura
+- Altura
+- Rotação
+- Opacidade
+- Cor (com seletor de cores)
+- Stroke
+- Fonte (dropdon seletor de fontes)
+- Tamanho do texto
+- Alinhamento do texto
+
+Critério de conclusão:
+Alterações no painel afetam o objeto selecionado.
+
+--------------------------------------------------
+
+[x] ETAPA 10 — Ferramenta Pincel e Máscara
+Objetivo:
+Permitir desenho manual e preparação para inpainting.
+
+Inclui:
+- Pincel livre
+- Tamanho
+- Opacidade
+- Dureza
+- Modo desenho normal
+- Modo máscara
+- Exportar máscara em PNG
+
+Critério de conclusão:
+Usuário consegue pintar máscara sobre a imagem e exportá-la.
+
+--------------------------------------------------
+
+[x] ETAPA 11 — Exportação de imagem
+Objetivo:
+Exportar artes estáticas.
+
+Inclui:
+- Export PNG
+- Export JPG
+- Export WebP
+- Escolha de qualidade
+- Exportar somente artboard
+- Ignorar área cinza externa
+
+Critério de conclusão:
+Arquivo final exportado corretamente.
+
+--------------------------------------------------
+
+[x] ETAPA 12 — Histórico e Autosave
+Objetivo:
+Reduzir perda de trabalho.
+
+Inclui:
+- Undo
+- Redo
+- Autosave
+- Histórico limitado
+- Recuperar último projeto aberto
+
+Critério de conclusão:
+Usuário consegue desfazer/refazer e recuperar sessão.
+
+--------------------------------------------------
+
+[x] ETAPA 13 — Ponte Operacional KIT ↔ Canvas + Widget
+
+Objetivo:
+Permitir que a KIT use o Canvas como ferramenta operacional controlável pelo Widget ou pelo Chat.
+
+A KIT deve conseguir abrir, focar e controlar o Canvas mesmo quando o usuário estiver usando outra janela.
+
+Inclui:
+- Criar bridge/API interna entre backend da KIT e janela Canvas
+- Registrar a janela Canvas como alvo operacional ativo
+- Permitir abrir/focar a janela Canvas por comando
+- Permitir que comandos vindos do Widget controlem o Canvas aberto
+- Permitir que comandos vindos do Chat controlem o Canvas aberto
+- Permitir criar novo projeto .kia por comando
+- Permitir abrir projeto .kia existente
+- Permitir salvar projeto atual
+- Permitir consultar estado atual do Canvas
+- Permitir listar artboard atual
+- Permitir listar objetos/layers
+- Permitir inserir texto no canvas por comando
+- Permitir inserir imagem no canvas por comando
+- Permitir selecionar objeto/layer por comando
+- Permitir aplicar cor ou logo do Brand Kit por comando
+- Permitir exportar imagem por comando
+- Retornar status claro para a KIT após cada ação
+- Adicionar botão "KIT IA" dentro do Canvas para abrir o Widget
+- Adicionar botão "Chat" dentro do Canvas para abrir o Chat completo
+
+Não incluir ainda:
+- Stable Diffusion
+- Inpainting
+- Outpainting
+- Timeline real
+- Geração automática de carrossel
+- Templates avançados
+- Automação por cliente/imóvel
+
+Exemplos de comandos futuros:
+- "Kit, abre o Canvas"
+- "Kit, foca o Canvas"
+- "Kit, cria um projeto Instagram Story"
+- "Kit, insere esse texto na arte"
+- "Kit, coloca essa imagem no canvas"
+- "Kit, salva esse projeto"
+- "Kit, exporta em PNG"
+- "Kit, lista as camadas desse projeto"
+
+Critério de conclusão:
+A KIT consegue controlar ações básicas do Canvas via comandos vindos tanto do Widget quanto do Chat, e o Canvas responde com status/estado atualizado.
+--------------------------------------------------
+ETAPA 14 a 30 no arquivo: ROADMAP_CANVAS_KIT_IA.txt
+==================================================
+8. REGRA DE CONTINUIDADE
+==================================================
+
+Este arquivo é a fonte de verdade do Canvas KIT IA.
+
+Se o Codex perder contexto, ele deve reler este arquivo e continuar a partir da etapa solicitada.
+
+Nunca transformar este roadmap em execução única.
+Nunca condensar etapas.
+Nunca pular etapa sem autorização.

@@ -3,6 +3,12 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { loadPersonalityConfig } from "../core/personalityConfig.js";
+import {
+  loadWakeListeningConfig,
+  normalizeWakeListeningConfig,
+  saveWakeListeningConfig
+} from "../core/audio/WakeListeningConfig.js";
+import { normalizeVisionDetailTokenBudget } from "../core/visionDetail.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,8 +25,26 @@ const personalityEmotionsMapPath = path.join(configDir, "personality", "emotions
 const DEFAULT_CONFIG = {
   version: "2.0.0",
   system: {
-    aiModel: "hhuihui_ai/qwen3.5-abliterated:4b",
-    muted: false
+    aiModel: "fredrezones55/Gemma-4-Uncensored-HauhauCS-Aggressive:e4b",
+    muted: false,
+    thinkingEnabled: true,
+    realtimeStreamingEnabled: true,
+    sampling: {
+      temperature: 1,
+      topP: 0.95,
+      topK: 64
+    },
+    multimodal: {
+      visionTokenBudget: 280,
+      screenshotTokenBudget: 560,
+      ocrTokenBudget: 1120,
+      videoTokenBudget: 140,
+      autoOcrBoost: true,
+      audioTranscriptionFallback: true
+    }
+  },
+  vision: {
+    detailTokenBudget: "auto"
   },
   voice: {
     xttsEnabled: false,
@@ -76,7 +100,7 @@ function ensureConfigFile() {
 
 function readConfig() {
   ensureConfigFile();
-  return readJsonFile(mainConfigPath, DEFAULT_CONFIG);
+  return normalizeMainConfig(readJsonFile(mainConfigPath, DEFAULT_CONFIG));
 }
 
 function saveConfig(config) {
@@ -87,7 +111,7 @@ function getConfigBundle() {
   ensureConfigDir();
 
   return {
-    config: readJsonFile(mainConfigPath, DEFAULT_CONFIG),
+    config: normalizeMainConfig(readJsonFile(mainConfigPath, DEFAULT_CONFIG)),
     personality: {
       manifest: readJsonFile(personalityManifestPath, DEFAULT_PERSONALITY_MANIFEST),
       base: readJsonFile(personalityBasePath, {}),
@@ -96,6 +120,41 @@ function getConfigBundle() {
       emotionsMap: readJsonFile(personalityEmotionsMapPath, {})
     }
   };
+}
+
+function normalizeMainConfig(config = {}) {
+  const next = {
+    ...structuredClone(DEFAULT_CONFIG),
+    ...(config && typeof config === "object" ? config : {})
+  };
+
+  next.system = {
+    ...DEFAULT_CONFIG.system,
+    ...(config?.system || {})
+  };
+  next.system.sampling = {
+    ...DEFAULT_CONFIG.system.sampling,
+    ...(config?.system?.sampling || {})
+  };
+  next.system.multimodal = {
+    ...DEFAULT_CONFIG.system.multimodal,
+    ...(config?.system?.multimodal || {})
+  };
+  next.vision = {
+    ...DEFAULT_CONFIG.vision,
+    ...(config?.vision || {})
+  };
+  next.vision.detailTokenBudget = normalizeVisionDetailTokenBudget(next.vision.detailTokenBudget);
+  next.voice = {
+    ...DEFAULT_CONFIG.voice,
+    ...(config?.voice || {})
+  };
+  next.skills = {
+    ...DEFAULT_CONFIG.skills,
+    ...(config?.skills || {})
+  };
+
+  return next;
 }
 
 function assertNonEmptyString(value, label) {
@@ -122,6 +181,48 @@ function validateMainConfig(config) {
   }
 
   assertNonEmptyString(config?.system?.aiModel, "system.aiModel");
+  if (config.system.thinkingEnabled !== undefined) {
+    assertBoolean(config.system.thinkingEnabled, "system.thinkingEnabled");
+  }
+  if (config.system.realtimeStreamingEnabled !== undefined) {
+    assertBoolean(config.system.realtimeStreamingEnabled, "system.realtimeStreamingEnabled");
+  }
+  if (config.system.sampling !== undefined) {
+    if (!config.system.sampling || typeof config.system.sampling !== "object") {
+      throw new Error("system.sampling deve ser objeto.");
+    }
+  }
+  if (config.system.multimodal !== undefined) {
+    if (!config.system.multimodal || typeof config.system.multimodal !== "object") {
+      throw new Error("system.multimodal deve ser objeto.");
+    }
+    const multimodal = config.system.multimodal;
+    [
+      "visionTokenBudget",
+      "screenshotTokenBudget",
+      "ocrTokenBudget",
+      "videoTokenBudget"
+    ].forEach((key) => {
+      if (multimodal[key] !== undefined && !Number.isFinite(Number(multimodal[key]))) {
+        throw new Error(`system.multimodal.${key} deve ser numerico.`);
+      }
+    });
+    if (multimodal.autoOcrBoost !== undefined) {
+      assertBoolean(multimodal.autoOcrBoost, "system.multimodal.autoOcrBoost");
+    }
+    if (multimodal.audioTranscriptionFallback !== undefined) {
+      assertBoolean(multimodal.audioTranscriptionFallback, "system.multimodal.audioTranscriptionFallback");
+    }
+  }
+  if (config.vision !== undefined) {
+    if (!config.vision || typeof config.vision !== "object") {
+      throw new Error("vision deve ser objeto.");
+    }
+    const normalizedBudget = normalizeVisionDetailTokenBudget(config.vision.detailTokenBudget);
+    if (normalizedBudget !== config.vision.detailTokenBudget) {
+      throw new Error("vision.detailTokenBudget deve ser auto, 70, 140, 280, 560 ou 1120.");
+    }
+  }
   if (!config.voice || typeof config.voice !== "object") {
     throw new Error("voice deve ser objeto.");
   }
@@ -256,6 +357,18 @@ function validatePersonalityBundle(personality) {
 function applyConfigBundleToRuntime(context, bundle) {
   context.config.system.defaultModel = bundle.config.system.aiModel;
   context.config.system.muted = bundle.config.system.muted;
+  context.config.system.thinkingEnabled = bundle.config.system.thinkingEnabled !== false;
+  context.config.system.realtimeStreamingEnabled = bundle.config.system.realtimeStreamingEnabled !== false;
+  context.config.system.sampling = {
+    ...bundle.config.system.sampling
+  };
+  context.config.system.multimodal = {
+    ...bundle.config.system.multimodal
+  };
+  context.config.vision = {
+    ...bundle.config.vision,
+    detailTokenBudget: normalizeVisionDetailTokenBudget(bundle.config.vision?.detailTokenBudget)
+  };
   context.config.skills.randomTalk = bundle.config.skills.randomTalk;
   context.config.personality = loadPersonalityConfig(true);
 }
@@ -268,6 +381,17 @@ export default function createConfigRoutes(context) {
       const config = readConfig();
       config.system.aiModel = context.config.system.defaultModel;
       config.system.muted = context.config.system.muted || false;
+      config.system.thinkingEnabled = context.config.system.thinkingEnabled !== false;
+      config.system.sampling = {
+        ...(config.system.sampling || DEFAULT_CONFIG.system.sampling)
+      };
+      config.system.multimodal = {
+        ...(config.system.multimodal || DEFAULT_CONFIG.system.multimodal)
+      };
+      config.vision = {
+        ...(config.vision || DEFAULT_CONFIG.vision),
+        detailTokenBudget: normalizeVisionDetailTokenBudget(config.vision?.detailTokenBudget)
+      };
 
       let skills = [];
       if (fs.existsSync(skillsConfigPath)) {
@@ -309,7 +433,11 @@ export default function createConfigRoutes(context) {
         xttsEnabled,
         microphoneEnabled,
         muted,
-        randomTalk
+        randomTalk,
+        thinkingEnabled,
+        sampling,
+        multimodal,
+        vision
       } = req.body;
 
       if (aiModel) {
@@ -320,6 +448,42 @@ export default function createConfigRoutes(context) {
       if (muted !== undefined) {
         context.config.system.muted = muted;
         current.system.muted = muted;
+      }
+
+      if (thinkingEnabled !== undefined) {
+        context.config.system.thinkingEnabled = !!thinkingEnabled;
+        current.system.thinkingEnabled = !!thinkingEnabled;
+      }
+
+      if (sampling && typeof sampling === "object") {
+        current.system.sampling = {
+          ...(current.system.sampling || DEFAULT_CONFIG.system.sampling),
+          ...sampling
+        };
+        context.config.system.sampling = {
+          ...current.system.sampling
+        };
+      }
+
+      if (multimodal && typeof multimodal === "object") {
+        current.system.multimodal = {
+          ...(current.system.multimodal || DEFAULT_CONFIG.system.multimodal),
+          ...multimodal
+        };
+        context.config.system.multimodal = {
+          ...current.system.multimodal
+        };
+      }
+
+      if (vision && typeof vision === "object") {
+        current.vision = {
+          ...(current.vision || DEFAULT_CONFIG.vision),
+          ...vision
+        };
+        current.vision.detailTokenBudget = normalizeVisionDetailTokenBudget(current.vision.detailTokenBudget);
+        context.config.vision = {
+          ...current.vision
+        };
       }
 
       if (randomTalk !== undefined) {
@@ -335,12 +499,13 @@ export default function createConfigRoutes(context) {
         current.voice.microphoneEnabled = !!microphoneEnabled;
       }
 
-      validateMainConfig(current);
-      saveConfig(current);
+      const normalizedCurrent = normalizeMainConfig(current);
+      validateMainConfig(normalizedCurrent);
+      saveConfig(normalizedCurrent);
 
       res.json({
         success: true,
-        config: current
+        config: normalizedCurrent
       });
     } catch (err) {
       console.error("Erro ao salvar config:", err);
@@ -356,6 +521,7 @@ export default function createConfigRoutes(context) {
         throw new Error("Payload de config invalido.");
       }
 
+      bundle.config = normalizeMainConfig(bundle.config);
       validateMainConfig(bundle.config);
       validatePersonalityBundle(bundle.personality);
 
@@ -377,6 +543,47 @@ export default function createConfigRoutes(context) {
       res.status(400).json({
         success: false,
         error: err.message || "Erro ao salvar bundle de config"
+      });
+    }
+  });
+
+  router.get("/wake-listening", async (req, res) => {
+    try {
+      const config = loadWakeListeningConfig();
+      context.config.wakeListening = config;
+
+      res.json({
+        success: true,
+        data: config
+      });
+    } catch (err) {
+      console.error("Erro ao carregar wake listening:", err);
+      res.status(500).json({
+        success: false,
+        error: "Erro ao ler wake listening"
+      });
+    }
+  });
+
+  router.post("/wake-listening", async (req, res) => {
+    try {
+      const currentWakeConfig = loadWakeListeningConfig();
+      const nextConfig = normalizeWakeListeningConfig({
+        ...currentWakeConfig,
+        ...(req.body?.data || req.body || {})
+      });
+      const saved = saveWakeListeningConfig(nextConfig);
+      context.config.wakeListening = saved;
+
+      res.json({
+        success: true,
+        data: saved
+      });
+    } catch (err) {
+      console.error("Erro ao salvar wake listening:", err);
+      res.status(400).json({
+        success: false,
+        error: err.message || "Erro ao salvar wake listening"
       });
     }
   });

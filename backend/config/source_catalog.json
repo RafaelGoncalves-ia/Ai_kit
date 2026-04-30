@@ -1,0 +1,53 @@
+{
+  "domains": {
+    "yupicommerce.com.br": {
+      "permission": "allow",
+      "profile": "product_clean",
+      "source": "user",
+      "createdAt": "2026-04-27T05:22:18.554Z",
+      "updatedAt": "2026-04-27T05:22:18.554Z"
+    },
+    "maisesports.com.br": {
+      "permission": "allow",
+      "profile": "article_reader",
+      "source": "user",
+      "createdAt": "2026-04-27T17:23:44.933Z",
+      "updatedAt": "2026-04-27T17:23:44.933Z"
+    },
+    "gazetadopovo.com.br": {
+      "permission": "allow",
+      "profile": "article_reader",
+      "source": "user",
+      "createdAt": "2026-04-27T17:47:54.034Z",
+      "updatedAt": "2026-04-27T17:47:54.034Z"
+    },
+    "facebook.com": {
+      "permission": "allow",
+      "profile": "article_reader",
+      "source": "user",
+      "createdAt": "2026-04-27T17:48:07.125Z",
+      "updatedAt": "2026-04-27T17:48:07.125Z"
+    },
+    "datafolha.folha.uol.com.br": {
+      "permission": "allow",
+      "profile": "article_reader",
+      "source": "user",
+      "createdAt": "2026-04-27T17:48:24.908Z",
+      "updatedAt": "2026-04-27T17:48:24.908Z"
+    },
+    "cnnbrasil.com.br": {
+      "permission": "allow",
+      "profile": "article_reader",
+      "source": "user",
+      "createdAt": "2026-04-27T17:48:44.061Z",
+      "updatedAt": "2026-04-27T17:48:44.061Z"
+    },
+    "veja.abril.com.br": {
+      "permission": "allow",
+      "profile": "article_reader",
+      "source": "user",
+      "createdAt": "2026-04-27T18:30:12.385Z",
+      "updatedAt": "2026-04-27T18:30:12.385Z"
+    }
+  }
+}

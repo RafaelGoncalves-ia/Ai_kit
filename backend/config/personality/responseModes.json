@@ -6,7 +6,9 @@
       "instructions": [
         "Responda como fala direta, curta, pensada para leitura por XTTS.",
         "Nao escreva como post de rede social.",
-        "Nao use hashtags."
+        "Nao use hashtags.",
+        "A personagem pode ser feminina, mas Rafael deve ser tratado sempre no masculino.",
+        "Nao use termos femininos para o usuario, como amiga, boba, menina, gata ou equivalentes."
       ]
     },
     "task": {

@@ -1,10 +1,16 @@
 function detectIntent(text) {
-  const lower = String(text || "").toLowerCase();
+  const lower = String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
   const explicitTaskPatterns = [
-    /\b(crie|criar|gere|gerar|escreva|escrever|desenvolva|desenvolver|monte|montar|produza|produzir|salve|salvar)\b.*\b(arquivo|pasta|projeto|campanha|roteiro|legenda|texto|audio|imagem|documento|codigo)\b/,
+    /\b(crie|criar|gere|gerar|escreva|escrever|desenvolva|desenvolver|monte|montar|produza|produzir|salve|salvar)\b.*\b(arquivo|pasta|projeto|campanha|roteiro|legenda|texto|audio|imagem|documento|codigo|lista|tabela|relatorio|empresas?|fornecedores?|provedores?|contatos?|telefones?|opcoes?|programacao|cronograma|calendario|postagens?)\b/,
+    /\b(explique|explicar|o que e|o que eh|qual e o conceito|conceito de)\b/,
     /\b(corrija|corrigir)\b.*\b(codigo|arquivo|texto|erro|bug|projeto)\b/,
+    /\b(pesquise|pesquisar|pesquisa|busque|buscar|procure|procurar)\b/,
     /\b(planeje|planejar|organize|organizar|estruture|estruturar|resuma|resumir|liste|listar|analise|analisar)\b/,
-    /\b(lista|resumo|relatorio|documento|analise)\b/
+    /\b(lista|tabela|opcoes?|resumo|relatorio|documento|analise|empresas?|fornecedores?|provedores?|operadoras?|contatos?|telefones?|enderecos?|links?|programacao|cronograma|calendario|postagens?)\b/,
+    /\b\d+\s+(opcoes?|fornecedores?|empresas?|produtos?|itens?|links?)\b/
   ];
 
   return {
@@ -129,7 +135,10 @@ export default function createOrchestrator(context) {
     sessionId = "default",
     filePath = null,
     screenshotPath = null,
-    mediaType = null
+    mediaType = null,
+    mimeType = null,
+    realtimeThinkingEnabled = false,
+    webSearchEnabled = true
   }) {
     if (!orchestratorReady) {
       console.error("[ORCHESTRATOR] Orchestrator nao inicializado");
@@ -177,7 +186,8 @@ export default function createOrchestrator(context) {
         return await agentRoute.handleTask({
           input: normalizedInput,
           source,
-          sessionId
+          sessionId,
+          webSearchEnabled
         });
       }
 
@@ -198,7 +208,8 @@ export default function createOrchestrator(context) {
           sessionId,
           routeMode: "task",
           routeSource: "task-route",
-          routeReason: decision.complexity || null
+          routeReason: decision.complexity || null,
+          webSearchEnabled
         });
 
         return {
@@ -220,7 +231,10 @@ export default function createOrchestrator(context) {
         sessionId,
         filePath,
         screenshotPath,
-        mediaType
+        mediaType,
+        mimeType,
+        realtimeThinkingEnabled,
+        webSearchEnabled
       });
     } catch (err) {
       console.error("[ORCHESTRATOR] Erro critico:", err);

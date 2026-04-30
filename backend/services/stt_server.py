@@ -10,7 +10,7 @@ app = Flask(__name__)
 print("[STT] carregando modelo...")
 
 model = WhisperModel(
-    "tiny",
+    "small",
     device="cuda",
     compute_type="float16"
 )

@@ -1,5 +1,6 @@
 import { getDB, initDB } from "./sqlite.js";
 import { getVocabularySkill } from "../vocabulary/VocabularySkill.js";
+import MemoryRepository, { loadMemoryConfig } from "../../core/memory/memoryRepository.js";
 
 const MEMORY_DUPLICATE_WINDOW_MS = 1000 * 60 * 60 * 24 * 30;
 const STOPWORDS = new Set([
@@ -11,6 +12,12 @@ const STOPWORDS = new Set([
 
 function db() {
   return getDB() || initDB();
+}
+
+function getLongTermRepository() {
+  return new MemoryRepository({
+    config: loadMemoryConfig()
+  });
 }
 
 function normalizeText(value) {
@@ -229,6 +236,38 @@ export function getRecentConversationMessages({ groupId = "default", limit = 6 }
   return rows.reverse();
 }
 
+export function getConversationMessagesSince({ lastMessageId = null } = {}) {
+  const rows = db().prepare(`
+    SELECT id, group_id, role, content, created_at
+    FROM conversations
+    WHERE (? IS NULL OR id > ?)
+    ORDER BY id ASC
+  `).all(lastMessageId ? Number(lastMessageId) : null, lastMessageId ? Number(lastMessageId) : null);
+
+  return rows.map(parseConversationRow);
+}
+
+export function countConversationMessagesSince({ lastMessageId = null } = {}) {
+  const row = db().prepare(`
+    SELECT COUNT(*) AS total
+    FROM conversations
+    WHERE (? IS NULL OR id > ?)
+  `).get(lastMessageId ? Number(lastMessageId) : null, lastMessageId ? Number(lastMessageId) : null);
+
+  return Number(row?.total || 0);
+}
+
+export function getLatestConversationMessage() {
+  const row = db().prepare(`
+    SELECT id, group_id, role, content, created_at
+    FROM conversations
+    ORDER BY id DESC
+    LIMIT 1
+  `).get();
+
+  return row ? parseConversationRow(row) : null;
+}
+
 export function listConversationGroups(limit = 50) {
   const rows = db().prepare(`
     SELECT group_id, MAX(created_at) AS last_message_at, COUNT(*) AS message_count
@@ -273,164 +312,79 @@ export function saveMemory({
   groupId = null,
   createdAt = Date.now()
 }) {
-  const normalizedType = normalizeText(type).toLowerCase();
+  const repository = getLongTermRepository();
+  const normalizedType = normalizeText(type).toUpperCase();
   const normalizedContent = normalizeText(value);
   const normalizedKey = normalizeNullableText(key);
-  const normalizedSource = normalizeNullableText(source);
-  const normalizedGroupId = normalizeNullableText(groupId);
-  const timestamp = Number(createdAt || Date.now());
 
-  if (!normalizedType || !normalizedContent) {
+  if (!normalizedType || !normalizedKey || !normalizedContent) {
     return null;
   }
 
-  const existing = db().prepare(`
-    SELECT id, relevance, confidence
-    FROM memory
-    WHERE type = ?
-      AND COALESCE(key, '') = COALESCE(?, '')
-      AND content = ?
-      AND COALESCE(group_id, '') = COALESCE(?, '')
-      AND updated_at >= ?
-    ORDER BY updated_at DESC
-    LIMIT 1
-  `).get(
-    normalizedType,
-    normalizedKey,
-    normalizedContent,
-    normalizedGroupId,
-    timestamp - MEMORY_DUPLICATE_WINDOW_MS
-  );
-
-  if (existing) {
-    db().prepare(`
-      UPDATE memory
-      SET relevance = ?, confidence = ?, source = ?, updated_at = ?
-      WHERE id = ?
-    `).run(
-      Math.max(Number(existing.relevance || 0.5), Number(relevance || 0.5)),
-      Math.max(Number(existing.confidence || 0.5), Number(confidence || 0.5)),
-      normalizedSource,
-      timestamp,
-      existing.id
-    );
-
-    return existing.id;
+  if (!repository.categoryMap.has(normalizedType)) {
+    return null;
   }
 
-  const result = db().prepare(`
-    INSERT INTO memory (type, key, content, source, confidence, relevance, group_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    normalizedType,
-    normalizedKey,
-    normalizedContent,
-    normalizedSource,
-    Number(confidence || 0.5),
-    Number(relevance || 0.5),
-    normalizedGroupId,
-    timestamp,
-    timestamp
-  );
+  const result = repository.upsertMemory({
+    category: normalizedType,
+    key: normalizedKey,
+    content: normalizedContent,
+    confidence: Number(confidence || 0.5),
+    updatedAt: Number(createdAt || Date.now())
+  });
 
-  return result.lastInsertRowid;
+  return result?.id || null;
 }
 
 export function getRecentMemory(limit = 10) {
-  const rows = db().prepare(`
-    SELECT *
-    FROM memory
-    WHERE type != 'conversation'
-    ORDER BY updated_at DESC, relevance DESC
-    LIMIT ?
-  `).all(Math.max(1, Number(limit || 10)));
-
-  return rows.map(parseMemoryRow);
+  return getLongTermRepository().listRecentMemories(limit).map((row) => ({
+    id: row.id,
+    type: row.category,
+    key: row.key,
+    content: row.content,
+    source: null,
+    confidence: row.confidence,
+    relevance: row.weight,
+    groupId: null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  }));
 }
 
 export function getMemoryByType(type, limit = 10, options = {}) {
-  const normalizedType = normalizeText(type).toLowerCase();
-  const normalizedGroupId = options.groupId ? normalizeGroupId(options.groupId) : null;
+  const category = normalizeText(type).toUpperCase();
+  const repository = getLongTermRepository();
+  if (!repository.categoryMap.has(category)) {
+    return [];
+  }
 
-  const rows = db().prepare(`
-    SELECT *
-    FROM memory
-    WHERE type = ?
-      AND type != 'conversation'
-      AND (? IS NULL OR group_id = ? OR group_id IS NULL)
-    ORDER BY relevance DESC, updated_at DESC
-    LIMIT ?
-  `).all(
-    normalizedType,
-    normalizedGroupId,
-    normalizedGroupId,
-    Math.max(1, Number(limit || 10))
-  );
-
-  return rows.map(parseMemoryRow);
+  return repository.listMemoriesByCategory(category, limit).map((row) => ({
+    id: row.id,
+    type: row.category,
+    key: row.key,
+    content: row.content,
+    source: null,
+    confidence: row.confidence,
+    relevance: row.weight,
+    groupId: options.groupId || null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  }));
 }
 
 export function getRelevantMemory({ groupId = null, query = "", limit = 8 } = {}) {
-  const normalizedGroupId = groupId ? normalizeGroupId(groupId) : null;
-  const terms = extractSearchTerms(query);
-  const conditions = [];
-  const params = [];
-
-  if (normalizedGroupId) {
-    conditions.push("(group_id = ? OR group_id IS NULL)");
-    params.push(normalizedGroupId);
-  }
-
-  if (terms.length > 0) {
-    const termClause = terms
-      .map(() => "(LOWER(content) LIKE ? OR LOWER(COALESCE(key, '')) LIKE ?)")
-      .join(" OR ");
-    conditions.push(`(${termClause})`);
-    for (const term of terms) {
-      const like = `%${term}%`;
-      params.push(like, like);
-    }
-  }
-
-  const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const rows = db().prepare(`
-    SELECT *
-    FROM memory
-    ${whereClause}
-    ${whereClause ? "AND" : "WHERE"} type != 'conversation'
-    ORDER BY relevance DESC, updated_at DESC
-    LIMIT ?
-  `).all(...params, Math.max(1, Number(limit || 8)));
-
-  const parsed = rows.map(parseMemoryRow);
-  if (parsed.length >= limit || terms.length === 0) {
-    return parsed.slice(0, limit);
-  }
-
-  const fallbackRows = db().prepare(`
-    SELECT *
-    FROM memory
-    WHERE (? IS NULL OR group_id = ? OR group_id IS NULL)
-      AND type != 'conversation'
-    ORDER BY relevance DESC, updated_at DESC
-    LIMIT ?
-  `).all(
-    normalizedGroupId,
-    normalizedGroupId,
-    Math.max(1, Number(limit || 8))
-  );
-
-  const combined = [...parsed];
-  for (const row of fallbackRows.map(parseMemoryRow)) {
-    if (!combined.some((item) => item.id === row.id)) {
-      combined.push(row);
-    }
-    if (combined.length >= limit) {
-      break;
-    }
-  }
-
-  return combined.slice(0, limit);
+  return getLongTermRepository().findRelevantMemories(query, limit).map((row) => ({
+    id: row.id,
+    type: row.category,
+    key: row.key,
+    content: row.content,
+    source: null,
+    confidence: row.confidence,
+    relevance: row.weight,
+    groupId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  }));
 }
 
 export function getVocabulary(limit = 10, options = {}) {

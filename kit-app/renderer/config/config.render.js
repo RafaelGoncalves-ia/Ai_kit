@@ -57,6 +57,33 @@ function selectField({ path, label, help = "", value = "", options = [] }) {
   `;
 }
 
+const VISION_DETAIL_VALUES = ["auto", 70, 140, 280, 560, 1120];
+
+function normalizeVisionDetailValue(value) {
+  if (value === "auto") return "auto";
+  const numberValue = Number(value);
+  return VISION_DETAIL_VALUES.includes(numberValue) ? numberValue : "auto";
+}
+
+function visionDetailSlider({ path, label, help = "", value = "auto" }) {
+  const normalizedValue = normalizeVisionDetailValue(value);
+  const index = Math.max(0, VISION_DETAIL_VALUES.findIndex((entry) => entry === normalizedValue));
+
+  return `
+    <div class="field field-wide vision-detail-field">
+      <div class="slider-label-row">
+        <label for="${path}">${label}</label>
+        <span class="slider-value" data-slider-value="${path}">${escapeHtml(normalizedValue)}</span>
+      </div>
+      <input data-path="${path}" data-type="vision-detail-slider" type="range" min="0" max="${VISION_DETAIL_VALUES.length - 1}" step="1" value="${index}">
+      <div class="slider-ticks" aria-hidden="true">
+        ${VISION_DETAIL_VALUES.map((entry) => `<span>${escapeHtml(entry)}</span>`).join("")}
+      </div>
+      ${help ? `<p class="field-help">${help}</p>` : ""}
+    </div>
+  `;
+}
+
 function renderStringList(items, meta) {
   const list = Array.isArray(items) ? items : [];
   return `
@@ -151,6 +178,20 @@ export function renderSystemPanel(target) {
           value: bundle.config.system.muted
         })}
         ${field({
+          path: "config.system.thinkingEnabled",
+          label: "Thinking padrão",
+          help: "Liga o pensamento interno por padrão nas rotas longas.",
+          type: "checkbox",
+          value: bundle.config.system.thinkingEnabled !== false
+        })}
+        ${field({
+          path: "config.system.realtimeStreamingEnabled",
+          label: "Streaming realtime",
+          help: "Mostra a resposta chegando em partes no chat visual. Fica ligado por padrÃ£o.",
+          type: "checkbox",
+          value: bundle.config.system.realtimeStreamingEnabled !== false
+        })}
+        ${field({
           path: "config.voice.xttsEnabled",
           label: "XTTS habilitado",
           help: "Permite leitura falada pela rota em tempo real.",
@@ -170,6 +211,75 @@ export function renderSystemPanel(target) {
           help: "Permanece desligado por padrão e fora do AgentRoute.",
           type: "checkbox",
           value: bundle.config.skills.randomTalk
+        })}
+        ${field({
+          path: "config.system.sampling.temperature",
+          label: "Temperature",
+          help: "Padrão Gemma 4: 1.0.",
+          type: "number",
+          value: bundle.config.system?.sampling?.temperature ?? 1
+        })}
+        ${field({
+          path: "config.system.sampling.topP",
+          label: "Top P",
+          help: "Padrão Gemma 4: 0.95.",
+          type: "number",
+          value: bundle.config.system?.sampling?.topP ?? 0.95
+        })}
+        ${field({
+          path: "config.system.sampling.topK",
+          label: "Top K",
+          help: "Padrão Gemma 4: 64.",
+          type: "number",
+          value: bundle.config.system?.sampling?.topK ?? 64
+        })}
+        ${visionDetailSlider({
+          path: "config.vision.detailTokenBudget",
+          label: "Detalhe da visão",
+          help: "Valores baixos são mais rápidos e servem para identificar objetos, cenas e jogos. Valores altos são melhores para OCR, documentos, tabelas e textos pequenos, mas aumentam o tempo de resposta.",
+          value: bundle.config.vision?.detailTokenBudget ?? "auto"
+        })}
+        ${field({
+          path: "config.system.multimodal.visionTokenBudget",
+          label: "Vision token budget",
+          help: "Budget base para imagens normais.",
+          type: "number",
+          value: bundle.config.system?.multimodal?.visionTokenBudget ?? 280
+        })}
+        ${field({
+          path: "config.system.multimodal.screenshotTokenBudget",
+          label: "Screenshot token budget",
+          help: "Budget padrão para prints de tela.",
+          type: "number",
+          value: bundle.config.system?.multimodal?.screenshotTokenBudget ?? 560
+        })}
+        ${field({
+          path: "config.system.multimodal.ocrTokenBudget",
+          label: "OCR token budget",
+          help: "Budget usado quando o pedido envolver ler texto/UI/documento.",
+          type: "number",
+          value: bundle.config.system?.multimodal?.ocrTokenBudget ?? 1120
+        })}
+        ${field({
+          path: "config.system.multimodal.videoTokenBudget",
+          label: "Video token budget",
+          help: "Budget padrão para video.",
+          type: "number",
+          value: bundle.config.system?.multimodal?.videoTokenBudget ?? 140
+        })}
+        ${field({
+          path: "config.system.multimodal.autoOcrBoost",
+          label: "Auto OCR boost",
+          help: "Sobe automaticamente para o budget de OCR quando o pedido pede leitura fina.",
+          type: "checkbox",
+          value: bundle.config.system?.multimodal?.autoOcrBoost !== false
+        })}
+        ${field({
+          path: "config.system.multimodal.audioTranscriptionFallback",
+          label: "Fallback STT externo",
+          help: "Mantém o STT externo para microfone, escuta contínua e usos explícitos.",
+          type: "checkbox",
+          value: bundle.config.system?.multimodal?.audioTranscriptionFallback !== false
         })}
       </div>
     </div>
@@ -329,6 +439,11 @@ export function bindConfigPanelEvents(root, rerender) {
 
       if (type === "checkbox") {
         value = input.checked;
+      } else if (type === "vision-detail-slider") {
+        value = VISION_DETAIL_VALUES[Number(input.value)] ?? "auto";
+        root.querySelectorAll(`[data-slider-value="${path}"]`).forEach((label) => {
+          label.textContent = value;
+        });
       } else if (input.type === "number") {
         value = Number(input.value);
       }

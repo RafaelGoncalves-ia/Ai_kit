@@ -1,0 +1,653 @@
+[ ] ETAPA 14 — Stable Diffusion Worker Base
+
+Objetivo:
+Criar um serviço local próprio da KIT para geração e edição básica de imagens via Stable Diffusion, sem uso de ComfyUI, Forge ou WebUI.
+
+Inclui:
+- Criar worker Python local usando Diffusers
+- Criar API HTTP local para o worker
+- Criar endpoints mínimos:
+  - /health
+  - /models
+  - /txt2img
+  - /img2img
+  - /inpaint
+- Backend da KIT deve consumir essa API local
+- Canvas deve conseguir solicitar geração usando o artboard ativo como contexto
+- Salvar outputs em pasta dedicada, como /output/sd
+- Registrar no .kia:
+  - prompt positivo
+  - prompt negativo
+  - checkpoint usado
+  - LoRA usado
+  - seed
+  - modo usado
+  - width
+  - height
+  - sampler/scheduler
+  - arquivo de saída gerado
+
+Arquitetura suportada:
+- Checkpoints SD 1.5
+- Checkpoints SDXL
+- Modelos locais .safetensors e .ckpt
+- Detecção automática do tipo do modelo quando possível
+- Permitir seleção manual do tipo do modelo se a detecção falhar
+
+Regras de carregamento:
+- Carregar modelo sob demanda (lazy load)
+- Não manter dois checkpoints pesados carregados ao mesmo tempo
+- Antes de carregar novo checkpoint:
+  - descarregar o anterior
+  - limpar cache CUDA
+- Não usar refiner nesta fase
+- Não implementar ControlNet nesta fase
+- Não implementar upscale/highres fix nesta fase
+
+Execução em GPU:
+- Priorizar sempre CUDA na RTX disponível
+- Usar fp16 quando suportado
+- Usar xformers se disponível
+- Aplicar otimizações de memória compatíveis com Diffusers
+- Limpar VRAM após geração quando necessário
+
+Regra de proporção com o Canvas:
+- O worker não deve gerar usando resolução fixa sem contexto
+- Antes de gerar, o backend deve consultar o Canvas ativo e obter:
+  - preset atual do artboard
+  - largura do artboard
+  - altura do artboard
+  - proporção atual
+- A geração deve herdar a proporção do artboard ativo
+- O tamanho final exportado continua sendo responsabilidade do Canvas
+- O tamanho de geração é responsabilidade do SD Worker
+
+Presets por proporção:
+- instagram_post → 1:1
+- instagram_story → 9:16
+- instagram_reels → 9:16
+- facebook_post → 1:1 ou 4:5
+- youtube_thumb → 16:9
+- custom → proporção derivada do artboard ativo
+
+Resoluções padrão por arquitetura:
+SD 1.5:
+- 1:1 → 512x512
+- 4:5 → 512x640
+- 9:16 → 512x912
+- 16:9 → 768x432
+
+SDXL:
+- 1:1 → 1024x1024
+- 4:5 → 1024x1280
+- 9:16 → 1024x1792
+- 16:9 → 1344x768
+
+Fallbacks:
+- SDXL deve ter fallback para resolução menor se faltar VRAM
+- Width e Height podem ser alterados manualmente, mas por padrão devem seguir o artboard ativo
+- Após gerar, a imagem deve ser inserida no Canvas e adaptada ao artboard
+- Inicialmente usar modo de encaixe padrão "cover"
+
+Controles obrigatórios do painel Stable Diffusion:
+Campos principais:
+- Prompt positivo
+- Prompt negativo
+
+Seleção de modelo:
+- Checkpoint
+  - Lista expansível lateral
+  - Exibir nome do modelo
+  - Se possível, exibir miniatura/preview
+  - Ao selecionar, fechar menu automaticamente
+
+- LoRA
+  - Lista expansível lateral
+  - Exibir nome do LoRA
+  - Se possível, exibir miniatura/preview
+  - Permitir selecionar e remover LoRA
+  - Ao selecionar, fechar menu automaticamente
+
+Configurações de geração:
+- Sampling method
+- Schedule type
+- Sampling steps
+- Width
+- Height
+- CFG Scale
+- Seed
+  - Valor padrão: -1
+  - -1 significa seed aleatória
+
+Modos:
+- txt2img
+- img2img
+- Sketch
+- Inpaint
+- Inpaint sketch
+- Inpaint upload
+- Batch
+
+Controles específicos de img2img/inpaint:
+- CFG Scale
+- Denoising strength
+
+Batch:
+- Batch count fixo em 1 na Fase 1
+- Batch size fixo em 1 na Fase 1
+
+Regra:
+- Na Fase 1, gerar apenas uma imagem por vez
+- O objetivo é reduzir consumo de VRAM e evitar travamentos
+
+Modo avançado:
+- Exibir os nomes técnicos reais dos schedulers do Diffusers
+- Exemplos:
+  - DPMSolverMultistepScheduler
+  - EulerDiscreteScheduler
+  - EulerAncestralDiscreteScheduler
+  - DDIMScheduler
+  - LMSDiscreteScheduler
+
+Critério de conclusão:
+A KIT consegue selecionar um checkpoint local, usar a proporção do artboard ativo, gerar imagem via worker próprio e inserir o resultado no Canvas.
+
+Não incluir ainda:
+- vídeo com IA
+- geração de áudio por diffusion
+- ControlNet
+- upscaling avançado
+- highres fix
+- refiner
+- batch maior que 1
+
+--------------------------------------------------
+
+[ ] ETAPA 15 — Inpainting (Imagem IA)
+
+Objetivo:
+Permitir edição localizada de imagens usando máscara desenhada no próprio Canvas.
+
+Inclui:
+- Usar a máscara criada na ETAPA 10
+- Exportar imagem base
+- Exportar máscara
+- Enviar imagem + máscara + prompt para o worker
+- Criar endpoint /inpaint funcional
+- Receber a imagem editada
+- Inserir o resultado como:
+  - substituição da imagem original
+  - ou nova layer
+- Preservar a imagem original sempre que possível
+- Salvar no .kia:
+  - prompt positivo
+  - prompt negativo
+  - seed
+  - checkpoint
+  - máscara usada
+  - imagem base
+  - imagem resultante
+
+Regras:
+- O inpaint deve atuar apenas na área mascarada
+- O usuário deve conseguir decidir se o resultado substitui ou cria nova camada
+- O sistema não deve perder a imagem original
+- O fluxo deve funcionar tanto por interface quanto por comando da KIT
+
+Não incluir ainda:
+- edição múltipla em lote
+- ControlNet
+- workflows complexos
+
+Critério de conclusão:
+Usuário consegue editar apenas uma área específica da imagem, preservando o restante intacto.
+
+--------------------------------------------------
+
+[ ] ETAPA 16 — Outpainting
+
+Objetivo:
+Expandir imagens para novos formatos mantendo a composição principal centralizada.
+
+Inclui:
+- Expandir a área útil da imagem
+- Criar áreas vazias/transparentes ao redor
+- Enviar a imagem expandida para o worker
+- Preencher as bordas usando Stable Diffusion
+- Adaptar formatos comuns:
+  - 1:1 → 9:16
+  - 16:9 → 4:5
+  - 4:5 → 9:16
+- Manter a imagem original centralizada antes da expansão
+- Registrar no .kia:
+  - imagem original
+  - novo formato
+  - prompt
+  - seed
+  - resultado
+
+Regras:
+- O objetivo é adaptar a arte para redes sociais sem reconstruir tudo manualmente
+- O sistema deve preservar o foco principal da imagem
+- O usuário deve conseguir escolher o lado de expansão quando necessário:
+  - esquerda
+  - direita
+  - cima
+  - baixo
+  - automático
+
+Não incluir ainda:
+- expansão avançada com ControlNet
+- composição automática de vídeo
+
+Critério de conclusão:
+Usuário consegue transformar uma imagem para outro formato de rede social mantendo a composição principal.
+
+--------------------------------------------------
+
+[ ] ETAPA 17 — Resource Manager
+
+Objetivo:
+Controlar uso de VRAM e coordenar os módulos pesados da KIT para evitar travamentos.
+
+Inclui:
+- Criar estados de operação:
+  - idle
+  - canvas
+  - sd_active
+  - video_edit
+  - video_export
+  - xtts_active
+- Ao iniciar geração com Stable Diffusion:
+  - pausar XTTS
+  - pausar STT
+  - evitar disputa desnecessária por GPU
+- Criar fila para tarefas pesadas
+- Impedir múltiplas operações pesadas ao mesmo tempo
+- Liberar memória CUDA após geração quando necessário
+- Registrar logs claros de troca de estado
+- Permitir fallback seguro em caso de falta de memória
+
+Regras:
+- O Resource Manager deve ser centralizado
+- O Canvas não deve tentar gerenciar GPU sozinho
+- O worker SD deve responder ao estado global da KIT
+- O sistema deve priorizar estabilidade sobre paralelismo
+
+Não incluir ainda:
+- auto balanceamento avançado
+- múltiplas GPUs
+- execução distribuída
+
+Critério de conclusão:
+A KIT consegue usar SD, Canvas, XTTS e exportação de forma controlada, sem estourar VRAM com facilidade.
+
+--------------------------------------------------
+
+[ ] ETAPA 18 — Timeline de Slides (Base)
+
+Objetivo:
+Criar a base da timeline para carrossel e vídeo simples.
+
+Inclui:
+- Cada slide deve ter estado Fabric independente
+- Criar slide
+- Duplicar slide
+- Remover slide
+- Reordenar slide
+- Definir duração por slide
+- Navegar entre slides sem perder estado
+- Salvar estrutura da timeline no .kia
+
+Regras:
+- Cada slide deve preservar seus objetos próprios
+- Trocar de slide não pode destruir o estado do anterior
+- A timeline nesta fase é estrutural
+- O foco é suportar carrossel e futura exportação em vídeo simples
+
+Não incluir ainda:
+- animação avançada
+- keyframes
+- transições complexas
+- IA para vídeo
+
+Critério de conclusão:
+Projeto suporta múltiplos slides com estados independentes e duração configurável.
+
+--------------------------------------------------
+
+[ ] ETAPA 19 — Integração XTTS na Timeline
+
+Objetivo:
+Inserir automaticamente áudios gerados pela KIT na timeline do projeto.
+
+Inclui:
+- Watcher da pasta de saída do XTTS
+- Detectar novos arquivos .wav
+- Inserir automaticamente o áudio na timeline
+- Vincular o áudio ao slide ativo ou ao projeto inteiro
+- Ajustar duração do slide conforme o áudio quando solicitado
+- Salvar referência do áudio no .kia
+
+Regras:
+- O áudio vem do XTTS da própria KIT
+- Não usar Stable Diffusion para áudio
+- O sistema deve permitir narração simples por slide
+- O usuário deve conseguir remover ou trocar o áudio depois
+
+Não incluir ainda:
+- mixagem avançada
+- trilha procedural
+- música por IA
+
+Critério de conclusão:
+Quando a KIT gerar uma narração, o .wav aparece automaticamente no projeto e pode ser sincronizado com o slide.
+
+--------------------------------------------------
+
+[ ] ETAPA 20 — Exportação MP4 Simples
+
+Objetivo:
+Gerar vídeo básico a partir dos slides e áudios existentes.
+
+Inclui:
+- Renderizar cada slide como imagem
+- Sequenciar as imagens na duração definida
+- Combinar com áudio, se houver
+- Exportar MP4 usando FFmpeg local
+- Permitir definir:
+  - resolução final
+  - FPS básico
+- Salvar em pasta como /output/video
+
+Regras:
+- Foco em exportação funcional e estável
+- Não incluir efeitos complexos
+- Não incluir transições avançadas
+- Não incluir vídeo IA
+- Não incluir edição por IA
+
+Critério de conclusão:
+Projeto com slides e áudio pode ser exportado como MP4 simples e funcional.
+
+--------------------------------------------------
+
+[ ] ETAPA 21 — Camada de Vídeo (Básico)
+
+Objetivo:
+Permitir importar e editar vídeo simples dentro do Canvas/Timeline.
+
+Inclui:
+- Importar vídeo local
+- Ler metadados com FFprobe
+- Exibir duração
+- Definir ponto inicial
+- Definir ponto final
+- Mutar ou remover áudio do vídeo
+- Redimensionar vídeo
+- Posicionar vídeo no artboard
+- Permitir sobrepor:
+  - imagens
+  - texto
+  - elementos gráficos
+
+Regras:
+- Esta etapa é vídeo básico, sem IA
+- O vídeo entra como mídia temporal comum
+- O editor deve permitir composição simples de post animado, story ou reels básico
+- O foco é corte e organização em camadas
+
+Não incluir ainda:
+- geração de vídeo por IA
+- efeitos complexos
+- motion tracking
+- lip sync
+- interpolação IA
+
+Critério de conclusão:
+Usuário consegue usar vídeo no projeto, cortar trechos e sobrepor elementos visuais.
+
+--------------------------------------------------
+
+[ ] ETAPA 22 — Waveform de Áudio
+
+Objetivo:
+Exibir visualmente o áudio na timeline.
+
+Inclui:
+- Gerar waveform preview
+- Salvar cache local da waveform
+- Mostrar waveform na timeline
+- Cortar trecho de áudio
+- Ajustar volume
+- Mutar faixa
+- Atualizar referência no .kia
+
+Regras:
+- A waveform é ferramenta visual de edição, não de geração
+- Deve funcionar com:
+  - áudios XTTS
+  - trilhas externas importadas
+
+Critério de conclusão:
+Usuário visualiza o áudio, corta trechos e ajusta volume diretamente pela timeline.
+
+--------------------------------------------------
+
+[ ] ETAPA 23 — Biblioteca de Elementos
+
+Objetivo:
+Criar biblioteca local de elementos reutilizáveis.
+
+Inclui:
+- Ler pastas locais de:
+  - PNG
+  - SVG
+  - ícones
+  - emojis
+  - molduras
+  - stickers
+- Busca local
+- Favoritos
+- Inserção rápida no Canvas
+- Estrutura organizada por categorias
+
+Regras:
+- A biblioteca deve ser local-first
+- O foco é agilidade para montagem de peças
+- Deve funcionar bem com assets da marca e assets genéricos
+
+Critério de conclusão:
+Usuário consegue localizar e inserir elementos rapidamente no projeto.
+
+--------------------------------------------------
+
+[ ] ETAPA 24 — Sistema de Templates
+
+Objetivo:
+Criar base real para automação por template.
+
+Inclui:
+- Criar formato .kiatemplate
+- Permitir templates com:
+  - layers base
+  - áreas editáveis
+  - áreas bloqueadas
+  - placeholders visuais
+- Aplicar automaticamente o .kit da marca
+- Criar projeto novo a partir de template
+- Permitir reutilização de templates de:
+  - post
+  - story
+  - thumb
+  - carrossel
+
+Regras:
+- O template não deve ser apenas imagem achatada
+- Os elementos devem continuar editáveis
+- O template é a base da futura automação por cliente/imóvel
+
+Não incluir ainda:
+- preenchimento completo automático por dados
+- IA preenchendo campos complexos
+
+Critério de conclusão:
+Usuário consegue escolher um template e gerar um projeto editável já com a identidade visual aplicada.
+
+--------------------------------------------------
+
+[ ] ETAPA 25 — Auto Montagem (Cliente/Imóvel)
+
+Objetivo:
+Permitir que a KIT crie um projeto inicial automaticamente a partir de pasta, marca e template.
+
+Inclui:
+- Selecionar pasta de imagens
+- Selecionar cliente/brand kit (.kit)
+- Selecionar template
+- Criar novo arquivo .kia
+- Criar N slides com base na quantidade de imagens
+- Inserir uma imagem por slide
+- Aplicar template em cada slide
+- Aplicar identidade visual da marca
+- Abrir automaticamente o projeto no Canvas
+
+Exemplo esperado:
+"Kit, cria um carrossel Instagram para a Imobiliária Novo Centro com as imagens da pasta 2904 usando o template Apartamentos."
+
+Regras:
+- O objetivo é gerar uma primeira montagem automática para o usuário refinar
+- A KIT faz a base
+- O usuário entra depois ajustando layout, textos e detalhes
+- O sistema deve manter tudo editável
+- O .kia deve ser salvo em local previsível
+
+Futuro, não incluir agora:
+- preencher placeholders como:
+  - [valor]
+  - [n quartos]
+  - [vagas]
+  - [bairro]
+  - [cidade]
+
+Critério de conclusão:
+A KIT consegue criar um carrossel inicial automático a partir de imagens, marca e template.
+
+--------------------------------------------------
+
+[ ] ETAPA 26 — Validação e Segurança de Arquivos
+
+Objetivo:
+Evitar corrupção e perda de projetos.
+
+Inclui:
+- Validar schema de .kit
+- Validar schema de .kia
+- Criar backup automático antes de salvar
+- Recovery de arquivo quebrado quando possível
+- Padronizar uso de caminhos relativos
+- Adicionar versionamento simples de arquivo
+
+Regras:
+- A segurança dos arquivos deve ser estrutural
+- O sistema deve ser resiliente a quedas ou salvamentos incompletos
+
+Critério de conclusão:
+Arquivos de projeto e marca ficam mais seguros e recuperáveis.
+
+--------------------------------------------------
+
+[ ] ETAPA 27 — Polimento UI/UX
+
+Objetivo:
+Melhorar a experiência de uso diária do Canvas.
+
+Inclui:
+- Atalhos de teclado
+- Feedback visual de ações
+- Loading states
+- Toasts
+- Menus contextuais
+- Melhor ajuste de layout
+- Melhor resize de painéis
+- Base para ferramenta lupa
+- Centralização mais consistente da lousa
+
+Regras:
+- O editor deve ficar confortável para uso recorrente
+- Melhorias visuais não devem quebrar a arquitetura
+
+Critério de conclusão:
+O Canvas fica mais fluido, previsível e agradável no uso diário.
+
+--------------------------------------------------
+
+[ ] ETAPA 28 — Logs e Diagnóstico
+
+Objetivo:
+Facilitar debug e suporte do sistema.
+
+Inclui:
+- Logs do Canvas
+- Logs do Stable Diffusion Worker
+- Logs de exportação
+- Logs do Resource Manager
+- Painel de diagnóstico
+- Botão para copiar diagnóstico
+
+Regras:
+- Logs devem ser úteis e legíveis
+- O sistema deve facilitar descobrir:
+  - erro de modelo
+  - erro de VRAM
+  - erro de exportação
+  - erro de arquivo
+
+Critério de conclusão:
+Problemas principais se tornam rastreáveis sem depender de tentativa e erro cega.
+
+--------------------------------------------------
+
+[ ] ETAPA 29 — Testes
+
+Objetivo:
+Garantir estabilidade dos fluxos principais.
+
+Inclui:
+- Testes de .kit
+- Testes de .kia
+- Testes da bridge KIT ↔ Canvas
+- Testes de exportação
+- Testes de timeline
+- Testes do Resource Manager
+- Testes do worker SD
+- Testes manuais guiados
+
+Regras:
+- Priorizar fluxos críticos
+- Priorizar estabilidade sobre cobertura inflada
+
+Critério de conclusão:
+Fluxos principais do Canvas passam em testes e ficam confiáveis para uso contínuo.
+
+--------------------------------------------------
+
+[ ] ETAPA 30 — Empacotamento
+
+Objetivo:
+Preparar o Canvas KIT IA para uso real fora do ambiente de desenvolvimento.
+
+Inclui:
+- Ajustar paths de produção
+- Incluir FFmpeg local
+- Garantir inclusão de assets necessários
+- Garantir funcionamento offline
+- Preparar build Electron
+- Garantir integração correta com worker Python
+
+Regras:
+- O sistema final deve funcionar de forma previsível no ambiente real
+- O empacotamento não deve depender de abrir ferramentas externas manualmente
+
+Critério de conclusão:
+Canvas KIT IA fica empacotado, funcional e pronto para uso real na Fase 1.

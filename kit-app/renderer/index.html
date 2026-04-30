@@ -35,6 +35,9 @@
     </div>
 
     <div class="header-actions">
+      <button id="thinkingBtn" class="btn-thinking" title="Thinking na rota curta">🧠</button>
+      <button id="internetBtn" class="btn-internet" type="button" title="Pesquisa web ligada" aria-label="Pesquisa web ligada" aria-pressed="true">&#127760;</button>
+      <button id="canvasBtn" class="btn-canvas" type="button" title="Abrir Canvas KIT IA" aria-label="Abrir Canvas KIT IA">Canvas</button>
       <button id="configBtn" class="btn-config" title="Configurações">⚙</button>
     </div>
   </header>
@@ -48,6 +51,8 @@
     <div id="processingIndicator" class="hidden">
       <span>Processando...</span>
     </div>
+
+    <button id="scrollToBottomBtn" class="scroll-to-bottom-btn hidden" type="button" title="Voltar ao fim da conversa" aria-label="Voltar ao fim da conversa">V</button>
   </main>
 
   <!-- ====================== -->
@@ -57,7 +62,7 @@
     <button id="fileBtn">📎</button>
     <input type="file" id="fileInput" style="display: none;" />
 
-    <input id="input" type="text" placeholder="Digite algo...">
+    <textarea id="input" rows="1" placeholder="Digite algo..." spellcheck="true"></textarea>
 
     <button id="micBtn">🎤</button>
     <button id="sendBtn">➤</button>

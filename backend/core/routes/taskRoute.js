@@ -32,6 +32,23 @@ function buildFinalChatMessage(result) {
   return "";
 }
 
+function buildShortConclusionFallback(text = "") {
+  const normalized = String(text || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return "Conclui a tarefa.";
+  }
+
+  const firstSentence = normalized.split(/(?<=[.!?])\s+/)[0]?.trim() || normalized;
+  if (firstSentence.length <= 220) {
+    return firstSentence;
+  }
+
+  return `${firstSentence.slice(0, 217).trim()}...`;
+}
+
 export default function createTaskRoute(context) {
   let runningTasks = 0;
   const MAX_CONCURRENT = context.config?.system?.maxConcurrentTasks || 1;
@@ -121,7 +138,8 @@ export default function createTaskRoute(context) {
     routeMode = "task",
     routeSource = "task-route",
     routeReason = null,
-    executionId = null
+    executionId = null,
+    webSearchEnabled = true
   }) {
     if (runningTasks >= MAX_CONCURRENT) {
       console.warn("[TASK-ROUTE] Limite de tarefas concorrentes atingido");
@@ -137,6 +155,7 @@ export default function createTaskRoute(context) {
       routeSource,
       routeReason,
       requestedExecutionId: executionId,
+      webSearchEnabled,
       status: "pending",
       createdAt: Date.now(),
       result: null,
@@ -320,7 +339,8 @@ export default function createTaskRoute(context) {
       goal: task.text,
       sessionId: task.sessionId,
       mode: task.routeMode || "task",
-      executionId: task.requestedExecutionId || task.id
+      executionId: task.requestedExecutionId || task.id,
+      allowWebSearch: task.webSearchEnabled !== false
     });
 
     task.result = result;
@@ -357,6 +377,64 @@ export default function createTaskRoute(context) {
 
     if (!queued) {
       throw new Error("Resultado final da task-route bloqueado pelos filtros");
+    }
+
+    const shortConclusion = await buildShortConclusion({
+      sessionId: task.sessionId,
+      finalMessage
+    });
+
+    const shortQueued = context.core.responseQueue.enqueue({
+      text: shortConclusion,
+      speakText: shortConclusion,
+      speak: true,
+      priority: 2,
+      source: "task-route-summary",
+      sessionId: task.sessionId,
+      userFacing: true
+    });
+
+    if (!shortQueued) {
+      throw new Error("Resumo final da task-route bloqueado pelos filtros");
+    }
+  }
+
+  async function buildShortConclusion({ sessionId = "default", finalMessage = "" } = {}) {
+    const fallback = buildShortConclusionFallback(finalMessage);
+
+    try {
+      const response = await context.invokeTool("ai_chat", {
+        prompt: [
+          "Resuma o resultado abaixo em formato de resposta curta para chat.",
+          "Regras:",
+          "- escreva em portugues",
+          "- responda em no maximo 2 frases curtas",
+          "- destaque apenas a conclusao principal",
+          "- nao repita o texto inteiro",
+          "- se houver arquivo salvo, cite isso de forma curta",
+          "- nao use markdown",
+          "",
+          "Resultado completo:",
+          finalMessage
+        ].join("\n"),
+        source: "task.summary",
+        sessionId,
+        stream: false,
+        think: false,
+        emitEvents: false,
+        timeoutMs: 45000,
+        numPredict: 120
+      });
+
+      const summaryText = String(response?.data?.text || "").trim();
+      if (!hasUsableAssistantText(summaryText)) {
+        return fallback;
+      }
+
+      return summaryText;
+    } catch (err) {
+      console.error("[TASK-ROUTE] Falha ao gerar resumo curto:", err.message);
+      return fallback;
     }
   }
 

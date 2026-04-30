@@ -148,6 +148,10 @@ main {
   gap: 6px;
 }
 
+.field-wide {
+  grid-column: 1 / -1;
+}
+
 .field-checkbox {
   justify-content: flex-end;
 }
@@ -192,6 +196,29 @@ input[type="checkbox"] {
   width: 18px;
   height: 18px;
   accent-color: var(--accent-strong);
+}
+
+input[type="range"] {
+  accent-color: var(--accent-strong);
+  padding: 6px 0;
+}
+
+.slider-label-row,
+.slider-ticks {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.slider-value {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.slider-ticks {
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .checkbox-row {

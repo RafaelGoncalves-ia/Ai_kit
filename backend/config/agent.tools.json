@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "maxToolRounds": 3,
+  "allowedTools": [
+    "web_search",
+    "search_files",
+    "read_file",
+    "write_file",
+    "edit_file",
+    "create_folder",
+    "create_table",
+    "create_doc",
+    "create_csv",
+    "create_txt"
+  ],
+  "requireSourcesForWebAnswers": true,
+  "webSearch": {
+    "maxSources": 3,
+    "maxSearchResults": 8,
+    "allowDomainRestriction": true
+  }
+}

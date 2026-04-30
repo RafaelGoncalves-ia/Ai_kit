@@ -8,6 +8,11 @@ function nonEmpty(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function validVisionDetailBudget(value) {
+  if (value === "auto") return true;
+  return [70, 140, 280, 560, 1120].includes(Number(value));
+}
+
 export function validateBundle(bundle) {
   const config = bundle?.config;
   const personality = bundle?.personality;
@@ -15,6 +20,17 @@ export function validateBundle(bundle) {
   ensure(config && typeof config === "object", "config.json invalido.");
   ensure(nonEmpty(config?.system?.aiModel), "O modelo de IA nao pode ficar vazio.");
   ensure(typeof config?.system?.muted === "boolean", "muted deve ser boolean.");
+  ensure(typeof config?.system?.thinkingEnabled === "boolean", "thinkingEnabled deve ser boolean.");
+  ensure(Number.isFinite(Number(config?.system?.sampling?.temperature)), "sampling.temperature invalido.");
+  ensure(Number.isFinite(Number(config?.system?.sampling?.topP)), "sampling.topP invalido.");
+  ensure(Number.isFinite(Number(config?.system?.sampling?.topK)), "sampling.topK invalido.");
+  ensure(Number.isFinite(Number(config?.system?.multimodal?.visionTokenBudget)), "multimodal.visionTokenBudget invalido.");
+  ensure(Number.isFinite(Number(config?.system?.multimodal?.screenshotTokenBudget)), "multimodal.screenshotTokenBudget invalido.");
+  ensure(Number.isFinite(Number(config?.system?.multimodal?.ocrTokenBudget)), "multimodal.ocrTokenBudget invalido.");
+  ensure(Number.isFinite(Number(config?.system?.multimodal?.videoTokenBudget)), "multimodal.videoTokenBudget invalido.");
+  ensure(typeof config?.system?.multimodal?.autoOcrBoost === "boolean", "multimodal.autoOcrBoost deve ser boolean.");
+  ensure(typeof config?.system?.multimodal?.audioTranscriptionFallback === "boolean", "multimodal.audioTranscriptionFallback deve ser boolean.");
+  ensure(validVisionDetailBudget(config?.vision?.detailTokenBudget ?? "auto"), "vision.detailTokenBudget invalido.");
   ensure(typeof config?.voice?.xttsEnabled === "boolean", "xttsEnabled deve ser boolean.");
   ensure(typeof config?.voice?.microphoneEnabled === "boolean", "microphoneEnabled deve ser boolean.");
   ensure(typeof config?.skills?.randomTalk === "boolean", "randomTalk deve ser boolean.");
