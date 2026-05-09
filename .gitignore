@@ -6,10 +6,22 @@ node_modules/
 venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 
 # Logs
 logs/
 *.log
+
+# Stable Diffusion local runtime
+backend/config/stable-diffusion.local.json
+output/
+models/
+cache/
+reades/
+
+# Client workspaces and agency data
+workspace/
+agent-workspace/
 
 # OS
 .DS_Store

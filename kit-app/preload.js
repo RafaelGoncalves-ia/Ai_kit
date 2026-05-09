@@ -1,5 +1,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 const API = "http://localhost:3001/api/vocabulary";
+const BACKEND = "http://localhost:3001";
 
 async function parseJson(response) {
   const data = await response.json().catch(() => ({}));
@@ -16,7 +17,24 @@ const kitAPI = {
   openConfig: () => ipcRenderer.send("open-config"),
   openMonitor: () => ipcRenderer.send("open-monitor"),
   openCanvas: () => ipcRenderer.send("open-canvas"),
+  openStudio: () => ipcRenderer.send("open-studio"),
+  openPresetManager: () => ipcRenderer.send("open-preset-manager"),
+  openStudioWindow: (initialState) => ipcRenderer.invoke("studio:window:open", initialState || null),
+  getPresetManagerMeta: () => ipcRenderer.invoke("preset-manager:meta"),
+  listPresets: (type) => ipcRenderer.invoke("preset-manager:list", type),
+  createPreset: (type) => ipcRenderer.invoke("preset-manager:new", type),
+  openPreset: (payload) => ipcRenderer.invoke("preset-manager:open", payload || {}),
+  validatePreset: (payload) => ipcRenderer.invoke("preset-manager:validate", payload || {}),
+  savePreset: (payload) => ipcRenderer.invoke("preset-manager:save", payload || {}),
+  savePresetAs: (payload) => ipcRenderer.invoke("preset-manager:save-as", payload || {}),
+  duplicatePreset: (payload) => ipcRenderer.invoke("preset-manager:duplicate", payload || {}),
+  deletePreset: (payload) => ipcRenderer.invoke("preset-manager:delete", payload || {}),
+  selectPresetAsset: (options) => ipcRenderer.invoke("preset-manager:select-asset", options || {}),
+  launchStudioFromCommand: (payload) => ipcRenderer.invoke("studio:launch", payload || {}),
   openWidget: () => ipcRenderer.send("open-widget"),
+  minimizeStudioWindow: () => ipcRenderer.send("studio:window:minimize"),
+  toggleStudioMaximize: () => ipcRenderer.send("studio:window:toggle-maximize"),
+  closeStudio: () => ipcRenderer.send("studio:close"),
   startVoice: () => ipcRenderer.send("start-voice"),
   closeWidget: () => ipcRenderer.send("close-widget"),
   resizeWidget: (height) => ipcRenderer.invoke("widget:resize", height),
@@ -36,12 +54,160 @@ const kitAPI = {
   saveCanvasProject: (payload) => ipcRenderer.invoke("canvas:project:save", payload || {}),
   saveCanvasMaskPng: (payload) => ipcRenderer.invoke("canvas:mask:save-png", payload || {}),
   saveCanvasImage: (payload) => ipcRenderer.invoke("canvas:image:save", payload || {}),
+  saveCanvasVideoMp4: (payload) => ipcRenderer.invoke("canvas:video:save-mp4", payload || {}),
   saveCanvasAutosave: (payload) => ipcRenderer.invoke("canvas:autosave:save", payload || {}),
   loadCanvasAutosave: () => ipcRenderer.invoke("canvas:autosave:load"),
+  createStudioProject: (payload) => ipcRenderer.invoke("studio:project:create", payload || {}),
+  saveStudioProject: (payload) => ipcRenderer.invoke("studio:project:save", payload || {}),
+  openStudioProject: (filePath) => ipcRenderer.invoke("studio:project:open", filePath || ""),
+  getStudioInitialState: () => ipcRenderer.invoke("studio:initial-state:get"),
+  getStudioSystemStats: () => ipcRenderer.invoke("studio:system-stats"),
+  generateStudioScript: async (payload) => {
+    const response = await fetch(`${BACKEND}/api/studio/script/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
+  applyStudioSceneInstruction: async (payload) => {
+    const response = await fetch(`${BACKEND}/api/studio/scene/instruction`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
+  generateStudioSceneImage: async (payload) => {
+    const response = await fetch(`${BACKEND}/api/studio/media/generate-image`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
+  generateStudioSceneVideo: async (payload) => {
+    const response = await fetch(`${BACKEND}/api/studio/media/generate-video`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
+  generateGlobalVideo: async (payload) => {
+    const response = await fetch(`${BACKEND}/api/media/generate-video`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
+  getStudioVideoJobStatus: async ({ jobId = "" } = {}) => {
+    const query = new URLSearchParams();
+    if (jobId) query.set("jobId", jobId);
+    const response = await fetch(`${BACKEND}/api/studio/media/video-status?${query.toString()}`);
+    return parseJson(response);
+  },
+  getGlobalVideoJobStatus: async ({ jobId = "" } = {}) => {
+    const query = new URLSearchParams();
+    if (jobId) query.set("jobId", jobId);
+    const response = await fetch(`${BACKEND}/api/media/video-status?${query.toString()}`);
+    return parseJson(response);
+  },
+  cancelGlobalVideoJob: async ({ jobId = "" } = {}) => {
+    const response = await fetch(`${BACKEND}/api/media/cancel-video`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId })
+    });
+    return parseJson(response);
+  },
+  listGlobalVideoJobs: async ({ source = "", sessionId = "" } = {}) => {
+    const query = new URLSearchParams();
+    if (source) query.set("source", source);
+    if (sessionId) query.set("sessionId", sessionId);
+    const response = await fetch(`${BACKEND}/api/media/list-video-jobs?${query.toString()}`);
+    return parseJson(response);
+  },
+  getStudioClientMedia: async ({ clientId = "", clientName = "", projectId = "" } = {}) => {
+    const query = new URLSearchParams();
+    if (clientId) query.set("clientId", clientId);
+    if (clientName) query.set("clientName", clientName);
+    if (projectId) query.set("projectId", projectId);
+    const response = await fetch(`${BACKEND}/api/studio/client-media?${query.toString()}`);
+    return parseJson(response);
+  },
+  getStudioAiMedia: async ({ clientId = "", clientName = "", projectId = "" } = {}) => {
+    const query = new URLSearchParams();
+    if (clientId) query.set("clientId", clientId);
+    if (clientName) query.set("clientName", clientName);
+    if (projectId) query.set("projectId", projectId);
+    const response = await fetch(`${BACKEND}/api/studio/ai-media?${query.toString()}`);
+    return parseJson(response);
+  },
+  getStudioProjectAttachments: async ({ projectId = "" } = {}) => {
+    const query = new URLSearchParams();
+    if (projectId) query.set("projectId", projectId);
+    const response = await fetch(`${BACKEND}/api/studio/project-attachments?${query.toString()}`);
+    return parseJson(response);
+  },
+  getStableDiffusionHealth: async () => {
+    const response = await fetch(`${BACKEND}/sd/health`);
+    return parseJson(response);
+  },
+  getStableDiffusionModels: async () => {
+    const response = await fetch(`${BACKEND}/sd/models`);
+    return parseJson(response);
+  },
+  generateStableDiffusionImage: async (payload) => {
+    const response = await fetch(`${BACKEND}/sd/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
+  txt2imgStableDiffusionImage: async (payload) => {
+    const response = await fetch(`${BACKEND}/sd/txt2img`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
+  img2imgStableDiffusionImage: async (payload) => {
+    const response = await fetch(`${BACKEND}/sd/img2img`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
+  inpaintStableDiffusionImage: async (payload) => {
+    const response = await fetch(`${BACKEND}/sd/inpaint`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
+  outpaintStableDiffusionImage: async (payload) => {
+    const response = await fetch(`${BACKEND}/sd/outpaint`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
   onCanvasCommand: (callback) => {
     const subscription = (event, payload) => callback(payload);
     ipcRenderer.on("canvas:command", subscription);
     return () => ipcRenderer.removeListener("canvas:command", subscription);
+  },
+  onStudioInitState: (callback) => {
+    const subscription = (event, payload) => callback(payload);
+    ipcRenderer.on("studio:init-state", subscription);
+    return () => ipcRenderer.removeListener("studio:init-state", subscription);
   },
   replyCanvasCommand: (payload) => ipcRenderer.send("canvas:command-result", payload || {}),
   selectVocabularyExcel: () => ipcRenderer.invoke("vocabulary:select-excel"),

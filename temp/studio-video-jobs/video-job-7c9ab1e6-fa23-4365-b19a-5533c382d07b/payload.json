@@ -1,0 +1,79 @@
+{
+  "id": "video-job-7c9ab1e6-fa23-4365-b19a-5533c382d07b",
+  "projectId": "",
+  "sceneId": "",
+  "sessionId": "chat-cancel",
+  "source": "chat",
+  "fileName": "",
+  "prompt": "Teste cancelamento video",
+  "negativePrompt": "",
+  "motionPrompt": "",
+  "duration": 15,
+  "fps": 12,
+  "frames": 180,
+  "sequenceLength": 181,
+  "width": 720,
+  "height": 1280,
+  "ratio": "9:16",
+  "preset": "standard",
+  "model": "",
+  "modelPath": "",
+  "modelFamily": "",
+  "modelRegistryEntry": null,
+  "quality": "standard",
+  "exportSettings": {
+    "format": "mp4",
+    "videoCodec": "libx264",
+    "pixelFormat": "yuv420p"
+  },
+  "references": [],
+  "startImage": "",
+  "endImage": "",
+  "outputPath": "F:\\AI\\Ai_kit\\output\\video\\chat-cancel\\video-video-job-7c9ab1e6-fa23-4365-b19a-5533c382d07b.mp4",
+  "thumbnailPath": "F:\\AI\\Ai_kit\\output\\video\\chat-cancel\\video-video-job-7c9ab1e6-fa23-4365-b19a-5533c382d07b.png",
+  "lastFramePath": "F:\\AI\\Ai_kit\\output\\video\\chat-cancel\\video-video-job-7c9ab1e6-fa23-4365-b19a-5533c382d07b-last-frame.png",
+  "projectAssetDir": "F:\\AI\\Ai_kit\\projects\\studio\\projects\\studio\\assets\\video",
+  "workingDir": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-7c9ab1e6-fa23-4365-b19a-5533c382d07b",
+  "mode": "t2v",
+  "pipeline": {
+    "id": "text-to-video",
+    "mode": "t2v",
+    "sourceStrategy": "prompt-slate",
+    "supports": [
+      "interpolation",
+      "startFrame",
+      "endFrame",
+      "chaining",
+      "frame-guidance"
+    ]
+  },
+  "conditioning": {
+    "preferredMode": "t2v",
+    "startImage": "",
+    "endImage": "",
+    "primaryReference": null,
+    "references": [],
+    "loras": [],
+    "logs": [
+      "preferred-mode:t2v",
+      "references:0",
+      "loras:0",
+      "start-image:none"
+    ]
+  },
+  "output": {
+    "assetDir": "F:\\AI\\Ai_kit\\output\\video\\chat-cancel",
+    "outputPath": "F:\\AI\\Ai_kit\\output\\video\\chat-cancel\\video-video-job-7c9ab1e6-fa23-4365-b19a-5533c382d07b.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\output\\video\\chat-cancel\\video-video-job-7c9ab1e6-fa23-4365-b19a-5533c382d07b.png",
+    "lastFramePath": "F:\\AI\\Ai_kit\\output\\video\\chat-cancel\\video-video-job-7c9ab1e6-fa23-4365-b19a-5533c382d07b-last-frame.png",
+    "ratio": "9:16"
+  },
+  "summaryLogs": [
+    "pipeline:t2v",
+    "source:prompt-slate",
+    "preferred-mode:t2v",
+    "references:0",
+    "loras:0",
+    "start-image:none"
+  ]
+}

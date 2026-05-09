@@ -13,6 +13,7 @@ const MAX_AUDIO_MB = 12;
 const MAX_RECORD_AUDIO_MS = 90000;
 const MAX_INPUT_LINES = 7;
 const INPUT_LINE_HEIGHT = 22;
+const WIDGET_ICON_BASE = "./assets/icones/Widget";
 
 let mediaRecorder;
 let audioChunks = [];
@@ -48,7 +49,10 @@ function requestWidgetResize() {
     return;
   }
 
-  const desiredHeight = Math.ceil(widgetBox.scrollHeight + 20);
+  const styles = window.getComputedStyle(widgetBox);
+  const marginTop = parseFloat(styles.marginTop) || 0;
+  const marginBottom = parseFloat(styles.marginBottom) || 0;
+  const desiredHeight = Math.ceil(widgetBox.getBoundingClientRect().height + marginTop + marginBottom);
   window.kitAPI.resizeWidget(desiredHeight).catch(() => {});
 }
 
@@ -97,6 +101,14 @@ async function send(textOverride = null) {
       window.kitAPI?.setActiveConversation?.(data.sessionId);
     }
 
+    if (data?.route === "studio-launch" && data?.studio?.initialState) {
+      if (window.kitAPI?.openStudioWindow) {
+        await window.kitAPI.openStudioWindow(data.studio.initialState);
+      } else {
+        window.kitAPI?.openStudio?.();
+      }
+    }
+
     window.kitAPI.closeWidget();
   } catch (err) {
     console.error("Erro ao enviar:", err);
@@ -136,7 +148,14 @@ function removeMediaMenu() {
 }
 
 function openFilePicker(kind) {
-  window.kitAPI.openFileDialog({ kind });
+  if (window.kitAPI?.openFileDialog) {
+    window.kitAPI.openFileDialog({ kind });
+    return;
+  }
+
+  console.warn(`Acao de midia ainda em implementacao: ${kind}`);
+  input.placeholder = `${kind} em implementacao`;
+  autoResizeInput();
 }
 
 async function startAttachmentRecording() {
@@ -197,40 +216,29 @@ function showMediaMenu() {
   removeMediaMenu();
   const menu = document.createElement("div");
   menu.id = "widgetMediaMenu";
-  Object.assign(menu.style, {
-    position: "fixed",
-    left: "16px",
-    bottom: "76px",
-    zIndex: "9999",
-    display: "grid",
-    gap: "8px",
-    padding: "10px",
-    borderRadius: "14px",
-    background: "rgba(22,22,22,0.96)",
-    border: "1px solid rgba(255,255,255,0.12)"
-  });
+  menu.className = "widget-media-menu";
 
   const actions = [
-    { label: "Imagem", run: () => openFilePicker("image") },
-    { label: "Video", run: () => openFilePicker("video") },
-    { label: "Audio", run: () => openFilePicker("audio") },
-    {
-      label: attachmentRecorder ? "Parar gravacao" : "Gravar audio",
-      run: () => {
-        if (attachmentRecorder) {
-          stopAttachmentRecording();
-        } else {
-          void startAttachmentRecording();
-        }
-      }
-    }
+    { label: "Audio", icon: "audio.svg", run: () => openFilePicker("audio") },
+    { label: "Video", icon: "filme.svg", run: () => openFilePicker("video") },
+    { label: "Imagem", icon: "foto.svg", run: () => openFilePicker("image") },
+    { label: "Documento", icon: "documento.svg", run: () => openFilePicker("document") }
   ];
 
   for (const action of actions) {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = action.label;
-    button.addEventListener("click", () => {
+    button.className = "media-menu-button";
+    button.title = action.label;
+    button.setAttribute("aria-label", action.label);
+
+    const icon = document.createElement("img");
+    icon.src = `${WIDGET_ICON_BASE}/${action.icon}`;
+    icon.alt = "";
+    button.appendChild(icon);
+
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
       removeMediaMenu();
       action.run();
     });
@@ -238,9 +246,30 @@ function showMediaMenu() {
   }
 
   document.body.appendChild(menu);
+  positionMediaMenu(menu);
   setTimeout(() => {
     document.addEventListener("click", removeMediaMenu, { once: true });
   }, 0);
+}
+
+function positionMediaMenu(menu) {
+  const buttonRect = plusBtn.getBoundingClientRect();
+  const menuRect = menu.getBoundingClientRect();
+  const viewportPadding = 8;
+  const gap = 10;
+  const preferredLeft = buttonRect.left + buttonRect.width / 2 - menuRect.width / 2;
+  const left = Math.max(
+    viewportPadding,
+    Math.min(preferredLeft, window.innerWidth - menuRect.width - viewportPadding)
+  );
+  const preferredTop = buttonRect.top - menuRect.height - gap;
+  const fallbackTop = buttonRect.bottom + gap;
+  const top = preferredTop >= viewportPadding
+    ? preferredTop
+    : Math.min(fallbackTop, window.innerHeight - menuRect.height - viewportPadding);
+
+  menu.style.left = `${Math.round(left)}px`;
+  menu.style.top = `${Math.round(Math.max(viewportPadding, top))}px`;
 }
 
 plusBtn.addEventListener("click", (event) => {
@@ -289,6 +318,7 @@ async function startRecording() {
   }
 
   try {
+    await window.kitAPI?.markActivity?.("mic-request");
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -335,7 +365,8 @@ async function startRecording() {
     isRecording = true;
     recordingStartedAt = Date.now();
     lastVoiceAt = recordingStartedAt;
-    micBtn.textContent = "\u23F9\uFE0F";
+    micBtn.title = "Parar gravacao";
+    micBtn.setAttribute("aria-label", "Parar gravacao");
     micBtn.classList.add("recording");
     input.placeholder = "Ouvindo... pare de falar para transcrever";
     autoResizeInput();
@@ -357,7 +388,8 @@ function stopRecording() {
 
 function resetMicUI(placeholder = null) {
   isRecording = false;
-  micBtn.textContent = "\uD83C\uDFA4";
+  micBtn.title = "Ativar Microfone";
+  micBtn.setAttribute("aria-label", "Ativar Microfone");
   micBtn.classList.remove("recording");
   input.placeholder = placeholder || (selectedAttachment ? input.placeholder : "");
   autoResizeInput();

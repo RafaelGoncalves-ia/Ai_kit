@@ -9,71 +9,95 @@
 <body>
   <div class="canvas-shell">
     <header class="canvas-topbar">
-      <div class="brand-block">
-        <span class="brand-mark">K</span>
-        <div>
-          <h1>Canvas KIT IA</h1>
-          <p>Editor visual</p>
+      <div class="topbar-menu-row" role="menubar" aria-label="Menus do Canvas">
+        <div class="desktop-menus">
+          <div class="menu-group">
+            <button type="button" class="menu-trigger" data-menu-trigger="project" aria-haspopup="true" aria-expanded="false">Projeto</button>
+            <div class="menu-dropdown" data-menu-panel="project" role="menu">
+              <button type="button" class="menu-item" data-project-action="new" role="menuitem">Novo Projeto Canvas</button>
+              <button type="button" class="menu-item" data-project-action="open" role="menuitem">Abrir Projeto</button>
+              <button type="button" class="menu-item" data-project-action="save" role="menuitem">Salvar Projeto</button>
+            </div>
+          </div>
+          <div class="menu-group">
+            <button type="button" class="menu-trigger" data-menu-trigger="file" aria-haspopup="true" aria-expanded="false">Arquivo</button>
+            <div class="menu-dropdown" data-menu-panel="file" role="menu">
+              <button type="button" class="menu-item" data-project-action="new" role="menuitem">Novo</button>
+              <button type="button" class="menu-item" data-project-action="open" role="menuitem">Abrir</button>
+              <button type="button" class="menu-item" data-project-action="save" role="menuitem">Salvar</button>
+              <button type="button" class="menu-item" data-export-action="topbar-image" role="menuitem">Exportar</button>
+              <button type="button" class="menu-item" data-export-action="carousel-images" role="menuitem">Exportar carrossel em imagens</button>
+              <button type="button" class="menu-item" data-export-action="carousel-video" role="menuitem">Exportar carrossel em video</button>
+              <button type="button" class="menu-item" data-app-action="widget" role="menuitem">Abrir Widget KIT IA</button>
+            </div>
+          </div>
+          <div class="menu-group">
+            <button type="button" class="menu-trigger" data-menu-trigger="edit" aria-haspopup="true" aria-expanded="false">Editar</button>
+            <div class="menu-dropdown" data-menu-panel="edit" role="menu">
+              <button id="undoMenuItem" type="button" class="menu-item" data-history-action="undo" role="menuitem">Desfazer</button>
+              <button id="redoMenuItem" type="button" class="menu-item" data-history-action="redo" role="menuitem">Refazer</button>
+            </div>
+          </div>
+          <div class="menu-group">
+            <button type="button" class="menu-trigger" data-menu-trigger="view" aria-haspopup="true" aria-expanded="false">Visualizar</button>
+            <div class="menu-dropdown" data-menu-panel="view" role="menu">
+              <button type="button" class="menu-item" data-view-action="fit-artboard" role="menuitem">Ajustar artboard na tela</button>
+              <button type="button" class="menu-item" data-view-action="center-artboard" role="menuitem">Centralizar artboard</button>
+              <button type="button" class="menu-item" data-app-action="chat" role="menuitem">Abrir Chat</button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="topbar-actions">
-        <label class="project-control">
-          Projeto
-          <input id="projectName" type="text" value="Novo Projeto Canvas">
-        </label>
-        <button type="button" data-project-action="new" title="Criar projeto">Novo</button>
-        <button type="button" data-project-action="open" title="Abrir projeto .kia">Abrir</button>
-        <button type="button" data-project-action="save" title="Salvar projeto .kia">Salvar</button>
-        <button type="button" data-app-action="widget" title="Abrir Widget KIT IA">KIT IA</button>
-        <button type="button" data-app-action="chat" title="Abrir Chat completo">Chat</button>
-        <button id="undoButton" type="button" data-history-action="undo" title="Desfazer">Desfazer</button>
-        <button id="redoButton" type="button" data-history-action="redo" title="Refazer">Refazer</button>
-        <span id="projectStatus" class="project-status">Projeto ainda nao salvo</span>
-        <span id="autosaveStatus" class="autosave-status">Autosave aguardando</span>
-        <label class="preset-control">
-          Artboard
-          <select id="artboardPreset">
-            <option value="instagram-post">Instagram Post - 1080x1080</option>
-            <option value="instagram-story">Instagram Story - 1080x1920</option>
-            <option value="reels">Reels - 1080x1920</option>
-            <option value="youtube-thumb">YouTube Thumb - 1280x720</option>
-            <option value="youtube-banner">YouTube Banner - 2560x1440</option>
-            <option value="tiktok-video">TikTok Video - 1080x1920</option>
-            <option value="facebook-post">Facebook Post - 1200x630</option>
-            <option value="custom">Custom</option>
-          </select>
-        </label>
-        <div id="customArtboardControls" class="custom-artboard-controls" hidden>
-          <input id="customWidth" type="number" min="64" max="8192" step="1" value="1080" aria-label="Largura custom">
-          <span>x</span>
-          <input id="customHeight" type="number" min="64" max="8192" step="1" value="1080" aria-label="Altura custom">
-          <button type="button" data-action="apply-custom-size" title="Aplicar tamanho custom">Aplicar</button>
+      <div class="topbar-context-row">
+        <div class="brand-block">
+          <img class="brand-logo" src="../assets/avatar/idle.png" alt="KIT">
+          <div>
+            <h1>Canvas KIT IA</h1>
+          </div>
         </div>
-        <span id="artboardSizeLabel" class="artboard-size-label">1080 x 1080</span>
+
+        <div class="topbar-context">
+          <div class="project-metadata">
+            <input id="projectName" class="project-name-input" type="text" value="Novo Projeto Canvas" aria-label="Nome do projeto">
+            <span id="projectStatus" class="project-status">Projeto ainda nao salvo</span>
+            <span id="autosaveStatus" class="autosave-status">Autosave aguardando</span>
+            <label class="preset-control">
+              <span>Artboard</span>
+              <select id="artboardPreset">
+                <option value="instagram-post">Instagram Post - 1080x1080</option>
+                <option value="instagram-portrait">Instagram Retrato - 1080x1350</option>
+                <option value="instagram-story">Instagram Story - 1080x1920</option>
+                <option value="reels">Reels - 1080x1920</option>
+                <option value="youtube-thumb">YouTube Thumb - 1280x720</option>
+                <option value="youtube-banner">YouTube Banner - 2560x1440</option>
+                <option value="tiktok-video">TikTok Video - 1080x1920</option>
+                <option value="facebook-post">Facebook Post - 1200x630</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+            <span id="artboardSizeLabel" class="artboard-size-label">1080 x 1080</span>
+            <div id="customArtboardControls" class="custom-artboard-controls" hidden>
+              <input id="customWidth" type="number" min="64" max="8192" step="1" value="1080" aria-label="Largura custom">
+              <span>x</span>
+              <input id="customHeight" type="number" min="64" max="8192" step="1" value="1080" aria-label="Altura custom">
+              <button type="button" data-action="apply-custom-size" title="Aplicar tamanho custom">Aplicar</button>
+            </div>
+          </div>
+
+          <div class="topbar-quick-actions" aria-label="Acoes rapidas">
+            <button type="button" class="quick-action" data-app-action="chat" title="Abrir Chat completo">Chat</button>
+            <button id="undoButton" type="button" class="quick-action" data-history-action="undo" title="Desfazer">Desfazer</button>
+            <button id="redoButton" type="button" class="quick-action" data-history-action="redo" title="Refazer">Refazer</button>
+          </div>
+        </div>
       </div>
     </header>
 
     <main class="canvas-workspace">
       <aside class="left-panel" aria-label="Ferramentas">
-        <button class="tool-button is-active" type="button" data-tool="select">Selecionar</button>
-        <button class="tool-button" type="button" data-tool="brush">Pincel</button>
-        <div class="tool-group">
-          <button class="tool-button" type="button" data-tool="shapes" aria-haspopup="true">Formas</button>
-          <div class="tool-submenu" role="menu" aria-label="Formas">
-            <button type="button" data-action="add-rect" role="menuitem">Retangulo</button>
-            <button type="button" data-action="add-circle" role="menuitem">Circulo</button>
-          </div>
-        </div>
-        <button class="tool-button" type="button" data-tool="text" data-action="add-text">Texto</button>
-        <button class="tool-button" type="button" data-tool="project">Projeto</button>
-        <div class="tool-group">
-          <button class="tool-button" type="button" data-tool="elements" aria-haspopup="true">Elementos</button>
-          <div class="tool-submenu" role="menu" aria-label="Elementos">
-            <button type="button" data-action="add-image" role="menuitem">Imagem</button>
-          </div>
-        </div>
-        <input id="imageInput" type="file" accept="image/*" hidden>
+        <nav id="toolbarHost" class="toolbar" aria-label="Ferramentas do Canvas"></nav>
+        <input id="imageInput" type="file" accept="image/*,audio/*,video/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.mp4,.webm,.mov,.mkv,.avi" hidden>
       </aside>
 
       <section class="stage-area" aria-label="Area central do Canvas">
@@ -90,218 +114,484 @@
         </div>
       </section>
 
-      <aside class="right-panel" aria-label="Paineis">
-        <section class="panel-section">
-          <h2>Layers</h2>
-          <div id="layerList" class="layer-list">
-            <div class="empty-state">Nenhuma camada ainda</div>
+      <div id="sidePanelResizeHandle" class="side-panel-resize-handle" role="separator" aria-orientation="vertical" aria-label="Ajustar painel lateral"></div>
+
+      <aside class="right-panel" aria-label="Inspector contextual">
+        <section class="inspector-accordion is-open" data-inspector-section="layers">
+          <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="layers" aria-expanded="true">
+            <span>Layers</span>
+          </button>
+          <div class="inspector-accordion-body">
+            <div class="layer-toolbar">
+              <button id="addLayerButton" type="button" class="layer-toolbar-button">Nova Layer</button>
+              <button id="mergeLayerButton" type="button" class="layer-toolbar-button">Mesclar Layer</button>
+            </div>
+            <div id="layerList" class="layer-list">
+              <div class="empty-state">Nenhuma camada ainda</div>
+            </div>
           </div>
         </section>
 
-        <section class="panel-section">
-          <h2>Propriedades</h2>
-          <div id="propertyEmpty" class="empty-state">Selecione um objeto no canvas</div>
-          <div class="property-grid" aria-label="Propriedades do objeto selecionado">
-            <label>
-              X
-              <input id="propX" type="number" step="1" value="0">
-            </label>
-            <label>
-              Y
-              <input id="propY" type="number" step="1" value="0">
-            </label>
-            <label>
-              W
-              <input id="propW" type="number" min="1" step="1" value="0">
-            </label>
-            <label>
-              H
-              <input id="propH" type="number" min="1" step="1" value="0">
-            </label>
-            <label>
-              Rot
-              <input id="propAngle" type="number" step="1" value="0">
-            </label>
-            <label>
-              Opacidade
-              <input id="propOpacity" type="number" min="0" max="100" step="1" value="100">
-            </label>
-            <label>
-              Cor
-              <input id="propFill" type="color" value="#20232a">
-            </label>
-            <label>
-              Stroke
-              <input id="propStroke" type="color" value="#000000">
-            </label>
-            <label>
-              Stroke W
-              <input id="propStrokeWidth" type="number" min="0" step="1" value="0">
-            </label>
-            <label>
-              Fonte
-              <select id="propFontFamily">
-                <option value="Segoe UI">Segoe UI</option>
-                <option value="Arial">Arial</option>
-                <option value="Verdana">Verdana</option>
-                <option value="Georgia">Georgia</option>
-                <option value="Times New Roman">Times New Roman</option>
-                <option value="Courier New">Courier New</option>
-              </select>
-            </label>
-            <label>
-              Texto
-              <input id="propFontSize" type="number" min="1" step="1" value="64">
-            </label>
-            <label>
-              Alinhar
-              <select id="propTextAlign">
-                <option value="left">Esquerda</option>
-                <option value="center">Centro</option>
-                <option value="right">Direita</option>
-                <option value="justify">Justificar</option>
-              </select>
-            </label>
+        <section class="inspector-accordion is-open" data-inspector-section="properties">
+          <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="properties" aria-expanded="true">
+            <span>Propriedades</span>
+            <small id="propertyContextLabel" class="accordion-context-label">Projeto</small>
+          </button>
+          <div class="inspector-accordion-body">
+            <div id="projectInspectorSummary" class="inspector-summary">
+              <div class="inspector-summary-row">
+                <span>Projeto</span>
+                <strong id="projectSummaryName">Novo Projeto Canvas</strong>
+              </div>
+              <div class="inspector-summary-row">
+                <span>Artboard</span>
+                <strong id="projectSummaryArtboard">1080 x 1080</strong>
+              </div>
+              <div class="inspector-summary-row">
+                <span>Ferramenta</span>
+                <strong id="projectSummaryTool">Selecionar</strong>
+              </div>
+              <div class="inspector-summary-row">
+                <span>Status</span>
+                <strong id="projectSummaryStatus">Projeto ainda nao salvo</strong>
+              </div>
+            </div>
+
+            <div id="propertyEmpty" class="empty-state" hidden>Inspector contextual aguardando selecao</div>
+
+            <div id="objectInspectorSummary" class="inspector-summary" hidden>
+              <div class="inspector-summary-row">
+                <span>Selecionado</span>
+                <strong id="objectSummaryType">Objeto</strong>
+              </div>
+              <div class="inspector-summary-row">
+                <span>Camada</span>
+                <strong id="objectSummaryLayer">Objeto</strong>
+              </div>
+              <div class="inspector-summary-row">
+                <span>Modo</span>
+                <strong id="objectSummaryTool">Selecionar</strong>
+              </div>
+            </div>
+
+            <div id="propertyTransformGroup" class="inspector-group" hidden>
+              <h3>Transformar</h3>
+              <div class="property-grid" aria-label="Transformacao do objeto selecionado">
+                <label>
+                  X
+                  <input id="propX" type="number" step="1" value="0">
+                </label>
+                <label>
+                  Y
+                  <input id="propY" type="number" step="1" value="0">
+                </label>
+                <label>
+                  W
+                  <input id="propW" type="number" min="1" step="1" value="0">
+                </label>
+                <label>
+                  H
+                  <input id="propH" type="number" min="1" step="1" value="0">
+                </label>
+                <label>
+                  Rot
+                  <input id="propAngle" type="number" step="1" value="0">
+                </label>
+                <label>
+                  Opacidade
+                  <input id="propOpacity" type="number" min="0" max="100" step="1" value="100">
+                </label>
+                <label>
+                  Velocidade
+                  <input id="propSpeed" type="number" min="0.1" step="0.1" value="1">
+                </label>
+              </div>
+            </div>
+
+            <div id="propertyAppearanceGroup" class="inspector-group" hidden>
+              <h3>Aparencia</h3>
+              <div class="property-grid" aria-label="Aparencia do objeto selecionado">
+                <label>
+                  Cor
+                  <input id="propFill" type="color" value="#20232a">
+                </label>
+                <label>
+                  Stroke
+                  <input id="propStroke" type="color" value="#000000">
+                </label>
+                <label>
+                  Stroke W
+                  <input id="propStrokeWidth" type="number" min="0" step="1" value="0">
+                </label>
+              </div>
+            </div>
+
+            <div id="propertyTextGroup" class="inspector-group" hidden>
+              <h3>Texto</h3>
+              <div class="property-grid" aria-label="Texto do objeto selecionado">
+                <label>
+                  Fonte
+                  <select id="propFontFamily">
+                    <option value="Segoe UI">Segoe UI</option>
+                    <option value="Arial">Arial</option>
+                    <option value="Verdana">Verdana</option>
+                    <option value="Georgia">Georgia</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Courier New">Courier New</option>
+                  </select>
+                </label>
+                <label>
+                  Texto
+                  <input id="propFontSize" type="number" min="1" step="1" value="64">
+                </label>
+                <label>
+                  Alinhar
+                  <select id="propTextAlign">
+                    <option value="left">Esquerda</option>
+                    <option value="center">Centro</option>
+                    <option value="right">Direita</option>
+                    <option value="justify">Justificar</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div id="propertyImageGroup" class="inspector-group" hidden>
+              <h3>Imagem</h3>
+              <div class="inspector-note">
+                Imagem raster pronta para ajustes, mascara e Stable Diffusion contextual.
+              </div>
+            </div>
+
+            <div id="propertyAlignGroup" class="inspector-group" hidden>
+              <h3>Alinhar</h3>
+              <div class="alignment-controls" aria-label="Alinhamento do objeto selecionado">
+                <button type="button" class="icon-button" data-align-action="center" title="Centralizar"><img src="../assets/icones/alinhar-ao-centro.svg" alt=""><span class="sr-only">Centralizar</span></button>
+                <button type="button" class="icon-button" data-align-action="center-h" title="Centralizar horizontal"><img src="../assets/icones/alinhar-ao-centro.svg" alt=""><span class="sr-only">Centralizar horizontal</span></button>
+                <button type="button" class="icon-button" data-align-action="center-v" title="Centralizar vertical"><img src="../assets/icones/alinhar-ao-centro.svg" alt=""><span class="sr-only">Centralizar vertical</span></button>
+                <button type="button" class="icon-button" data-align-action="left" title="Alinhar a esquerda"><img src="../assets/icones/alinhar-a-esquerda.svg" alt=""><span class="sr-only">Alinhar a esquerda</span></button>
+                <button type="button" class="icon-button" data-align-action="right" title="Alinhar a direita"><img src="../assets/icones/alinhar-a-direita.svg" alt=""><span class="sr-only">Alinhar a direita</span></button>
+                <button type="button" class="icon-button" data-align-action="top" title="Alinhar ao topo"><img src="../assets/icones/timeline/um-passo-atras.svg" alt=""><span class="sr-only">Alinhar ao topo</span></button>
+                <button type="button" class="icon-button" data-align-action="bottom" title="Alinhar a base"><img src="../assets/icones/timeline/um-passo-a-frente.svg" alt=""><span class="sr-only">Alinhar a base</span></button>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section class="panel-section">
-          <h2>Pincel e Mascara</h2>
-          <div class="brush-controls">
-            <label>
-              Modo
-              <select id="brushMode">
-                <option value="paint">Desenho</option>
-                <option value="mask">Mascara</option>
-              </select>
-            </label>
-            <label>
-              Cor
-              <input id="brushColor" type="color" value="#20232a">
-            </label>
-            <label>
-              Tamanho
-              <input id="brushSize" type="range" min="1" max="160" step="1" value="24">
-              <output id="brushSizeValue">24</output>
-            </label>
-            <label>
-              Opacidade
-              <input id="brushOpacity" type="range" min="5" max="100" step="1" value="100">
-              <output id="brushOpacityValue">100%</output>
-            </label>
-            <label>
-              Dureza
-              <input id="brushHardness" type="range" min="1" max="100" step="1" value="85">
-              <output id="brushHardnessValue">85%</output>
-            </label>
-            <button type="button" data-brush-action="export-mask">Exportar mascara PNG</button>
-            <div id="brushStatus" class="brush-status">Pincel pronto</div>
+        <section class="inspector-accordion" data-inspector-section="brush">
+          <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="brush" aria-expanded="false">
+            <span>Pincel</span>
+          </button>
+          <div class="inspector-accordion-body">
+            <div class="brush-controls">
+              <label id="brushModeRow">
+                Modo
+                <select id="brushMode">
+                  <option value="paint">Desenho</option>
+                  <option value="mask">Mascara</option>
+                </select>
+              </label>
+              <label id="brushColorRow">
+                Cor
+                <input id="brushColor" type="color" value="#20232a">
+              </label>
+              <label>
+                Tamanho
+                <input id="brushSize" type="range" min="1" max="160" step="1" value="24">
+                <output id="brushSizeValue">24</output>
+              </label>
+              <label>
+                Opacidade
+                <input id="brushOpacity" type="range" min="5" max="100" step="1" value="100">
+                <output id="brushOpacityValue">100%</output>
+              </label>
+              <label>
+                Dureza
+                <input id="brushHardness" type="range" min="1" max="100" step="1" value="85">
+                <output id="brushHardnessValue">85%</output>
+              </label>
+              <div id="brushStatus" class="brush-status">Pincel pronto</div>
+            </div>
           </div>
         </section>
 
-        <section class="panel-section">
-          <h2>Exportar imagem</h2>
-          <div class="export-controls">
-            <label>
-              Formato
-              <select id="exportFormat">
-                <option value="png">PNG</option>
-                <option value="jpeg">JPG</option>
-                <option value="webp">WebP</option>
-              </select>
-            </label>
-            <label>
-              Qualidade
-              <input id="exportQuality" type="range" min="10" max="100" step="1" value="92">
-              <output id="exportQualityValue">92%</output>
-            </label>
-            <button type="button" data-export-action="image">Exportar artboard</button>
-            <div id="exportStatus" class="export-status">Pronto para exportar somente a lousa</div>
+        <section class="inspector-accordion" data-inspector-section="mask">
+          <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="mask" aria-expanded="false">
+            <span>Mascara da Layer</span>
+          </button>
+          <div class="inspector-accordion-body">
+            <div class="mask-controls">
+              <div id="layerMaskStatus" class="brush-status">Selecione uma layer com mascara ou use o Pincel de mascara para criar uma.</div>
+              <div class="mask-action-grid">
+                <button id="toggleMaskPreviewButton" type="button" class="layer-toolbar-button">Visualizar Mascara</button>
+                <button id="toggleLayerMaskEnabledButton" type="button" class="layer-toolbar-button">Desativar Mascara</button>
+                <button id="invertLayerMaskButton" type="button" class="layer-toolbar-button">Invert Mask</button>
+                <button id="applyLayerMaskButton" type="button" class="layer-toolbar-button">Apply</button>
+                <button id="deleteLayerMaskButton" type="button" class="layer-toolbar-button">Delete</button>
+              </div>
+              <div id="layerMaskBehaviorNote" class="inspector-note">Preto esconde, branco revela e cinza cria transparencia parcial. Essa mascara pertence apenas a layer pai.</div>
+            </div>
           </div>
         </section>
 
-        <section class="panel-section">
-          <h2>Brand Kit</h2>
-          <div class="brand-kit-actions">
-            <button type="button" data-brand-action="new">Novo</button>
-            <button type="button" data-brand-action="open">Abrir</button>
-            <button type="button" data-brand-action="save">Salvar</button>
+        <section class="inspector-accordion" data-inspector-section="sd-mask">
+          <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="sd-mask" aria-expanded="false">
+            <span>Mascara de Inpaint</span>
+          </button>
+          <div class="inspector-accordion-body">
+            <div class="mask-controls">
+              <div id="sdMaskStatus" class="brush-status">Essa mascara e exclusiva do fluxo de inpaint do Stable Diffusion.</div>
+              <button type="button" class="icon-button icon-button-primary" data-brush-action="export-mask" title="Exportar mascara de inpaint PNG">
+                <img src="../assets/icones/Save.svg" alt="">
+                <span class="sr-only">Exportar mascara de inpaint PNG</span>
+              </button>
+              <div id="sdMaskBehaviorNote" class="inspector-note">Use esta mascara apenas para inpaint/outpaint. Ela nao altera a transparencia da layer normal e nao compartilha estado com a mascara da layer.</div>
+            </div>
           </div>
-          <div id="brandKitStatus" class="brand-kit-status">Nenhum .kit salvo</div>
-          <label>
-            Nome
-            <input id="brandKitName" type="text" value="Novo Brand Kit">
-          </label>
-          <label>
-            Voz da marca
-            <textarea id="brandKitVoice" rows="3" placeholder="Tom, personalidade e diretrizes de linguagem"></textarea>
-          </label>
-          <label>
-            Cores HEX
-            <textarea id="brandKitColors" rows="4" spellcheck="false">Claro #F7F7F2
+        </section>
+
+        <section class="inspector-accordion" data-inspector-section="sd">
+          <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="sd" aria-expanded="false">
+            <span>Stable Diffusion</span>
+          </button>
+          <div class="inspector-accordion-body">
+            <div class="sd-status-row">
+              <button type="button" class="icon-button" data-sd-action="start-worker" title="Iniciar worker">
+                <img src="../assets/icones/terminal-quadrado.svg" alt="">
+                <span class="sr-only">Iniciar worker</span>
+              </button>
+              <button type="button" class="icon-button" data-sd-action="refresh-models" title="Atualizar modelos">
+                <img src="../assets/icones/config.svg" alt="">
+                <span class="sr-only">Atualizar modelos</span>
+              </button>
+            </div>
+            <div id="sdStatus" class="sd-status">Worker ainda nao consultado</div>
+            <label>
+              Prompt positivo
+              <textarea id="sdPrompt" rows="3" placeholder="Descreva a imagem"></textarea>
+            </label>
+            <label>
+              Prompt negativo
+              <textarea id="sdNegativePrompt" rows="3" placeholder="Itens a evitar"></textarea>
+            </label>
+            <label>
+              Checkpoint
+              <select id="sdCheckpoint"></select>
+            </label>
+            <label>
+              Tipo do modelo
+              <select id="sdArchitecture">
+                <option value="auto">Auto</option>
+                <option value="sd15">SD 1.5</option>
+                <option value="sdxl">SDXL</option>
+              </select>
+            </label>
+            <label>
+              LoRA
+              <select id="sdLora"></select>
+            </label>
+            <label>
+              Modo principal
+              <select id="sdMode">
+                <option value="txt2img">T2I / txt2img</option>
+                <option value="i2i">I2I / img2img</option>
+              </select>
+            </label>
+            <div id="sdI2IControls">
+              <label>
+                Subtipo I2I
+                <select id="sdI2IMode">
+                  <option value="img2img">img2img</option>
+                  <option value="sketch">Sketch</option>
+                  <option value="inpaint">Inpaint</option>
+                  <option value="inpaint-sketch">Inpaint Sketch</option>
+                </select>
+              </label>
+              <div id="sdSourceStatus" class="inspector-note">Selecione uma camada de imagem para usar img2img.</div>
+              <div id="sdInpaintMaskContext" class="inspector-note">Quando o modo for inpaint, o SD usara a mascara de inpaint do canvas. Essa mascara e separada da mascara de layer.</div>
+            </div>
+            <label>
+              Sampling method
+              <select id="sdScheduler">
+                <option value="DPMSolverMultistepScheduler">DPMSolverMultistepScheduler</option>
+                <option value="EulerDiscreteScheduler">EulerDiscreteScheduler</option>
+                <option value="EulerAncestralDiscreteScheduler">EulerAncestralDiscreteScheduler</option>
+                <option value="DDIMScheduler">DDIMScheduler</option>
+                <option value="LMSDiscreteScheduler">LMSDiscreteScheduler</option>
+              </select>
+            </label>
+            <div class="sd-grid">
+              <label>
+                Steps
+                <input id="sdSteps" type="number" min="1" max="80" step="1" value="24">
+              </label>
+              <label>
+                CFG
+                <input id="sdCfgScale" type="number" min="1" max="30" step="0.5" value="7">
+              </label>
+              <label>
+                Width
+                <input id="sdWidth" type="number" min="64" max="2048" step="8" placeholder="auto">
+              </label>
+              <label>
+                Height
+                <input id="sdHeight" type="number" min="64" max="2048" step="8" placeholder="auto">
+              </label>
+              <label>
+                Seed
+                <input id="sdSeed" type="number" step="1" value="-1">
+              </label>
+              <label>
+                Denoising
+                <input id="sdDenoising" type="number" min="0" max="1" step="0.05" value="0.55">
+              </label>
+            </div>
+            <div class="inpaint-controls">
+              <label>
+                Insercao do resultado
+                <select id="sdInpaintInsertMode">
+                  <option value="new-layer">Nova layer</option>
+                  <option value="replace">Substituir preservando original</option>
+                  <option value="variation">Variacao</option>
+                </select>
+              </label>
+            </div>
+            <div class="outpaint-controls">
+              <label>
+                Formato outpaint
+                <select id="sdOutpaintTarget">
+                  <option value="instagram-story">9:16 Story/Reels</option>
+                  <option value="instagram-portrait">4:5 Retrato</option>
+                  <option value="instagram-post">1:1 Quadrado</option>
+                  <option value="youtube-thumb">16:9 Horizontal</option>
+                </select>
+              </label>
+              <label>
+                Expandir para
+                <select id="sdOutpaintSide">
+                  <option value="auto">Automatico</option>
+                  <option value="left">Esquerda</option>
+                  <option value="right">Direita</option>
+                  <option value="top">Topo</option>
+                  <option value="bottom">Base</option>
+                </select>
+              </label>
+            </div>
+            <button id="sdGenerateButton" type="button" class="icon-button icon-button-primary" data-sd-action="generate" title="Gerar e inserir">
+              <img src="../assets/icones/Toolsbar/varinha-magica.svg" alt="">
+              <span class="sr-only">Gerar e inserir</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="inspector-accordion" data-inspector-section="brand">
+          <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="brand" aria-expanded="false">
+            <span>Brand Kit</span>
+          </button>
+          <div class="inspector-accordion-body">
+            <div class="brand-kit-actions">
+              <button type="button" class="icon-button" data-brand-action="new" title="Novo Brand Kit"><img src="../assets/icones/camada-mais.svg" alt=""><span class="sr-only">Novo Brand Kit</span></button>
+              <button type="button" class="icon-button" data-brand-action="open" title="Abrir Brand Kit"><img src="../assets/icones/Widget/documento.svg" alt=""><span class="sr-only">Abrir Brand Kit</span></button>
+              <button type="button" class="icon-button" data-brand-action="save" title="Salvar Brand Kit"><img src="../assets/icones/Save.svg" alt=""><span class="sr-only">Salvar Brand Kit</span></button>
+            </div>
+            <div id="brandKitStatus" class="brand-kit-status">Nenhum .kit salvo</div>
+            <label>
+              Nome
+              <input id="brandKitName" type="text" value="Novo Brand Kit">
+            </label>
+            <label>
+              Voz da marca
+              <textarea id="brandKitVoice" rows="3" placeholder="Tom, personalidade e diretrizes de linguagem"></textarea>
+            </label>
+            <label>
+              Cores HEX
+              <textarea id="brandKitColors" rows="4" spellcheck="false">Claro #F7F7F2
 Principal #2F7F6F
 Destaque #F2B84B
 Escuro #20232A</textarea>
-          </label>
-          <div id="brandColorPreview" class="swatch-row" aria-label="Cores da marca"></div>
-          <div class="brand-kit-list-block">
-            <div class="brand-kit-list-header">
-              <span>Logos</span>
-              <button type="button" data-brand-action="add-logo">Adicionar</button>
+            </label>
+            <div id="brandColorPreview" class="swatch-row" aria-label="Cores da marca"></div>
+            <div class="brand-kit-list-block">
+              <div class="brand-kit-list-header">
+                <span>Logos</span>
+                <button type="button" class="icon-button" data-brand-action="add-logo" title="Adicionar logo"><img src="../assets/icones/camada-mais.svg" alt=""><span class="sr-only">Adicionar logo</span></button>
+              </div>
+              <div id="brandLogoList" class="brand-kit-list empty-state">Nenhum logo</div>
             </div>
-            <div id="brandLogoList" class="brand-kit-list empty-state">Nenhum logo</div>
-          </div>
-          <div class="brand-kit-list-block">
-            <div class="brand-kit-list-header">
-              <span>Fontes</span>
-              <button type="button" data-brand-action="add-font">Adicionar</button>
+            <div class="brand-kit-list-block">
+              <div class="brand-kit-list-header">
+                <span>Fontes</span>
+                <button type="button" class="icon-button" data-brand-action="add-font" title="Adicionar fonte"><img src="../assets/icones/camada-mais.svg" alt=""><span class="sr-only">Adicionar fonte</span></button>
+              </div>
+              <div id="brandFontList" class="brand-kit-list empty-state">Nenhuma fonte</div>
             </div>
-            <div id="brandFontList" class="brand-kit-list empty-state">Nenhuma fonte</div>
-          </div>
-          <div class="brand-kit-list-block">
-            <div class="brand-kit-list-header">
-              <span>Assets globais</span>
-              <button type="button" data-brand-action="add-asset">Adicionar</button>
+            <div class="brand-kit-list-block">
+              <div class="brand-kit-list-header">
+                <span>Assets globais</span>
+                <button type="button" class="icon-button" data-brand-action="add-asset" title="Adicionar asset"><img src="../assets/icones/camada-mais.svg" alt=""><span class="sr-only">Adicionar asset</span></button>
+              </div>
+              <div id="brandAssetList" class="brand-kit-list empty-state">Nenhum asset</div>
             </div>
-            <div id="brandAssetList" class="brand-kit-list empty-state">Nenhum asset</div>
+            <label>
+              XTTS idioma
+              <input id="brandXttsLanguage" type="text" value="pt">
+            </label>
+            <label>
+              XTTS voice model
+              <input id="brandXttsModel" type="text" spellcheck="false" placeholder="Caminho do modelo">
+            </label>
+            <label>
+              XTTS speaker WAV
+              <input id="brandXttsSpeaker" type="text" spellcheck="false" placeholder="Caminho do speaker wav">
+            </label>
           </div>
-          <label>
-            XTTS idioma
-            <input id="brandXttsLanguage" type="text" value="pt">
-          </label>
-          <label>
-            XTTS voice model
-            <input id="brandXttsModel" type="text" spellcheck="false" placeholder="Caminho do modelo">
-          </label>
-          <label>
-            XTTS speaker WAV
-            <input id="brandXttsSpeaker" type="text" spellcheck="false" placeholder="Caminho do speaker wav">
-          </label>
         </section>
 
-        <section class="panel-section">
-          <h2>Modulo IA</h2>
-          <label>
-            Prompt positivo
-            <textarea rows="3" placeholder="Disponivel em etapa futura"></textarea>
-          </label>
-          <label>
-            Prompt negativo
-            <textarea rows="3" placeholder="Disponivel em etapa futura"></textarea>
-          </label>
-          <button type="button" disabled>Gerar</button>
+        <section class="inspector-accordion" data-inspector-section="export">
+          <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="export" aria-expanded="false">
+            <span>Exportar</span>
+          </button>
+          <div class="inspector-accordion-body">
+            <div class="export-controls">
+              <label>
+                Formato
+                <select id="exportFormat">
+                  <option value="png">PNG</option>
+                  <option value="jpeg">JPG</option>
+                  <option value="webp">WebP</option>
+                </select>
+              </label>
+              <label>
+                Qualidade
+                <input id="exportQuality" type="range" min="10" max="100" step="1" value="92">
+                <output id="exportQualityValue">92%</output>
+              </label>
+              <button type="button" class="icon-button icon-button-primary" data-export-action="image" title="Exportar artboard">
+                <img src="../assets/icones/Widget/foto.svg" alt="">
+                <span class="sr-only">Exportar artboard</span>
+              </button>
+              <div id="exportStatus" class="export-status">Pronto para exportar somente a lousa</div>
+            </div>
+          </div>
         </section>
       </aside>
     </main>
 
     <footer class="timeline-panel" aria-label="Timeline">
+      <div id="timelineResizeHandle" class="timeline-resize-bar" role="separator" aria-orientation="horizontal" aria-label="Ajustar altura da timeline"></div>
       <div class="timeline-header">
         <strong>Timeline</strong>
-        <span>Slides, audio e video entram nas proximas etapas</span>
+        <div class="timeline-player">
+          <button class="timeline-player-button" type="button" data-timeline-action="prev-marker" title="Marcador anterior" aria-label="Marcador anterior"><img src="../assets/icones/timeline/um-passo-atras.svg" alt=""></button>
+          <button class="timeline-player-button" type="button" data-timeline-action="play" title="Reproduzir" aria-label="Reproduzir"><img src="../assets/icones/timeline/toque.svg" alt=""></button>
+          <button class="timeline-player-button" type="button" data-timeline-action="stop" title="Parar" aria-label="Parar"><img src="../assets/icones/timeline/pare-o-circulo.svg" alt=""></button>
+          <button class="timeline-player-button" type="button" data-timeline-action="next-marker" title="Proximo marcador" aria-label="Proximo marcador"><img src="../assets/icones/timeline/um-passo-a-frente.svg" alt=""></button>
+        </div>
+        <button class="timeline-global-button" type="button" data-timeline-action="add-slide">Novo Slide</button>
+        <button class="timeline-global-button" type="button" data-timeline-action="remove-slide">Apagar Slide</button>
+        <span id="timelineStatus">1 slide</span>
       </div>
-      <div class="timeline-track">
-        <div class="timeline-cell is-current">Slide 1</div>
-      </div>
+      <div id="timelineTrack" class="timeline-track"></div>
     </footer>
   </div>
 

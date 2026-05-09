@@ -11,12 +11,6 @@ function start(cmd, args, cwd) {
   p.unref();
 }
 
-// STT
-start("python", ["stt_server.py"], "../services");
-
-// XTTS
-start("python", ["xtts_server.py"], "../services");
-
 // AI-KIT backend
 start("node", ["server.js"], "..");
 

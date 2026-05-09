@@ -5,7 +5,7 @@ const statusLine = document.getElementById("statusLine");
 const logOutput = document.getElementById("logOutput");
 
 const MAX_LINES = 1500;
-const serviceOrder = ["backend", "stt", "xtts"];
+const serviceOrder = ["backend", "ollama", "stt", "xtts", "sd"];
 const serviceState = {};
 let renderedLines = [];
 
@@ -45,8 +45,10 @@ function formatTime(timestamp) {
 function serviceLabel(value) {
   const key = String(value || "").toLowerCase();
   if (key === "backend") return "backend";
+  if (key === "ollama") return "ollama";
   if (key === "stt") return "stt";
   if (key === "xtts") return "xtts";
+  if (key === "sd") return "sd";
   return key || "host";
 }
 

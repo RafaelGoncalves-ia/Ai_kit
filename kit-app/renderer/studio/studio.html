@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KIT Studio</title>
+  <link rel="stylesheet" href="./studio.css">
+</head>
+<body>
+  <div class="studio-shell">
+    <header class="studio-topbar">
+      <div class="brand-block">
+        <img class="brand-logo" src="../assets/avatar/idle.png" alt="KIT Studio">
+        <div class="brand-copy">
+          <span class="brand-label">KIT Studio</span>
+          <strong id="projectNameLabel">Projeto Studio Inicial</strong>
+        </div>
+      </div>
+
+      <div class="project-pill-group" aria-label="Contexto do projeto">
+        <div class="project-pill">
+          <img src="../assets/icones/controle.svg" alt="">
+          <span>Cliente</span>
+          <strong id="clientNameLabel">Cliente nao definido</strong>
+        </div>
+        <div class="project-pill">
+          <img src="../assets/icones/terra-americas.svg" alt="">
+          <span>Fluxo</span>
+          <strong id="flowTypeLabel">Video assistido</strong>
+        </div>
+      </div>
+
+      <div class="resource-strip" aria-label="Uso de recursos">
+        <div class="resource-chip">
+          <img src="../assets/icones/timeline/tacometro.svg" alt="">
+          <span>VRAM</span>
+          <strong id="resourceVram">--</strong>
+        </div>
+        <div class="resource-chip">
+          <img src="../assets/icones/timeline/relogio.svg" alt="">
+          <span>RAM</span>
+          <strong id="resourceRam">--</strong>
+        </div>
+        <div class="resource-chip">
+          <img src="../assets/icones/controle.svg" alt="">
+          <span>GPU</span>
+          <strong id="resourceGpu">--</strong>
+        </div>
+        <div class="resource-chip">
+          <img src="../assets/icones/Studio/microchip.svg" alt="">
+          <span>CPU</span>
+          <strong id="resourceCpu">--</strong>
+        </div>
+        <div class="resource-chip">
+          <img src="../assets/icones/Studio/disco-rigido.svg" alt="">
+          <span>DISCO</span>
+          <strong id="resourceDisk">--</strong>
+        </div>
+        <div class="window-controls" aria-label="Controles da janela">
+          <button id="minimizeStudioButton" class="window-control-button" type="button" aria-label="Minimizar">_</button>
+          <button id="maximizeStudioButton" class="window-control-button" type="button" aria-label="Maximizar">□</button>
+          <button id="closeStudioButton" class="window-control-button is-close" type="button" aria-label="Fechar">×</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="status-line" aria-label="Status da producao">
+      <div class="status-primary">
+        <span class="status-label">Tarefa atual</span>
+        <strong id="currentTaskLabel">Aguardando comando inicial do Studio</strong>
+      </div>
+
+      <div class="status-progress">
+        <div class="progress-rail" aria-hidden="true">
+          <div id="progressBarFill" class="progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="status-metrics">
+        <span id="stepCountLabel">1 / 3 etapas</span>
+        <span id="elapsedLabel">00:00</span>
+      </div>
+    </section>
+
+    <main class="studio-main">
+      <section class="studio-center" aria-label="Fluxo principal do Studio">
+        <div class="studio-stage">
+          <div class="stage-header">
+            <div>
+              <span class="eyebrow">Producao assistida</span>
+              <h1 id="stageTitle">Briefing pronto para receber o comando inicial</h1>
+            </div>
+            <div class="stage-summary">
+              <span id="tabStateLabel">Aba ativa: Briefing</span>
+              <strong id="tabAvailabilityLabel">2 abas prontas</strong>
+            </div>
+          </div>
+
+          <nav id="studioTabs" class="tab-strip" aria-label="Abas do Studio"></nav>
+
+          <section id="studioTabPanel" class="tab-panel" aria-live="polite"></section>
+        </div>
+      </section>
+
+      <aside class="studio-chat" aria-label="Chat operacional do projeto">
+        <div class="chat-header">
+          <div>
+            <span class="eyebrow">Chat do projeto</span>
+            <strong>Operacional e compacto</strong>
+          </div>
+          <span id="messageCountLabel" class="chat-count">0 mensagens</span>
+        </div>
+
+        <div id="chatMessageList" class="chat-message-list"></div>
+
+        <div class="chat-composer">
+          <div id="chatContextLabel" class="chat-context">Contexto: projeto atual</div>
+          <textarea id="chatInput" rows="3" placeholder="Mensagem operacional do projeto"></textarea>
+          <div class="chat-actions">
+            <button id="approveBriefingButton" type="button" class="ghost-button">Aprovar briefing</button>
+            <button id="approveScriptButton" type="button" class="ghost-button">Aprovar roteiro</button>
+            <button id="generateCaptionButton" type="button" class="ghost-button">Gerar legenda</button>
+            <button id="sendChatButton" type="button" class="primary-button">Registrar</button>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="./studioState.js"></script>
+  <script src="./studio.js"></script>
+</body>
+</html>

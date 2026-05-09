@@ -1,0 +1,158 @@
+{
+  "id": "video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac",
+  "projectId": "studio_7a8b08f5-61e6-4315-bfee-babd0cf79496",
+  "sceneId": "scene_01",
+  "mode": "t2v",
+  "input": {
+    "id": "video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac",
+    "projectId": "studio_7a8b08f5-61e6-4315-bfee-babd0cf79496",
+    "sceneId": "scene_01",
+    "sessionId": "studio-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496",
+    "source": "studio",
+    "fileName": "",
+    "prompt": "Cena vertical 9:16, abertura impactante sobre companha meta ADS, estilo comercial moderno, alta nitidez.",
+    "negativePrompt": "",
+    "motionPrompt": "",
+    "duration": 5,
+    "fps": 12,
+    "frames": 60,
+    "sequenceLength": 61,
+    "width": 720,
+    "height": 1280,
+    "ratio": "9:16",
+    "preset": "standard",
+    "model": "",
+    "modelPath": "",
+    "modelFamily": "",
+    "modelRegistryEntry": null,
+    "quality": "standard",
+    "exportSettings": {
+      "format": "mp4",
+      "videoCodec": "libx264",
+      "pixelFormat": "yuv420p"
+    },
+    "references": [],
+    "startImage": "",
+    "endImage": "",
+    "outputPath": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video\\scene_01-video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video\\scene_01-video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac.png",
+    "lastFramePath": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video\\scene_01-video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac-last-frame.png",
+    "projectAssetDir": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video",
+    "workingDir": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac",
+    "mode": "t2v",
+    "pipeline": {
+      "id": "text-to-video",
+      "mode": "t2v",
+      "sourceStrategy": "prompt-slate",
+      "supports": [
+        "interpolation",
+        "startFrame",
+        "endFrame",
+        "chaining",
+        "frame-guidance"
+      ]
+    },
+    "conditioning": {
+      "preferredMode": "t2v",
+      "startImage": "",
+      "endImage": "",
+      "primaryReference": null,
+      "references": [],
+      "loras": [],
+      "logs": [
+        "preferred-mode:t2v",
+        "references:0",
+        "loras:0",
+        "start-image:none"
+      ]
+    },
+    "output": {
+      "assetDir": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video",
+      "outputPath": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video\\scene_01-video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac.mp4",
+      "thumbnailPath": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video\\scene_01-video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac.png",
+      "lastFramePath": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video\\scene_01-video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac-last-frame.png",
+      "ratio": "9:16"
+    },
+    "summaryLogs": [
+      "pipeline:t2v",
+      "source:prompt-slate",
+      "preferred-mode:t2v",
+      "references:0",
+      "loras:0",
+      "start-image:none"
+    ]
+  },
+  "output": {
+    "path": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video\\scene_01-video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video\\scene_01-video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac.png",
+    "sourceImage": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac\\video-source-b1cce2da.png",
+    "duration": 5,
+    "fps": 12,
+    "frames": 60,
+    "sequenceLength": 61,
+    "width": 720,
+    "height": 1280,
+    "ratio": "9:16",
+    "metadata": {
+      "mode": "t2v",
+      "pipeline": {
+        "id": "text-to-video",
+        "mode": "t2v",
+        "sourceStrategy": "prompt-slate",
+        "supports": [
+          "interpolation",
+          "startFrame",
+          "endFrame",
+          "chaining",
+          "frame-guidance"
+        ]
+      },
+      "prompt": "Cena vertical 9:16, abertura impactante sobre companha meta ADS, estilo comercial moderno, alta nitidez.",
+      "negativePrompt": "",
+      "motionPrompt": "",
+      "ratio": "9:16",
+      "width": 720,
+      "height": 1280,
+      "duration": 5,
+      "fps": 12,
+      "frames": 60,
+      "sequenceLength": 61,
+      "model": "",
+      "modelPath": "",
+      "modelFamily": "",
+      "preset": "standard",
+      "quality": "standard",
+      "startImage": "",
+      "endImage": "",
+      "sourceImage": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-7fea4bd8-8e71-4c5a-b0b8-eff5a4886dac\\video-source-b1cce2da.png",
+      "references": [],
+      "loras": [],
+      "logs": [
+        "pipeline:t2v",
+        "source:prompt-slate",
+        "preferred-mode:t2v",
+        "references:0",
+        "loras:0",
+        "start-image:none",
+        "worker-source:prompt-slate"
+      ],
+      "exportSettings": {
+        "format": "mp4",
+        "videoCodec": "libx264",
+        "pixelFormat": "yuv420p"
+      }
+    },
+    "logs": [
+      "pipeline:t2v",
+      "source:prompt-slate",
+      "preferred-mode:t2v",
+      "references:0",
+      "loras:0",
+      "start-image:none",
+      "worker-source:prompt-slate"
+    ]
+  },
+  "error": null,
+  "status": "completed",
+  "progress": 100
+}

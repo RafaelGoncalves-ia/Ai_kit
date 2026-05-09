@@ -70,7 +70,8 @@ function isBatchGoal(goal) {
     /\b(tabela|lista|legenda|legendas|roteiro|documento descritivo)\b.*\b(pasta|imagens|lote)\b/,
     /\b(cachorro|dog)\b.*\b(pasta|imagens|lote)\b/,
     /\bdados[\\/]/,
-    /\bagent-workspace[\\/]dados[\\/]/
+    /\bagent-workspace[\\/]dados[\\/]/,
+    /\bworkspace[\\/][^\\/\s]+[\\/]/
   ];
 
   return batchPatterns.some((pattern) => pattern.test(lower));
@@ -856,7 +857,10 @@ Regras:
       allowWebSearch: allowWebSearch !== false
     };
 
-    const workspace = createProjectWorkspace(execution.id);
+    const workspace = createProjectWorkspace(execution.id, {
+      clientName: session.memory?.activeClientName || session.memory?.lastCompanyName || "",
+      projectSlug: `agent-${execution.id}`
+    });
     execution.workspacePath = workspace.workspacePath;
     execution.projectPath = workspace.projectPath;
 

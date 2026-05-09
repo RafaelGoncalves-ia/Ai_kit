@@ -1,0 +1,65 @@
+{
+  "id": "video-job-c3ed67e1-6a22-490e-8c3d-a647bda6d599",
+  "projectId": "studio_7a8b08f5-61e6-4315-bfee-babd0cf79496",
+  "sceneId": "scene_01",
+  "prompt": "Teste t2v etapa 15",
+  "negativePrompt": "",
+  "motionPrompt": "",
+  "duration": 5,
+  "fps": 12,
+  "width": 720,
+  "height": 1280,
+  "ratio": "9:16",
+  "model": "",
+  "modelPath": "",
+  "modelFamily": "",
+  "modelRegistryEntry": null,
+  "quality": "standard",
+  "references": [],
+  "startImage": "",
+  "endImage": "",
+  "outputPath": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video\\scene_01-video-job-c3ed67e1-6a22-490e-8c3d-a647bda6d599.mp4",
+  "thumbnailPath": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video\\scene_01-video-job-c3ed67e1-6a22-490e-8c3d-a647bda6d599.png",
+  "workingDir": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-c3ed67e1-6a22-490e-8c3d-a647bda6d599",
+  "mode": "t2v",
+  "pipeline": {
+    "id": "text-to-video",
+    "mode": "t2v",
+    "sourceStrategy": "prompt-slate",
+    "supports": [
+      "interpolation",
+      "startFrame",
+      "endFrame",
+      "chaining",
+      "frame-guidance"
+    ]
+  },
+  "conditioning": {
+    "preferredMode": "t2v",
+    "startImage": "",
+    "endImage": "",
+    "primaryReference": null,
+    "references": [],
+    "loras": [],
+    "logs": [
+      "preferred-mode:t2v",
+      "references:0",
+      "loras:0",
+      "start-image:none"
+    ]
+  },
+  "output": {
+    "assetDir": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video",
+    "outputPath": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video\\scene_01-video-job-c3ed67e1-6a22-490e-8c3d-a647bda6d599.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\projects\\studio\\companha-meta-ads-studio_7a8b08f5-61e6-4315-bfee-babd0cf79496.assets\\video\\scene_01-video-job-c3ed67e1-6a22-490e-8c3d-a647bda6d599.png",
+    "ratio": "9:16"
+  },
+  "summaryLogs": [
+    "pipeline:t2v",
+    "source:prompt-slate",
+    "preferred-mode:t2v",
+    "references:0",
+    "loras:0",
+    "start-image:none"
+  ]
+}

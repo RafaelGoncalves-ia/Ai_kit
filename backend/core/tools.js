@@ -1428,7 +1428,7 @@ export default function createTools(context) {
 
     const query = normalizeComparableText(input.query || input.text || input.goal || "");
     const maxResults = Math.max(1, Math.min(50, Number(input.maxResults || 20)));
-    const basePath = input.basePath || input.folderPath || WORKSPACE_ROOT;
+    const basePath = input.basePath || input.folderPath || input.session?.memory?.activeClientRoot || WORKSPACE_ROOT;
     const root = resolveSafePath(basePath);
     const terms = query
       .split(/\s+/)
@@ -1582,6 +1582,11 @@ export default function createTools(context) {
     }
 
     const structure = ensureCompanyDataStructure(companyName);
+    if (input.session?.memory) {
+      input.session.memory.activeClientName = companyName;
+      input.session.memory.lastCompanyName = companyName;
+      input.session.memory.activeClientRoot = structure.companyRoot;
+    }
     return wrapOk(structure);
   }
 
@@ -1608,6 +1613,11 @@ export default function createTools(context) {
 
     const relativeTarget = input.path || fileName;
     const resolved = resolveDataPath(companyName, relativeTarget);
+    if (input.session?.memory) {
+      input.session.memory.activeClientName = companyName;
+      input.session.memory.lastCompanyName = companyName;
+      input.session.memory.activeClientRoot = resolved.companyRoot;
+    }
 
     await fsPromises.mkdir(path.dirname(resolved.path), { recursive: true });
     await fsPromises.writeFile(resolved.path, content, "utf8");
@@ -1632,6 +1642,11 @@ export default function createTools(context) {
     }
 
     const resolved = resolveDataPath(companyName, input.path || "clientes.json");
+    if (input.session?.memory) {
+      input.session.memory.activeClientName = companyName;
+      input.session.memory.lastCompanyName = companyName;
+      input.session.memory.activeClientRoot = resolved.companyRoot;
+    }
     const content = await fsPromises.readFile(resolved.path, input.encoding || "utf8");
 
     return wrapOk({
@@ -1655,6 +1670,11 @@ export default function createTools(context) {
 
     const relativeTarget = input.path || ".";
     const resolved = resolveDataPath(companyName, relativeTarget);
+    if (input.session?.memory) {
+      input.session.memory.activeClientName = companyName;
+      input.session.memory.lastCompanyName = companyName;
+      input.session.memory.activeClientRoot = resolved.companyRoot;
+    }
     const entries = await fsPromises.readdir(resolved.path, { withFileTypes: true });
 
     return wrapOk({

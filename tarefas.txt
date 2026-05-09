@@ -1,0 +1,181 @@
+[x] Tarefa 01 — Refatorar a Toolbar Visual e Estrutural
+Refatore a toolbar do Canvas KIT IA.
+
+Objetivo:
+Criar uma toolbar vertical, flutuante, elegante e organizada no canto esquerdo do editor.
+
+Escopo desta tarefa:
+- refatorar apenas a estrutura visual e organizacional da toolbar
+- usar somente ícones
+- adicionar tooltips no hover
+- criar grupos com submenu/flyout lateral
+- destacar ferramenta ativa
+- renderizar a toolbar a partir de uma configuração, não com HTML repetido hardcoded
+
+Pasta dos ícones:
+F:\AI\Ai_kit\kit-app\renderer\assets\icones\Toolsbar
+
+Estrutura técnica obrigatória:
+Criar uma configuração da toolbar com itens no formato:
+
+{
+  id,
+  label,
+  icon,
+  type: "item" | "group" | "action",
+  children,
+  enabled,
+  visible,
+  mouseTool,
+  action,
+  settings
+}
+
+Ferramentas/grupos:
+- mover
+- grupo seleção:
+  - seleção retangular
+  - seleção elíptica
+- varinha mágica
+- grupo pincéis:
+  - pincel
+  - lápis
+  - pincel de máscara
+  - pena
+- grupo texto:
+  - texto
+  - caixa de texto
+- grupo formas:
+  - retângulo
+  - retângulo arredondado
+  - círculo/elipse
+- apagador
+- pipeta
+- cor
+- zoom
+- Kit do cliente
+- mídia
+- stiks
+
+Regras:
+- Kit do cliente, mídia e stiks são actions, não mouse tools
+- as outras ferramentas devem poder ser ativadas pelo mouse
+- não implementar ainda a lógica raster por pixel
+- não implementar ainda a pena com IA
+- não alterar lógica de Canvas além do necessário para seleção de ferramenta
+- preservar compatibilidade com o estado atual
+
+Resultado esperado:
+Toolbar nova, limpa, flutuante, agrupada, baseada em configuração e pronta para receber as ferramentas reais.
+
+[x]Tarefa 02 — Implementar Edição Raster por Pixel na Camada Selecionada
+Implemente o sistema real de edição raster por pixel no Canvas KIT IA.
+
+Problema atual:
+O pincel cria um novo elemento/objeto/layer a cada stroke.
+Isso está errado.
+
+Comportamento correto:
+Ferramentas raster devem editar diretamente os pixels da imagem/camada selecionada, como em um editor estilo Photoshop.
+
+Ferramentas raster:
+- pincel
+- lápis
+- apagador
+- pincel de máscara
+
+Regras obrigatórias:
+- se houver uma imagem selecionada, o stroke deve modificar o bitmap/canvas interno dessa imagem
+- não criar novo objeto
+- não criar nova layer
+- não criar novo item visual a cada passada
+- manter o mesmo objeto selecionado
+- atualizar apenas a textura/bitmap da camada selecionada
+- preservar compatibilidade com undo/redo
+- se não houver imagem selecionada, não desenhar e informar que é necessário selecionar uma imagem
+
+Separação conceitual:
+- raster tools editam pixels da imagem selecionada
+- texto, formas e mídia continuam podendo criar objetos próprios
+- pincel/lápis/apagador/máscara nunca devem criar objeto novo durante o stroke
+
+Implementar:
+- contexto de edição raster
+- captura da imagem selecionada
+- canvas/bitmap interno editável
+- pipeline de stroke: pointer down, pointer move, pointer up
+- commit da edição no mesmo objeto
+- integração mínima com undo/redo
+- atualização visual imediata no Canvas
+
+Diferença entre pincel e lápis:
+Pincel:
+- diâmetro
+- dureza
+- opacidade
+- traço mais suave
+
+Lápis:
+- somente diâmetro
+- traço seco e simples
+
+Apagador:
+- remove pixels da imagem selecionada usando transparência quando possível
+
+Pincel de máscara:
+- pinta em uma máscara associada à imagem selecionada, sem destruir a imagem original
+
+Resultado esperado:
+Ao selecionar uma imagem e usar pincel/lápis/apagador/máscara, a própria camada selecionada é editada por pixel, sem criar novos elementos.
+
+[ ] Tarefa 03 — Cor Universal + Pena IA Preparada para Inpaint
+Implemente o sistema de cor universal e prepare a ferramenta pena como seleção mágica para IA/inpaint.
+
+Parte A — Cor universal
+
+Objetivo:
+Criar um sistema global de cor primária e secundária compartilhado pelas ferramentas compatíveis.
+
+Regras:
+- botão de cor da toolbar deve mostrar visualmente a cor primária atual
+- ao clicar, abrir painel de cor
+- painel deve permitir escolher:
+  - cor primária
+  - cor secundária
+- cores devem ser salvas em estado global do editor
+- ferramentas compatíveis devem consumir essas cores
+
+Ferramentas que usam cor:
+- pincel
+- lápis
+- texto
+- formas
+- futuras ferramentas compatíveis
+
+Parte B — Ferramenta Pena IA
+
+A pena não deve funcionar como pincel comum.
+
+Objetivo:
+Preparar a pena como ferramenta especial de seleção livre + edição localizada com IA.
+
+Fluxo esperado:
+1. usuário ativa a pena
+2. usuário contorna manualmente uma área
+3. ao fechar o contorno, gerar uma seleção
+4. transformar seleção em máscara rápida
+5. abrir painel/ação para edição IA localizada
+6. usuário digita o que quer alterar
+7. enviar imagem + máscara para fluxo de inpaint com Stable Diffusion
+8. aplicar resultado na região selecionada
+
+Nesta tarefa:
+- implementar pelo menos a estrutura da ferramenta pena
+- permitir desenhar/fechar seleção livre
+- gerar máscara rápida a partir da seleção
+- preparar função/interface para futura chamada de inpaint
+- não tratar pena como brush comum
+- não pintar pixels diretamente com a pena
+
+Resultado esperado:
+Sistema de cor primária/secundária funcionando e pena estruturada como ferramenta mágica de seleção + IA, pronta para integrar com Stable Diffusion/inpaint.

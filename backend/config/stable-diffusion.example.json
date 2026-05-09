@@ -1,0 +1,12 @@
+{
+  "pythonPath": "python",
+  "modelsRoot": "models",
+  "checkpointsPath": "models/stable-diffusion",
+  "lorasPath": "models/lora",
+  "diffusionModelsPath": "models/diffusers",
+  "originalConfigsPath": "models/configs",
+  "outputPath": "output/sd",
+  "hfHome": "cache/huggingface",
+  "hfHubCache": "cache/huggingface/hub",
+  "transformersCache": "cache/huggingface/transformers"
+}

@@ -1,0 +1,79 @@
+{
+  "id": "video-job-50cdfcab-1474-4c58-aee9-a7254c342b96",
+  "projectId": "",
+  "sceneId": "",
+  "sessionId": "chat-smoke",
+  "source": "chat",
+  "fileName": "",
+  "prompt": "Teste global de video etapa 17",
+  "negativePrompt": "",
+  "motionPrompt": "",
+  "duration": 5,
+  "fps": 12,
+  "frames": 60,
+  "sequenceLength": 61,
+  "width": 720,
+  "height": 1280,
+  "ratio": "9:16",
+  "preset": "standard",
+  "model": "",
+  "modelPath": "",
+  "modelFamily": "",
+  "modelRegistryEntry": null,
+  "quality": "standard",
+  "exportSettings": {
+    "format": "mp4",
+    "videoCodec": "libx264",
+    "pixelFormat": "yuv420p"
+  },
+  "references": [],
+  "startImage": "",
+  "endImage": "",
+  "outputPath": "F:\\AI\\Ai_kit\\output\\video\\chat-smoke\\video-video-job-50cdfcab-1474-4c58-aee9-a7254c342b96.mp4",
+  "thumbnailPath": "F:\\AI\\Ai_kit\\output\\video\\chat-smoke\\video-video-job-50cdfcab-1474-4c58-aee9-a7254c342b96.png",
+  "lastFramePath": "F:\\AI\\Ai_kit\\output\\video\\chat-smoke\\video-video-job-50cdfcab-1474-4c58-aee9-a7254c342b96-last-frame.png",
+  "projectAssetDir": "F:\\AI\\Ai_kit\\projects\\studio\\projects\\studio\\assets\\video",
+  "workingDir": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-50cdfcab-1474-4c58-aee9-a7254c342b96",
+  "mode": "t2v",
+  "pipeline": {
+    "id": "text-to-video",
+    "mode": "t2v",
+    "sourceStrategy": "prompt-slate",
+    "supports": [
+      "interpolation",
+      "startFrame",
+      "endFrame",
+      "chaining",
+      "frame-guidance"
+    ]
+  },
+  "conditioning": {
+    "preferredMode": "t2v",
+    "startImage": "",
+    "endImage": "",
+    "primaryReference": null,
+    "references": [],
+    "loras": [],
+    "logs": [
+      "preferred-mode:t2v",
+      "references:0",
+      "loras:0",
+      "start-image:none"
+    ]
+  },
+  "output": {
+    "assetDir": "F:\\AI\\Ai_kit\\output\\video\\chat-smoke",
+    "outputPath": "F:\\AI\\Ai_kit\\output\\video\\chat-smoke\\video-video-job-50cdfcab-1474-4c58-aee9-a7254c342b96.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\output\\video\\chat-smoke\\video-video-job-50cdfcab-1474-4c58-aee9-a7254c342b96.png",
+    "lastFramePath": "F:\\AI\\Ai_kit\\output\\video\\chat-smoke\\video-video-job-50cdfcab-1474-4c58-aee9-a7254c342b96-last-frame.png",
+    "ratio": "9:16"
+  },
+  "summaryLogs": [
+    "pipeline:t2v",
+    "source:prompt-slate",
+    "preferred-mode:t2v",
+    "references:0",
+    "loras:0",
+    "start-image:none"
+  ]
+}

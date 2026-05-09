@@ -41,10 +41,13 @@ function createDefaultProject(overrides = {}) {
     ai: {
       prompts: [],
       generations: [],
+      inpaints: [],
+      outpaints: [],
       masks: []
     },
     timeline: {
       slides: [],
+      activeSlideId: null,
       audio: [],
       video: []
     },
@@ -82,10 +85,13 @@ function normalizeProject(raw = {}) {
     ai: {
       prompts: Array.isArray(raw.ai?.prompts) ? raw.ai.prompts : [],
       generations: Array.isArray(raw.ai?.generations) ? raw.ai.generations : [],
+      inpaints: Array.isArray(raw.ai?.inpaints) ? raw.ai.inpaints : [],
+      outpaints: Array.isArray(raw.ai?.outpaints) ? raw.ai.outpaints : [],
       masks: Array.isArray(raw.ai?.masks) ? raw.ai.masks : []
     },
     timeline: {
       slides: Array.isArray(raw.timeline?.slides) ? raw.timeline.slides : [],
+      activeSlideId: raw.timeline?.activeSlideId ? String(raw.timeline.activeSlideId) : null,
       audio: Array.isArray(raw.timeline?.audio) ? raw.timeline.audio : [],
       video: Array.isArray(raw.timeline?.video) ? raw.timeline.video : []
     },

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Gerenciador de Presets</title>
+  <link rel="stylesheet" href="./preset-manager.css">
+</head>
+<body>
+  <header class="page-header">
+    <div>
+      <h1>Gerenciador de Presets</h1>
+      <p>Clientes, estilos, formatos e pipelines da KIT</p>
+    </div>
+    <div id="statusBadge" class="status-badge">Preparando...</div>
+  </header>
+
+  <nav id="typeTabs" class="type-tabs" aria-label="Tipos de preset"></nav>
+
+  <section class="toolbar">
+    <button id="newBtn" class="btn btn-primary" type="button">Novo</button>
+    <button id="loadBtn" class="btn btn-secondary" type="button">Carregar Arquivo</button>
+    <button id="duplicateBtn" class="btn btn-secondary" type="button">Duplicar</button>
+    <button id="deleteBtn" class="btn btn-danger" type="button">Excluir</button>
+  </section>
+
+  <main class="workspace">
+    <aside class="panel panel-list">
+      <div class="panel-head">
+        <strong id="listTitle">Arquivos</strong>
+        <span id="listMeta">0 itens</span>
+      </div>
+      <div id="fileList" class="file-list"></div>
+    </aside>
+
+    <section class="panel panel-editor">
+      <div class="panel-head">
+        <div>
+          <strong id="editorTitle">Preset</strong>
+          <span id="editorMeta">Sem arquivo selecionado</span>
+        </div>
+        <span id="dirtyBadge" class="dirty-badge hidden">Nao salvo</span>
+      </div>
+      <div id="validationBox" class="validation-box hidden"></div>
+      <div id="formRoot" class="form-root"></div>
+    </section>
+
+    <aside class="panel panel-summary">
+      <div class="panel-head">
+        <strong>Preview / Resumo</strong>
+        <span id="summaryType">-</span>
+      </div>
+      <div id="summaryRoot" class="summary-root"></div>
+    </aside>
+  </main>
+
+  <footer class="footer-bar">
+    <button id="validateBtn" class="btn btn-secondary" type="button">Validar</button>
+    <button id="saveBtn" class="btn btn-primary" type="button">Salvar</button>
+    <button id="saveAsBtn" class="btn btn-secondary" type="button">Salvar Como</button>
+  </footer>
+
+  <script type="module" src="./preset-manager.js"></script>
+</body>
+</html>

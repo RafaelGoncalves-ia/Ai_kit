@@ -1,0 +1,38 @@
+{
+  "id": "video-job-4a2fe42c-987d-4b47-9103-ac13121ddb4f",
+  "projectId": "studio_09136f34-d97a-44b2-8ef7-da21c1b749a1",
+  "sceneId": "scene_01",
+  "mode": "t2v",
+  "input": {
+    "id": "video-job-4a2fe42c-987d-4b47-9103-ac13121ddb4f",
+    "projectId": "studio_09136f34-d97a-44b2-8ef7-da21c1b749a1",
+    "sceneId": "scene_01",
+    "mode": "t2v",
+    "prompt": "Teste de video do KIT Studio com enquadramento vertical e movimento suave",
+    "negativePrompt": "artefatos, baixa qualidade",
+    "motionPrompt": "",
+    "duration": 3,
+    "fps": 12,
+    "width": 720,
+    "height": 1280,
+    "ratio": "9:16",
+    "model": "",
+    "quality": "standard",
+    "references": [],
+    "startImage": "",
+    "endImage": "",
+    "outputPath": "F:\\AI\\Ai_kit\\projects\\studio\\usucapiao-e-regularizacao-studio_09136f34-d97a-44b2-8ef7-da21c1b749a1.assets\\video\\scene_01-video-job-4a2fe42c-987d-4b47-9103-ac13121ddb4f.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\projects\\studio\\usucapiao-e-regularizacao-studio_09136f34-d97a-44b2-8ef7-da21c1b749a1.assets\\video\\scene_01-video-job-4a2fe42c-987d-4b47-9103-ac13121ddb4f.png",
+    "workingDir": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-4a2fe42c-987d-4b47-9103-ac13121ddb4f"
+  },
+  "output": {
+    "path": "F:\\AI\\Ai_kit\\projects\\studio\\usucapiao-e-regularizacao-studio_09136f34-d97a-44b2-8ef7-da21c1b749a1.assets\\video\\scene_01-video-job-4a2fe42c-987d-4b47-9103-ac13121ddb4f.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\projects\\studio\\usucapiao-e-regularizacao-studio_09136f34-d97a-44b2-8ef7-da21c1b749a1.assets\\video\\scene_01-video-job-4a2fe42c-987d-4b47-9103-ac13121ddb4f.png",
+    "sourceImage": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-4a2fe42c-987d-4b47-9103-ac13121ddb4f\\video-source-c108d225.png",
+    "duration": 3,
+    "fps": 12
+  },
+  "error": null,
+  "status": "completed",
+  "progress": 100
+}

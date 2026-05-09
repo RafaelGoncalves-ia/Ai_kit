@@ -3,6 +3,8 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import { addMessage } from "../utils/conversationStore.js";
+import studioLaunchService from "../skills/studio/studioLaunchService.js";
+import { enqueueVideoJob } from "../services/video/videoService.js";
 import {
   resolveSafePath,
   resolveSessionMediaPath
@@ -19,6 +21,7 @@ const upload = multer({
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 40 * 1024 * 1024;
+const { createStudioProjectFromCommand, detectStudioIntent } = studioLaunchService;
 
 function getUploadedImageFile(req) {
   if (req.file) {
@@ -131,7 +134,7 @@ function resolveSessionMediaTarget(sessionId, fileName, session) {
     null;
 
   if (projectPath) {
-    return resolveSafePath(path.join(projectPath, "media", safeFileName));
+    return resolveSafePath(path.join(projectPath, "assets", "input", safeFileName));
   }
 
   return resolveSessionMediaPath(sessionId, safeFileName);
@@ -197,9 +200,37 @@ function detectCanvasPreset(normalizedText = "") {
   return null;
 }
 
+function detectCanvasAlignment(normalizedText = "") {
+  if (/\b(centro total|centraliza tudo|centralizar tudo)\b/.test(normalizedText)) return "center";
+  if (/\b(centro horizontal|horizontalmente|centro h)\b/.test(normalizedText)) return "center-h";
+  if (/\b(centro vertical|verticalmente|centro v)\b/.test(normalizedText)) return "center-v";
+  if (/\b(esquerda)\b/.test(normalizedText)) return "left";
+  if (/\b(direita)\b/.test(normalizedText)) return "right";
+  if (/\b(topo|cima)\b/.test(normalizedText)) return "top";
+  if (/\b(base|baixo|rodape)\b/.test(normalizedText)) return "bottom";
+  if (/\b(centro|centraliza|centralizar)\b/.test(normalizedText)) return "center";
+  return null;
+}
+
+function detectOutpaintTarget(normalizedText = "") {
+  if (/\b(9:16|story|stories|reels?|vertical)\b/.test(normalizedText)) return "instagram-story";
+  if (/\b(4:5|retrato|portrait)\b/.test(normalizedText)) return "instagram-portrait";
+  if (/\b(1:1|quadrado|square|post)\b/.test(normalizedText)) return "instagram-post";
+  if (/\b(16:9|horizontal|youtube|thumb|thumbnail)\b/.test(normalizedText)) return "youtube-thumb";
+  return "instagram-story";
+}
+
+function detectOutpaintSide(normalizedText = "") {
+  if (/\b(esquerda|left)\b/.test(normalizedText)) return "left";
+  if (/\b(direita|right)\b/.test(normalizedText)) return "right";
+  if (/\b(topo|cima|top)\b/.test(normalizedText)) return "top";
+  if (/\b(base|baixo|bottom)\b/.test(normalizedText)) return "bottom";
+  return "auto";
+}
+
 function resolveCanvasCommand(text = "", media = null) {
   const normalized = normalizeCommandText(text);
-  if (!/\b(canvas|arte|artboard|camadas?|layers?)\b/.test(normalized)) {
+  if (!/\b(canvas|arte|artboard|camadas?|layers?|objetos?|slides?|timeline|carrossel)\b/.test(normalized)) {
     return null;
   }
 
@@ -221,6 +252,173 @@ function resolveCanvasCommand(text = "", media = null) {
 
   if (/\b(lista|listar|mostra|mostrar|consulta|consultar)\b.*\bartboard\b/.test(normalized)) {
     return { action: "list-artboard", payload: {} };
+  }
+
+  if (/\b(slide|timeline|carrossel)\b/.test(normalized)) {
+    const timelineTimeMatch = normalized.match(/(\d+(?:[\.,]\d+)?)\s*(?:s|segundos?)/);
+    const timelineTrackMatch = normalized.match(/\b(?:trilha|track)\s+(\d+)\b/);
+    const timelineItemMatch = normalized.match(/\b(?:item|midia|m[ií]dia)\s+([\w-]+)\b/);
+    const timelinePayload = {
+      ...(timelineTimeMatch ? { startTime: Number(timelineTimeMatch[1].replace(",", ".")) } : {}),
+      ...(timelineTrackMatch ? { track: Math.max(0, Number(timelineTrackMatch[1]) - 1) } : {}),
+      ...(timelineItemMatch ? { itemId: timelineItemMatch[1] } : {})
+    };
+
+    if (/\btimeline\b/.test(normalized) && /\b(adiciona|adicionar|insere|inserir|coloca|colocar)\b/.test(normalized)) {
+      const type = /\b(video|v[ií]deo|filme)\b/.test(normalized)
+        ? "video"
+        : /\b(musica|m[uú]sica|trilha sonora)\b/.test(normalized)
+          ? "music"
+          : /\b(audio|[aá]udio|narracao|narra[cç][aã]o)\b/.test(normalized)
+            ? "audio"
+            : /\b(texto|legenda)\b/.test(normalized)
+              ? "text"
+              : "image";
+      return {
+        action: "timeline-add",
+        payload: {
+          ...timelinePayload,
+          type,
+          label: extractQuotedText(text) || undefined
+        }
+      };
+    }
+
+    if (/\btimeline\b/.test(normalized) && /\b(move|mover|reposiciona|reposicionar)\b/.test(normalized)) {
+      return { action: "move-timeline-item", payload: timelinePayload };
+    }
+
+    if (/\btimeline\b/.test(normalized) && /\b(corta|cortar|divide|dividir)\b/.test(normalized)) {
+      return {
+        action: "cut-timeline-item",
+        payload: {
+          ...timelinePayload,
+          ...(timelineTimeMatch ? { time: Number(timelineTimeMatch[1].replace(",", ".")) } : {})
+        }
+      };
+    }
+
+    if (/\btimeline\b/.test(normalized) && /\b(oculta|ocultar|esconde|esconder)\b/.test(normalized)) {
+      return { action: "hide-timeline-item", payload: timelinePayload };
+    }
+
+    if (/\btimeline\b/.test(normalized) && /\b(exibe|exibir|mostra|mostrar)\b/.test(normalized)) {
+      return { action: "show-timeline-item", payload: timelinePayload };
+    }
+
+    if (/\btimeline\b/.test(normalized) && /\b(volume)\b/.test(normalized)) {
+      const volumeMatch = normalized.match(/\bvolume\s+(\d+(?:[\.,]\d+)?)\b/);
+      return {
+        action: "set-timeline-volume",
+        payload: {
+          ...timelinePayload,
+          ...(volumeMatch ? { volume: Number(volumeMatch[1].replace(",", ".")) } : {})
+        }
+      };
+    }
+
+    if (/\btimeline\b/.test(normalized) && /\b(velocidade|speed)\b/.test(normalized)) {
+      const speedMatch = normalized.match(/\b(?:velocidade|speed)\s+(\d+(?:[\.,]\d+)?)\b/);
+      return {
+        action: "set-timeline-speed",
+        payload: {
+          ...timelinePayload,
+          ...(speedMatch ? { speed: Number(speedMatch[1].replace(",", ".")) } : {})
+        }
+      };
+    }
+
+    if (/\btimeline\b/.test(normalized) && /\b(duracao|duraÃ§Ã£o|tempo)\b/.test(normalized) && /\b(item|midia|m[ií]dia)\b/.test(normalized)) {
+      const durationMatch = normalized.match(/(\d+(?:[\.,]\d+)?)\s*(?:s|segundos?)/);
+      return {
+        action: "set-timeline-duration",
+        payload: {
+          ...timelinePayload,
+          ...(durationMatch ? { duration: Number(durationMatch[1].replace(",", ".")) } : {})
+        }
+      };
+    }
+
+    if (/\btimeline\b/.test(normalized) && /\b(play|reproduz|reproduzir|toca|tocar)\b/.test(normalized)) {
+      return { action: "play-timeline", payload: {} };
+    }
+
+    if (/\btimeline\b/.test(normalized) && /\b(stop|para|parar)\b/.test(normalized)) {
+      return { action: "stop-timeline", payload: {} };
+    }
+
+    if (/\btimeline\b/.test(normalized) && /\b(proximo|pr[oó]ximo|avanca|avan[cç]ar)\b/.test(normalized)) {
+      return { action: "next-timeline-marker", payload: {} };
+    }
+
+    if (/\btimeline\b/.test(normalized) && /\b(anterior|volta|voltar)\b/.test(normalized)) {
+      return { action: "prev-timeline-marker", payload: {} };
+    }
+
+    if (/\b(cria|criar|novo|nova|adiciona|adicionar)\b/.test(normalized)) {
+      return { action: "add-slide", payload: {} };
+    }
+    if (/\b(duplica|duplicar|copia|copiar)\b/.test(normalized)) {
+      return { action: "duplicate-slide", payload: {} };
+    }
+    if (/\b(remove|remover|apaga|apagar|deleta|deletar)\b/.test(normalized)) {
+      return { action: "remove-slide", payload: {} };
+    }
+    if (/\b(seleciona|selecionar|vai para|ir para)\b/.test(normalized)) {
+      const indexMatch = normalized.match(/\bslide\s+(\d+)\b/);
+      return {
+        action: "select-slide",
+        payload: indexMatch ? { index: Number(indexMatch[1]) } : {}
+      };
+    }
+    if (/\b(duracao|duração|tempo)\b/.test(normalized)) {
+      const durationMatch = normalized.match(/(\d+(?:[\.,]\d+)?)\s*(?:s|segundos?)/);
+      return {
+        action: "set-slide-duration",
+        payload: durationMatch ? { duration: Number(durationMatch[1].replace(",", ".")) } : {}
+      };
+    }
+  }
+
+  if (/\b(outpaint|outpainting|expandir|expande|aumentar formato|adaptar formato)\b/.test(normalized)) {
+    const quoted = extractQuotedText(text);
+    const prompt = quoted || String(text || "")
+      .replace(/.*\b(?:outpaint|outpainting|expandir|expande|adaptar formato)\b/i, "")
+      .trim();
+    return {
+      action: "outpaint",
+      payload: {
+        prompt,
+        targetPreset: detectOutpaintTarget(normalized),
+        side: detectOutpaintSide(normalized)
+      }
+    };
+  }
+
+  if (/\b(inpaint|inpainting|mascara|editar area|area mascarada)\b/.test(normalized)) {
+    const quoted = extractQuotedText(text);
+    const prompt = quoted || String(text || "")
+      .replace(/.*\b(?:inpaint|inpainting|mascara)\b/i, "")
+      .trim();
+    return {
+      action: "inpaint",
+      payload: {
+        prompt,
+        insertMode: /\b(substitui|substituir|troca|trocar)\b/.test(normalized) ? "replace" : "new-layer"
+      }
+    };
+  }
+
+  if (/\b(video|videos|vídeo|vídeos|anime|animar|movimento)\b/.test(normalized) && /\b(gera|gerar|cria|criar|faz|fazer|anime|animar)\b/.test(normalized)) {
+    return {
+      action: "generate-video",
+      payload: {
+        prompt: String(text || "").trim(),
+        duration: extractRequestedDuration(text),
+        ratio: detectVideoRatio(normalized),
+        fromSelection: /\b(selecao|seleção|camada|layer|imagem atual|foto atual)\b/.test(normalized)
+      }
+    };
   }
 
   if (/\b(cria|criar|novo|nova)\b.*\b(projeto|arte|canvas)\b/.test(normalized)) {
@@ -254,6 +452,20 @@ function resolveCanvasCommand(text = "", media = null) {
       action: "select-layer",
       payload: indexMatch ? { index: Math.max(0, Number(indexMatch[1]) - 1) } : {}
     };
+  }
+
+  if (/\b(alinha|alinhar|centraliza|centralizar|posiciona|posicionar)\b/.test(normalized)) {
+    const alignment = detectCanvasAlignment(normalized);
+    if (alignment) {
+      const indexMatch = normalized.match(/\b(?:camada|layer|objeto)\s+(\d+)\b/);
+      return {
+        action: "align-object",
+        payload: {
+          alignment,
+          ...(indexMatch ? { index: Math.max(0, Number(indexMatch[1]) - 1) } : {})
+        }
+      };
+    }
   }
 
   if (/\b(cor|pinta|pintar|aplica)\b/.test(normalized)) {
@@ -334,6 +546,78 @@ function buildPersistedUserText(text = "", media = null) {
   }
 
   return `${normalizedText}\n\n${marker}\n${comment}`;
+}
+
+function buildStudioAttachments(media = null) {
+  if (!media?.path) {
+    return [];
+  }
+
+  return [{
+    path: media.path,
+    mediaType: media.mediaType || "file",
+    fileName: media.fileName || path.basename(media.path),
+    mimeType: media.mimeType || "application/octet-stream"
+  }];
+}
+
+function resolveStudioSource(sessionId = "default") {
+  return sessionId === "widget" ? "widget" : "chat";
+}
+
+function detectVideoRatio(normalizedText = "") {
+  if (/\b(16:9|horizontal|youtube|landscape)\b/.test(normalizedText)) return "16:9";
+  if (/\b(1:1|quadrado|square)\b/.test(normalizedText)) return "1:1";
+  if (/\b(4:5|retrato|portrait)\b/.test(normalizedText)) return "4:5";
+  if (/\b(9:16|vertical|reels?|story|stories|tiktok)\b/.test(normalizedText)) return "9:16";
+  return "9:16";
+}
+
+function extractRequestedDuration(text = "") {
+  const match = String(text || "").match(/(\d+(?:[\.,]\d+)?)\s*(?:s|segundos?)/i);
+  if (!match?.[1]) {
+    return 5;
+  }
+  return Number(match[1].replace(",", ".")) || 5;
+}
+
+function detectGlobalVideoIntent(text = "", media = null, session = {}, source = "chat") {
+  const normalized = normalizeCommandText(text);
+  if (/\b(canvas|artboard|camada|layer|timeline|slide|carrossel)\b/.test(normalized)) {
+    return null;
+  }
+  const hasVideoWords = /\b(video|videos|vídeo|vídeos|animar|anime|anima|animação|movimento)\b/.test(normalized);
+  const hasGenerateVerb = /\b(gera|gerar|cria|criar|faz|fazer|transforma|transformar|converte|converter)\b/.test(normalized);
+  const referencesCurrentImage = /\b(disso|isso|esta imagem|essa imagem|essa foto|esta foto|imagem atual|foto atual)\b/.test(normalized);
+  const canUseImage = media?.path && (media.mediaType === "image" || media.mediaType === "screenshot");
+  const rememberedImage = String(session?.memory?.lastImagePath || "").trim();
+  const startImage = canUseImage
+    ? media.path
+    : ((referencesCurrentImage || /\b(anime|animar)\b/.test(normalized)) && rememberedImage ? rememberedImage : "");
+
+  if (!hasVideoWords && !(startImage && /\b(anime|animar|movimento|movimenta|movimentar)\b/.test(normalized))) {
+    return null;
+  }
+
+  if (!hasGenerateVerb && !/\b(anime|animar)\b/.test(normalized)) {
+    return null;
+  }
+
+  return {
+    source,
+    sessionId: session?.id || "default",
+    prompt: String(text || "").trim(),
+    duration: extractRequestedDuration(text),
+    ratio: detectVideoRatio(normalized),
+    startImage,
+    references: startImage
+      ? [{
+        path: startImage,
+        source: canUseImage ? "chat-upload" : "session-memory",
+        type: "image"
+      }]
+      : []
+  };
 }
 
 function resolveBodyMedia(req, sessionId, session) {
@@ -493,6 +777,69 @@ export default function createChatRoutes(context) {
         timestamp: Date.now(),
         origin: "chat.route"
       });
+
+      const studioIntent = detectStudioIntent(text);
+      if (text.trim() && studioIntent.matches) {
+        const launch = await createStudioProjectFromCommand({
+          command: text,
+          source: resolveStudioSource(activeSessionId),
+          attachments: buildStudioAttachments(media),
+          context
+        });
+        const responseText = launch.initialState?.launch?.assistantMessage || "KIT Studio aberto com briefing inicial.";
+
+        context.core?.responseQueue?.enqueue({
+          text: responseText,
+          speak: false,
+          priority: 1,
+          source: "studio-launch",
+          userFacing: true,
+          sessionId: activeSessionId
+        });
+
+        return res.json({
+          success: true,
+          sessionId: activeSessionId,
+          handled: true,
+          route: "studio-launch",
+          studio: launch,
+          media: media ? {
+            path: media.path,
+            mediaType: media.mediaType,
+            fileName: media.fileName
+          } : null
+        });
+      }
+
+      const globalVideoIntent = detectGlobalVideoIntent(text, media, session, resolveStudioSource(req.body?.sessionId || activeSessionId));
+      if (text.trim() && globalVideoIntent) {
+        const job = await enqueueVideoJob(globalVideoIntent);
+        const responseText = job?.mode === "i2v"
+          ? "Iniciei um job de video a partir da imagem atual. Vou usar o motor global da KIT."
+          : "Iniciei um job global de video com esse prompt.";
+
+        context.core?.responseQueue?.enqueue({
+          text: responseText,
+          speak: false,
+          priority: 1,
+          source: "global-video",
+          userFacing: true,
+          sessionId: activeSessionId
+        });
+
+        return res.json({
+          success: true,
+          sessionId: activeSessionId,
+          handled: true,
+          route: "global-video",
+          job,
+          media: media ? {
+            path: media.path,
+            mediaType: media.mediaType,
+            fileName: media.fileName
+          } : null
+        });
+      }
 
       const canvasCommand = resolveCanvasCommand(text, media);
       if (canvasCommand) {

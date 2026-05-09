@@ -17,11 +17,5 @@ function startService(name, cmd, args, cwd, key) {
   addLog(key, `${name} iniciado`);
 }
 
-// STT
-startService("STT", "python", ["stt_server.py"], "../services", "stt");
-
-// XTTS
-startService("XTTS", "python", ["xtts_server.py"], "../services", "xtts");
-
 // AI-KIT backend (Node principal)
 startService("AI-KIT", "node", ["server.js"], "../", "aikit");

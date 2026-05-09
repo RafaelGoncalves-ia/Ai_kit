@@ -1,0 +1,79 @@
+{
+  "id": "video-job-21e34559-9f23-4f56-a7b0-82d405b19a0a",
+  "projectId": "",
+  "sceneId": "",
+  "sessionId": "widget-smoke",
+  "source": "widget",
+  "fileName": "",
+  "prompt": "Anime esta imagem com movimento leve",
+  "negativePrompt": "",
+  "motionPrompt": "",
+  "duration": 7,
+  "fps": 12,
+  "frames": 84,
+  "sequenceLength": 85,
+  "width": 720,
+  "height": 1280,
+  "ratio": "9:16",
+  "preset": "standard",
+  "model": "",
+  "modelPath": "",
+  "modelFamily": "",
+  "modelRegistryEntry": null,
+  "quality": "standard",
+  "exportSettings": {
+    "format": "mp4",
+    "videoCodec": "libx264",
+    "pixelFormat": "yuv420p"
+  },
+  "references": [],
+  "startImage": "F:/AI/Ai_kit/projects/studio/usucapiao-e-regularizacao-studio_09136f34-d97a-44b2-8ef7-da21c1b749a1.assets/video/scene_01-video-job-4a2fe42c-987d-4b47-9103-ac13121ddb4f.png",
+  "endImage": "",
+  "outputPath": "F:\\AI\\Ai_kit\\output\\video\\widget-smoke\\video-video-job-21e34559-9f23-4f56-a7b0-82d405b19a0a.mp4",
+  "thumbnailPath": "F:\\AI\\Ai_kit\\output\\video\\widget-smoke\\video-video-job-21e34559-9f23-4f56-a7b0-82d405b19a0a.png",
+  "lastFramePath": "F:\\AI\\Ai_kit\\output\\video\\widget-smoke\\video-video-job-21e34559-9f23-4f56-a7b0-82d405b19a0a-last-frame.png",
+  "projectAssetDir": "F:\\AI\\Ai_kit\\projects\\studio\\projects\\studio\\assets\\video",
+  "workingDir": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-21e34559-9f23-4f56-a7b0-82d405b19a0a",
+  "mode": "i2v",
+  "pipeline": {
+    "id": "image-to-video",
+    "mode": "i2v",
+    "sourceStrategy": "start-image",
+    "supports": [
+      "interpolation",
+      "startFrame",
+      "endFrame",
+      "chaining",
+      "frame-guidance"
+    ]
+  },
+  "conditioning": {
+    "preferredMode": "i2v",
+    "startImage": "F:/AI/Ai_kit/projects/studio/usucapiao-e-regularizacao-studio_09136f34-d97a-44b2-8ef7-da21c1b749a1.assets/video/scene_01-video-job-4a2fe42c-987d-4b47-9103-ac13121ddb4f.png",
+    "endImage": "",
+    "primaryReference": null,
+    "references": [],
+    "loras": [],
+    "logs": [
+      "preferred-mode:i2v",
+      "references:0",
+      "loras:0",
+      "start-image:payload"
+    ]
+  },
+  "output": {
+    "assetDir": "F:\\AI\\Ai_kit\\output\\video\\widget-smoke",
+    "outputPath": "F:\\AI\\Ai_kit\\output\\video\\widget-smoke\\video-video-job-21e34559-9f23-4f56-a7b0-82d405b19a0a.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\output\\video\\widget-smoke\\video-video-job-21e34559-9f23-4f56-a7b0-82d405b19a0a.png",
+    "lastFramePath": "F:\\AI\\Ai_kit\\output\\video\\widget-smoke\\video-video-job-21e34559-9f23-4f56-a7b0-82d405b19a0a-last-frame.png",
+    "ratio": "9:16"
+  },
+  "summaryLogs": [
+    "pipeline:i2v",
+    "source:start-image",
+    "preferred-mode:i2v",
+    "references:0",
+    "loras:0",
+    "start-image:payload"
+  ]
+}

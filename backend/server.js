@@ -45,6 +45,10 @@ import createChatRoutes from "./routes/chat.js";
 import createSkillsRoutes from "./routes/skills.js";
 import createConfigRoutes from "./routes/config.js";
 import createTasksRoutes from "./routes/tasks.js";
+import createStudioRoutes from "./routes/studio.js";
+import createStudioVideoAdapterRoutes from "./routes/studioVideoAdapterRoutes.js";
+import createMediaVideoRoutes from "./routes/mediaVideoRoutes.js";
+import createStableDiffusionRoutes from "./routes/stableDiffusion.js";
 import vocabularyRouter from "./routes/vocabulary.js";
 import sttRoute from "./routes/stt.js";
 import { initSkills } from "./skills/needs/startup.js";
@@ -387,6 +391,10 @@ app.use("/chat", createChatRoutes(context));
 app.use("/skills", createSkillsRoutes(context));
 app.use("/config", createConfigRoutes(context));
 app.use("/tasks", createTasksRoutes(context));
+app.use("/api/studio", createStudioRoutes(context));
+app.use("/api/studio", createStudioVideoAdapterRoutes(context));
+app.use("/api/media", createMediaVideoRoutes(context));
+app.use("/sd", createStableDiffusionRoutes(context));
 app.use("/api/vocabulary", vocabularyRouter);
 
 app.get("/history", (req, res) => {
@@ -493,7 +501,6 @@ app.get("/logs/:name", (req, res) => {
 // ======================
 const server = app.listen(PORT, () => {
   logger.info(`Kit IA rodando em http://localhost:${PORT}`);
-  void context.services.ai.warmup?.();
 });
 
 server.on("error", (err) => {

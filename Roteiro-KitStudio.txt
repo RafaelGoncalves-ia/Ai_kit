@@ -1,0 +1,884 @@
+Implementar o KIT Studio como fluxo fullscreen de produção assistida para imagem, carrossel e vídeo antes do Canvas, integrado à arquitetura atual da KIT, reaproveitando o que já existe e implementando o que falta, com foco em execução por etapas.
+
+OBJETIVO GERAL
+
+Criar uma tela/processo chamada KIT Studio para:
+- receber um comando inicial vindo de qualquer lugar da KIT
+- abrir um projeto Studio já iniciado
+- gerar e editar briefing
+- gerar roteiro completo
+- aprovar individualmente cada cena
+- gerar assets finais de cada cena
+- montar o projeto final
+- salvar tudo na pasta do projeto
+- exportar para o Canvas já pronto
+- também salvar MP4 final na pasta do projeto quando o conteúdo for vídeo
+
+FLUXO OBRIGATÓRIO
+
+comando inicial em qualquer lugar da KIT
+→ abrir Studio com projeto criado
+→ gerar briefing
+→ editar/aprovar briefing
+→ gerar roteiro completo
+→ aprovar individualmente cada cena
+→ gerar assets finais das cenas
+→ visualizar
+→ salvar projeto para Canvas
+→ abrir no Canvas se desejado
+
+REGRAS GERAIS
+
+1. O Studio deve abrir a partir de qualquer lugar da KIT:
+- Widget
+- Chat principal
+- Canvas
+- Menu
+- futuros atalhos/automações
+
+2. O comando inicial não depende de ser digitado dentro do Studio.
+Exemplo:
+“Kit cria um projeto para o cliente Imobiliária Abelha, sobre o produto Casa Comeia, vídeo”
+
+3. O chat lateral do Studio é compacto e operacional.
+Ele serve para:
+- mostrar o comando inicial
+- mostrar respostas da KIT sobre o projeto
+- aprovar briefing
+- aprovar roteiro
+- ajustar cenas
+- gerar também a legenda de postagem do projeto
+
+4. O chat NÃO deve virar histórico gigante.
+Apenas mensagens relevantes do projeto atual.
+
+5. A tela do Studio deve ser fullscreen e funcionar bem em 1920x1080.
+
+6. A área central é o foco.
+O chat fica fixo no lado direito.
+
+7. Abas do Studio:
+- Briefing
+- Roteiro
+- Visualizar
+
+Regras das abas:
+- Briefing só aparece depois do comando inicial.
+- Roteiro só aparece depois da aprovação do briefing.
+- Visualizar só aparece depois que o roteiro já tiver sido executado/gerado.
+- Abas bloqueadas ficam ocultas.
+
+8. Cada cena é independente.
+Cada cena do roteiro deve ter sua própria:
+- duração
+- texto
+- legenda da cena
+- narração da cena
+- prompt positivo
+- prompt negativo
+- referências
+- asset final (imagem ou vídeo)
+
+9. O roteiro deve ser gerado completo após aprovação do briefing.
+Mas a aprovação deve ser individual por cena.
+
+10. Quando o briefing for aprovado, o sistema deve gerar o roteiro com todos os conteúdos e comandos de texto já preparados.
+Nesta etapa já devem estar prontos por cena:
+- texto da cena
+- legenda da cena
+- prompt positivo
+- prompt negativo
+- referências posicionadas
+Ainda faltará gerar:
+- voz XTTS da cena
+- imagem ou vídeo da cena
+
+11. No final da etapa de roteiro aprovado deve existir a opção “Gerar”.
+A geração final só começa quando o usuário mandar.
+
+12. A geração final deve ser controlada por etapas e por ordem.
+Exemplo para vídeo:
+- XTTS da cena 1
+- XTTS da cena 2
+- XTTS da cena 3
+- ...
+- só depois descarrega XTTS
+- carrega motor visual
+- gera mídia da cena 1
+- gera mídia da cena 2
+- gera mídia da cena 3
+- ...
+- no final faz limpeza e descarrega modelo
+
+13. Durante a geração sequencial, o modelo não deve ser descarregado antes de concluir seu lote.
+Exemplo:
+- XTTS roda todas as cenas em sequência antes de descarregar
+- depois carrega o motor visual e gera todas as cenas visuais em sequência
+- ao final limpa memória
+
+14. Todos os assets devem ser salvos na pasta do projeto:
+- arquivos enviados pelo usuário
+- XTTS
+- imagens geradas
+- vídeos gerados
+- thumbnails
+- JSON do projeto
+- arquivo exportado para Canvas
+- MP4 final quando aplicável
+
+15. Música de fundo NÃO é gerada.
+Ela é escolhida entre arquivos prontos de acordo com o tema/projeto.
+
+16. Música de fundo é sempre do projeto inteiro.
+Ela corre em todas as cenas independentemente da cena.
+
+17. Carrossel:
+- não gera narração
+- não gera legenda embutida
+- não gera música
+- gera apenas as imagens/slides e os textos necessários do conteúdo
+
+18. Conteúdo de vídeo:
+- cada cena pode ter duração de 3s, 5s, 7s, 10s, 12s ou 15s
+- 15s é o máximo de geração única por cena
+- duração padrão da cena deve ser 5s
+
+19. Escolha de formatos:
+- se o tipo/conteúdo/plataforma indicar Feed, Stories, Reels, TikTok, Instagram etc, usar a proporção correta
+- se não foi dito e também não estiver definido na preferência do cliente no arquivo .kit:
+  - vídeo usa padrão Stories 9:16
+  - imagem usa padrão Post 3:4
+
+20. Ao final do fluxo, ao apertar salvar:
+- salvar o arquivo correspondente ao Canvas
+- posicionar legenda, vídeo, fala e música em seus lugares
+- salvar MP4 final na pasta do projeto quando for projeto de vídeo
+
+ARQUITETURA TÉCNICA
+
+A implementação deve seguir a arquitetura atual da KIT.
+
+REGRAS TÉCNICAS IMPORTANTES
+
+1. Geração de imagem já existe e deve ser reaproveitada.
+2. Geração de vídeo precisa ser implementada no motor da própria KIT.
+3. Não usar ComfyUI como executor.
+4. Não depender de workflow JSON como execução.
+5. O workflow externo é apenas referência conceitual.
+6. A KIT deve usar os mesmos modelos compatíveis que o usuário usa no ecossistema local, como Wan 2.2 e compatíveis.
+7. O motor de vídeo deve ser nativo da KIT e modular.
+
+ETAPA 1 — TELA FULLSCREEN DO KIT STUDIO
+
+Implementar a tela fullscreen do KIT Studio no Electron.
+
+Layout obrigatório:
+- topbar minimalista
+- linha de status
+- área central grande
+- chat fixo no lado direito
+- abas centrais
+
+Topbar:
+- logo/ícone KIT Studio
+- cliente atual
+- nome do projeto
+- uso de recursos: VRAM, RAM, GPU, CPU
+- botão fechar
+
+Linha de status:
+- tarefa atual
+- barra de progresso fina
+- etapas concluídas / total
+- tempo de execução
+
+Área principal:
+- centro com conteúdo da etapa atual
+- chat fixo à direita
+- sem sidebar fixa desnecessária
+
+Abas:
+- Briefing
+- Roteiro
+- Visualizar
+
+Arquivos sugeridos:
+- kit-app/renderer/studio/studio.html
+- kit-app/renderer/studio/studio.css
+- kit-app/renderer/studio/studio.js
+- kit-app/renderer/studio/studioWindow.js
+
+Critérios de pronto da etapa 1:
+- Studio abre em fullscreen
+- layout funciona em 1920x1080
+- topbar aparece
+- barra de status aparece
+- chat lateral aparece
+- abas ficam prontas para controle por estado
+
+ETAPA 2 — MODELO DE PROJETO STUDIO
+
+Criar o modelo de estado/persistência do projeto Studio.
+
+Estrutura base do projeto:
+{
+  id,
+  source,
+  clientId,
+  clientName,
+  productName,
+  projectName,
+  status,
+  currentStep,
+  currentTab,
+  unlockedTabs,
+  inputCommand,
+  postCaption,
+  attachments,
+  createdAt,
+  updatedAt,
+
+  resourceUsage: {
+    vram,
+    ram,
+    gpu,
+    cpu
+  },
+
+  progress: {
+    currentTask,
+    percent,
+    completedSteps,
+    totalSteps,
+    elapsedMs
+  },
+
+  briefing: {
+    theme,
+    purpose,
+    audience,
+    visualMaterial,
+    duration,
+    mediaType,
+    ratio,
+    platform,
+    postType,
+    videoContent,
+    videoNarration,
+    bgmStyle,
+    bgmId,
+    subtitleInfo,
+    characters,
+    materialReferences,
+    ttsList,
+    digitalHumanList,
+    styleList,
+    referenceNodeIds,
+    rawReferences,
+    defaultsFromClientKit
+  },
+
+  script: {
+    approved,
+    totalDuration,
+    scenes: []
+  },
+
+  production: {
+    status,
+    jobs: [],
+    outputs: [],
+    errors: []
+  },
+
+  canvasExport: {
+    kiaPath,
+    ready
+  },
+
+  finalRender: {
+    mp4Path,
+    ready
+  }
+}
+
+Estrutura da cena:
+{
+  id,
+  index,
+  title,
+  approved,
+  duration,
+  narration,
+  subtitle,
+  visualDescription,
+  visualPrompt,
+  negativePrompt,
+  motionPrompt,
+  mediaType,
+  generationMode,
+  references,
+  clientMediaRefs,
+  aiMediaRefs,
+  uploadedRefs,
+  generatedMedia,
+  audioAsset,
+  subtitleAsset,
+  status,
+  history
+}
+
+Criar utilitários:
+- createStudioProject
+- updateStudioProject
+- updateBriefing
+- approveBriefing
+- setScript
+- approveScene
+- updateScene
+- setSceneMedia
+- setSceneAudio
+- setProductionStatus
+- unlockTab
+- saveStudioProject
+- loadStudioProject
+
+Persistência:
+- salvar JSON em F:\AI\Ai_kit\projects\studio\
+- extensão .kstudio
+
+Arquivos sugeridos:
+- backend/skills/studio/studioProjectSchema.js
+- backend/skills/studio/studioProjectStore.js
+- kit-app/renderer/studio/studioState.js
+
+Critérios de pronto:
+- projeto pode ser criado
+- projeto pode ser salvo e carregado
+- cenas persistem
+- etapas persistem
+- caminhos dos assets persistem
+
+ETAPA 3 — LAUNCHER GLOBAL DO STUDIO
+
+Implementar o launcher global do Studio para abrir a tela a partir de qualquer parte da KIT.
+
+Criar:
+- backend/skills/studio/studioLaunchService.js
+
+Função:
+createStudioProjectFromCommand({
+  command,
+  source,
+  attachments
+})
+
+Criar rota:
+POST /api/studio/launch
+
+Entrada:
+{
+  command,
+  source,
+  attachments
+}
+
+Saída:
+{
+  projectId,
+  initialState
+}
+
+Criar IPC:
+openStudioWindow(initialState)
+
+Comportamento:
+- detectar intenção de produção visual
+- criar projeto Studio
+- abrir janela Studio
+- injetar o comando inicial no chat lateral
+- gerar briefing inicial
+- exibir resposta da KIT
+- desbloquear aba Briefing
+
+Critérios de pronto:
+- comando vindo do Widget/Chat/Canvas/Menu abre o Studio
+- comando original aparece no chat
+- projeto nasce preenchido
+- aba Briefing aparece
+
+ETAPA 4 — PARSER DO COMANDO INICIAL + CLIENTE .KIT
+
+Implementar parser do comando inicial para preencher briefing automaticamente.
+
+Criar:
+- backend/skills/studio/studioBriefingParser.js
+- backend/skills/studio/clientKitLoader.js
+
+Criar rota:
+POST /api/studio/briefing/from-command
+
+Entrada:
+{
+  command,
+  attachments
+}
+
+Saída:
+{
+  client,
+  clientKit,
+  briefing,
+  warnings
+}
+
+Detectar:
+- cliente
+- produto
+- tipo de conteúdo
+- duração
+- plataforma
+- proporção
+- objetivo provável
+- arquivos anexos
+- necessidade de imagem ou vídeo
+
+Regras:
+- usar .kit do cliente se existir
+- não hardcodar cliente específico
+- visualMaterial deve separar user e aigc
+- se plataforma/formato não vier no pedido nem no .kit:
+  - vídeo => 9:16
+  - imagem => 3:4
+
+Critérios de pronto:
+- comando inicial gera briefing
+- briefing usa dados do .kit quando existir
+- warnings não quebram o fluxo
+
+ETAPA 5 — CHAT LATERAL COMPACTO
+
+Implementar o chat lateral fixo do Studio.
+
+Funções:
+- mostrar comando inicial
+- mostrar resposta da KIT ia LLM
+- aprovar briefing
+- aprovar roteiro
+- ajustar cenas
+- gerar legenda de postagem do projeto
+
+Modelo de mensagem:
+{
+  id,
+  role,
+  text,
+  timestamp,
+  sceneId,
+  type
+}
+
+Regras:
+- sem histórico gigante
+- apenas mensagens do projeto atual
+- mensagens contextuais por cena quando necessário
+
+Critérios de pronto:
+- chat mostra o contexto atual do projeto
+- aprovações funcionam
+- mensagens contextuais funcionam
+
+ETAPA 6 — ABA BRIEFING
+
+Implementar a aba Briefing.
+
+Campos:
+- Tema
+- Objetivo
+- Público
+- Material visual
+- Duração
+- Tipo de mídia
+- Proporção
+- Plataforma
+- Conteúdo
+- Narração
+- Música
+- Legenda de postagem
+- Personagens
+- Estilo visual
+- Referências
+
+Regras:
+- não exibir JSON cru
+- cada campo editável
+- botões:
+  - salvar briefing
+  - aprovar briefing
+
+Ao aprovar briefing:
+- briefingApproved = true
+- gerar legenda de postagem do projeto
+- desbloquear aba Roteiro
+
+Critérios de pronto:
+- briefing aparece
+- edição funciona
+- aprovação funciona
+- roteiro pode ser iniciado
+
+Não transforme o briefing em um monte de if/else para casos específicos como Luzisol, Dia das Mães, Adsune etc.
+
+O parser inicial deve apenas extrair variáveis objetivas do comando:
+- cliente
+- produto/tema
+- tipo de conteúdo
+- plataforma
+- duração
+- arquivos anexados
+- intenção provável
+
+Depois disso, o preenchimento criativo do briefing deve ser feito pelo LLM, usando:
+- comando original do usuário
+- variáveis extraídas
+- dados do cliente.kit
+- preferências do cliente
+- formato esperado do briefing
+
+O sistema deve fornecer um schema fixo de briefing e pedir para o LLM preencher esse schema.
+
+Regra:
+- if/else só para validação, defaults e segurança
+- LLM para interpretação criativa e preenchimento semântico
+- não hardcodar datas comemorativas, clientes, produtos ou campanhas específicas
+
+Fluxo correto:
+1. Parser extrai variáveis básicas.
+2. Loader carrega cliente.kit.
+3. BriefingBuilder chama LLM com schema.
+4. LLM retorna briefing estruturado.
+5. Backend valida e normaliza o JSON.
+6. Frontend exibe como formulário editável.
+
+Implementar/ajustar:
+
+- studioBriefingParser.js
+  Deve ser simples e objetivo. Não deve tentar criar briefing completo.
+
+- studioBriefingBuilder.js
+  Novo módulo responsável por chamar LLM e preencher briefing completo.
+
+- studioBriefingSchema.js
+  Schema fixo do briefing.
+
+- studioBriefingNormalizer.js
+  Garante defaults e corrige campos ausentes.
+
+Resultado esperado:
+O sistema funciona para Luzisol Dia das Mães, Adsune, Imobiliária Abelha ou qualquer outro cliente sem criar regras específicas para cada caso.
+
+ETAPA 7 — GERADOR DE ROTEIRO COMPLETO
+
+Implementar gerador de roteiro do Studio.
+
+Criar rota:
+POST /api/studio/script/generate
+
+Entrada:
+{
+  projectId,
+  briefing,
+  clientKit
+}
+
+Saída:
+{
+  totalDuration,
+  postCaption,
+  scenes: [
+    {
+      id,
+      index,
+      title,
+      approved,
+      duration,
+      narration,
+      subtitle,
+      visualDescription,
+      visualPrompt,
+      negativePrompt,
+      motionPrompt,
+      mediaType,
+      generationMode,
+      references
+    }
+  ]
+}
+
+Regras:
+- respeitar duration do briefing
+- cada cena é independente
+- gerar prompts positivos e negativos por cena
+- posicionar referências por cena
+- gerar textos da cena já prontos
+- gerar legenda da cena já pronta
+- preparar narração da cena
+- padrão de duração por cena = 5s
+- durações permitidas: 3, 5, 7, 10, 12, 15
+- 15s é o máximo por cena
+- para carrossel:
+  - não gerar narração
+  - não gerar legenda embutida
+  - não gerar música
+- para vídeo:
+  - cada cena pode ter narração, legenda e mídia
+
+Nesta etapa devem sair prontos:
+- texto da cena
+- legenda da cena
+- prompt positivo
+- prompt negativo
+- referências posicionadas
+
+Ainda não deve gerar:
+- voz XTTS
+- imagem final
+- vídeo final
+
+Critérios de pronto:
+- roteiro completo é gerado
+- todas as cenas aparecem
+- postCaption do projeto é gerado
+- cada cena fica pronta para aprovação individual
+
+--------------------------------------------------------------
+ok
+--------------------------------------------------------------
+ETAPA 8 — ABA ROTEIRO COM PREVIEW, APROVAÇÃO E PRODUÇÃO
+esta etapa ja foi parcialmente iniciada.
+
+Implementar a aba Roteiro do KIT Studio.
+
+A aba Roteiro é a etapa principal de:
+- revisão
+- aprovação
+- preview
+- produção
+
+Não deve existir uma terceira aba chamada “Visualizar” ou “Visualização final”.
+
+A visualização deve acontecer dentro da própria aba Roteiro.
+
+Layout obrigatório:
+- lado esquerdo:
+  lista de fichas/cards das cenas
+- lado direito:
+  preview/visualização da cena selecionada
+
+Comportamento:
+- ao clicar em uma ficha, o preview da direita muda para aquela cena
+- o preview da direita deve exibir:
+  - imagem/vídeo da cena quando existir
+  - legenda visual da cena
+  - status da cena
+  - duração
+  - informações principais da geração
+
+Cada ficha de cena deve mostrar:
+- índice
+- duração
+- narração
+- legenda da cena
+- descrição visual
+- prompt positivo
+- prompt negativo
+- referências
+- status
+- mídia gerada se houver
+
+Ações por cena:
+- aprovar cena
+- editar texto
+- editar legenda
+- ajustar prompt
+- ajustar referências
+- regenerar texto da cena
+- abrir chat contextual da cena
+- revisar/desbloquear cena aprovada
+
+Regras de aprovação:
+- antes de aprovar:
+  - a cena é editável
+- depois de aprovar:
+  - a ficha fica cinza/bloqueada
+  - a cena não pode mais ser editada diretamente
+- para editar uma cena aprovada:
+  - o usuário precisa clicar em:
+    - revisar
+    - desbloquear
+
+O sistema deve permitir:
+- aprovar cena por cena
+- aprovar o roteiro inteiro de uma vez
+
+Botão obrigatório:
+- Aprovar roteiro completo
+
+Comportamento:
+- ao clicar em “Aprovar roteiro completo”:
+  - todas as cenas pendentes são marcadas como aprovadas
+
+Regra principal:
+- o roteiro só é considerado aprovado quando todas as cenas necessárias estiverem aprovadas
+
+Quando todas as cenas forem aprovadas:
+- liberar botão:
+  “Gerar produção”
+
+Ao clicar em “Gerar produção”:
+- começa a produção completa do projeto
+- continua dentro da aba Roteiro
+- não trocar para outra aba
+- não abrir tela separada
+
+Durante a produção:
+- cada ficha deve mostrar status em tempo real:
+  - aguardando
+  - gerando voz
+  - gerando mídia
+  - pronto
+  - erro
+
+O preview da direita deve atualizar conforme os assets reais forem gerados.
+
+Fluxo esperado:
+1. usuário revisa cenas
+2. usuário aprova individualmente ou aprova tudo
+3. botão “Gerar produção” é liberado
+4. produção começa
+5. status das fichas atualiza em tempo real
+6. preview mostra o resultado real da cena
+7. ao final o projeto fica pronto para exportar/salvar no Canvas
+
+Critérios de pronto:
+- fichas das cenas aparecem corretamente
+- clicar em ficha muda o preview
+- aprovação individual funciona
+- aprovação geral funciona
+- cenas aprovadas ficam cinza/bloqueadas
+- botão “Gerar produção” aparece corretamente
+- produção atualiza status das fichas
+- preview usa mídia real quando existir
+
+
+
+ETAPA 9 — BIBLIOTECA CONTEXTUAL DE REFERÊNCIAS
+
+Implementar painel contextual com:
+- mídia do cliente
+- mídia de IA
+- arquivos enviados no projeto
+
+Rotas:
+GET /api/studio/client-media?clientId=
+GET /api/studio/ai-media?clientId=&projectId=
+GET /api/studio/project-attachments?projectId=
+
+Regras:
+- painel abre sob demanda
+- não é sidebar fixa
+- selecionar mídia vincula à cena atual
+- referências da cena devem ser persistidas
+
+Critérios de pronto:
+- painel abre
+- mídias aparecem
+- seleção funciona
+- cena recebe referências corretamente
+
+ETAPA 10 — CHAT CONTEXTUAL POR CENA
+
+Implementar ajustes por cena via chat contextual.
+
+Criar rota:
+POST /api/studio/scene/instruction
+
+Entrada:
+{
+  projectId,
+  sceneId,
+  instruction,
+  scene,
+  briefing
+}
+
+Saída:
+{
+  updatedScene,
+  assistantMessage
+}
+
+Pode atualizar:
+- narration
+- subtitle
+- visualDescription
+- visualPrompt
+- negativePrompt
+- motionPrompt
+- references
+
+Regras:
+- alterar só a cena selecionada
+- não alterar briefing global salvo pedido explícito
+- histórico fica associado à cena
+
+Critérios de pronto:
+- ajustes por cena funcionam
+- histórico contextual da cena funciona
+
+ETAPA 11 — INTEGRAR GERAÇÃO DE IMAGEM JÁ EXISTENTE
+
+Reaproveitar a geração de imagem já existente da KIT dentro do Studio.
+
+Criar/adaptar rota:
+POST /api/studio/media/generate-image
+
+Entrada:
+{
+  projectId,
+  sceneId,
+  prompt,
+  negativePrompt,
+  ratio,
+  width,
+  height,
+  model,
+  quality,
+  references,
+  mode
+}
+
+Saída:
+{
+  mediaId,
+  type,
+  path,
+  thumbnailPath,
+  metadata
+}
+
+Regras:
+- não criar outro servidor
+- reutilizar o worker atual
+- txt2img quando não houver imagem base
+- img2img quando houver referência visual
+- preparar stub para inpaint futuro
+- salvar o asset na pasta do projeto
+- atualizar a cena
+- incluir o asset na biblioteca Mídia IA
+
+Critérios de pronto:
+- gerar imagem real por cena
+- salvar na pasta do projeto
+- preview da cena atualiza
+

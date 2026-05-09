@@ -11,6 +11,8 @@ const scrollToBottomBtn = document.getElementById("scrollToBottomBtn");
 const fileBtn = document.getElementById("fileBtn");
 const fileInput = document.getElementById("fileInput");
 const configBtn = document.getElementById("configBtn");
+const presetManagerBtn = document.getElementById("presetManagerBtn");
+const studioBtn = document.getElementById("studioBtn");
 const canvasBtn = document.getElementById("canvasBtn");
 const thinkingBtn = document.getElementById("thinkingBtn");
 const internetBtn = document.getElementById("internetBtn");
@@ -1091,6 +1093,24 @@ fileInput.addEventListener("change", (e) => {
   }
 });
 
+async function openStudioLaunchFromResponse(data = {}) {
+  const initialState = data?.studio?.initialState || data?.initialState || null;
+  if (!initialState) {
+    return false;
+  }
+
+  if (window.kitAPI?.openStudioWindow) {
+    await window.kitAPI.openStudioWindow(initialState);
+  } else if (window.kitAPI?.openStudio) {
+    window.kitAPI.openStudio();
+  } else {
+    window.open("./studio/studio.html", "_blank");
+  }
+
+  hideProcessing();
+  return true;
+}
+
 async function sendMessage() {
   const text = input.value.trim();
   if (!text && !selectedAttachment) return;
@@ -1107,6 +1127,8 @@ async function sendMessage() {
 
   try {
     await window.kitAPI?.markActivity?.("chat-send");
+    let response;
+
     if (attachmentToSend) {
       const formData = new FormData();
       formData.append("text", text);
@@ -1120,12 +1142,12 @@ async function sendMessage() {
         formData.append("file", attachmentToSend.blob, attachmentToSend.name);
       }
 
-      await fetch(API_URL, {
+      response = await fetch(API_URL, {
         method: "POST",
         body: formData
       });
     } else {
-      await fetch(API_URL, {
+      response = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1135,6 +1157,16 @@ async function sendMessage() {
           webSearchEnabled
         })
       });
+    }
+
+    const data = await response.json().catch(() => ({}));
+
+    if (data?.sessionId) {
+      window.kitAPI?.setActiveConversation?.(data.sessionId);
+    }
+
+    if (data?.route === "studio-launch") {
+      await openStudioLaunchFromResponse(data);
     }
 
     if (window.refreshSidebar) {
@@ -1197,6 +1229,17 @@ if (configBtn) {
   });
 }
 
+if (presetManagerBtn) {
+  presetManagerBtn.addEventListener("click", () => {
+    if (window.kitAPI?.openPresetManager) {
+      window.kitAPI.openPresetManager();
+      return;
+    }
+
+    window.open("./windows/preset-manager/preset-manager.html", "_blank");
+  });
+}
+
 if (canvasBtn) {
   canvasBtn.addEventListener("click", () => {
     if (window.kitAPI?.openCanvas) {
@@ -1205,6 +1248,17 @@ if (canvasBtn) {
     }
 
     window.open("./canvas/canvas.html", "_blank");
+  });
+}
+
+if (studioBtn) {
+  studioBtn.addEventListener("click", () => {
+    if (window.kitAPI?.openStudio) {
+      window.kitAPI.openStudio();
+      return;
+    }
+
+    window.open("./studio/studio.html", "_blank");
   });
 }
 

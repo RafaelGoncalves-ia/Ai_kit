@@ -15,6 +15,7 @@ micBtn.addEventListener("click", async () => {
 });
 
 async function startRecording() {
+  await window.kitAPI?.markActivity?.("mic-request");
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
   mediaRecorder = new MediaRecorder(stream);

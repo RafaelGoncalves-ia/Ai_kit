@@ -1,10 +1,19 @@
 import fs from "fs";
 import path from "path";
+import workspaceLayout from "../../services/workspaceLayout.cjs";
 
-export const WORKSPACE_ROOT = path.resolve("F:/AI/Ai_kit/agent-workspace");
-export const PROJECTS_ROOT = path.resolve(WORKSPACE_ROOT, "projetos");
-export const DATA_ROOT = path.resolve(WORKSPACE_ROOT, "dados");
-export const SESSIONS_ROOT = path.resolve(WORKSPACE_ROOT, "sessoes");
+const {
+  WORKSPACE_ROOT,
+  GLOBAL_SESSIONS_ROOT,
+  GLOBAL_EXECUTIONS_ROOT,
+  migrateLegacyWorkspace,
+  ensureClientWorkspace
+} = workspaceLayout;
+
+export { WORKSPACE_ROOT };
+export const PROJECTS_ROOT = GLOBAL_EXECUTIONS_ROOT;
+export const DATA_ROOT = WORKSPACE_ROOT;
+export const SESSIONS_ROOT = GLOBAL_SESSIONS_ROOT;
 
 function isPathInside(basePath, targetPath) {
   const relative = path.relative(basePath, targetPath);
@@ -37,7 +46,7 @@ function assertSafeTarget(basePath, targetPath) {
     : resolvedBase;
 
   if (!isPathInside(WORKSPACE_ROOT, resolvedTarget)) {
-    throw securityError("Caminho fora do agent-workspace nao permitido", {
+    throw securityError("Caminho fora do workspace da KIT nao permitido", {
       requestedPath: candidatePath,
       resolvedTarget
     });
@@ -59,6 +68,7 @@ export function resolveSafePath(targetPath = "") {
 }
 
 export function ensureWorkspace() {
+  migrateLegacyWorkspace();
   fs.mkdirSync(PROJECTS_ROOT, { recursive: true });
   fs.mkdirSync(DATA_ROOT, { recursive: true });
   fs.mkdirSync(SESSIONS_ROOT, { recursive: true });
@@ -98,18 +108,32 @@ export function resolveSessionMediaPath(sessionId, fileName = "") {
   return assertSafeTarget(mediaPath, fileName);
 }
 
-export function createProjectWorkspace(executionId) {
+export function createProjectWorkspace(executionId, options = {}) {
   ensureWorkspace();
 
   const safeExecutionId = normalizeSegment(executionId, `exec-${Date.now()}`);
-  const projectPath = assertSafeTarget(PROJECTS_ROOT, `projeto-${safeExecutionId}`);
+  const clientName = String(options.clientName || options.companyName || "").trim();
+  const projectBasePath = clientName
+    ? ensureClientWorkspace(clientName).projectsRoot
+    : PROJECTS_ROOT;
+  const projectFolderName = clientName
+    ? normalizeSegment(options.projectSlug || `agent-${safeExecutionId}`, `agent-${safeExecutionId}`)
+    : `projeto-${safeExecutionId}`;
+  const projectPath = assertSafeTarget(projectBasePath, projectFolderName);
 
   fs.mkdirSync(projectPath, { recursive: true });
+  if (clientName) {
+    fs.mkdirSync(assertSafeTarget(projectPath, "assets"), { recursive: true });
+    fs.mkdirSync(assertSafeTarget(projectPath, path.join("assets", "input")), { recursive: true });
+    fs.mkdirSync(assertSafeTarget(projectPath, path.join("assets", "reference")), { recursive: true });
+    fs.mkdirSync(assertSafeTarget(projectPath, "logs"), { recursive: true });
+  }
 
   return {
     executionId: safeExecutionId,
     workspacePath: WORKSPACE_ROOT,
-    projectPath
+    projectPath,
+    clientName: clientName || null
   };
 }
 
@@ -126,20 +150,17 @@ export function ensureCompanyDataStructure(companyName) {
   ensureWorkspace();
 
   const safeCompanyName = normalizeSegment(companyName, "empresa");
-  const companyRoot = assertSafeTarget(DATA_ROOT, safeCompanyName);
-  const imagesPath = assertSafeTarget(companyRoot, "imagens");
-  const adsPath = assertSafeTarget(companyRoot, "anuncios");
-  const documentsPath = assertSafeTarget(companyRoot, "documentos");
-  const clientsFilePath = assertSafeTarget(companyRoot, "clientes.json");
+  const clientWorkspace = ensureClientWorkspace(companyName);
+  const companyRoot = clientWorkspace.clientRoot;
+  const imagesPath = assertSafeTarget(clientWorkspace.assetsRoot, "image");
+  const adsPath = clientWorkspace.projectsRoot;
+  const documentsPath = clientWorkspace.documentsRoot;
+  const clientsFilePath = clientWorkspace.kitFilePath;
 
   fs.mkdirSync(companyRoot, { recursive: true });
   fs.mkdirSync(imagesPath, { recursive: true });
   fs.mkdirSync(adsPath, { recursive: true });
   fs.mkdirSync(documentsPath, { recursive: true });
-
-  if (!fs.existsSync(clientsFilePath)) {
-    fs.writeFileSync(clientsFilePath, JSON.stringify({ clientes: [] }, null, 2), "utf8");
-  }
 
   return {
     companyName: safeCompanyName,
@@ -153,7 +174,24 @@ export function ensureCompanyDataStructure(companyName) {
 
 export function resolveDataPath(companyName, targetPath = "") {
   const { companyName: safeCompanyName, companyRoot } = ensureCompanyDataStructure(companyName);
-  const resolvedPath = assertSafeTarget(companyRoot, targetPath);
+  const normalizedTarget = String(targetPath || "").trim().replace(/\\/g, "/");
+  let translatedTarget = normalizedTarget;
+
+  if (!normalizedTarget || normalizedTarget === ".") {
+    translatedTarget = ".";
+  } else if (normalizedTarget === "clientes.json") {
+    translatedTarget = `${safeCompanyName}.kit`;
+  } else if (normalizedTarget.startsWith("imagens")) {
+    translatedTarget = normalizedTarget.replace(/^imagens/, "assets/image");
+  } else if (normalizedTarget.startsWith("comprovantes")) {
+    translatedTarget = normalizedTarget.replace(/^comprovantes/, "assets/image/comprovantes");
+  } else if (normalizedTarget.startsWith("documentos")) {
+    translatedTarget = normalizedTarget.replace(/^documentos/, "documents");
+  } else if (normalizedTarget.startsWith("anuncios")) {
+    translatedTarget = normalizedTarget.replace(/^anuncios/, "projects");
+  }
+
+  const resolvedPath = assertSafeTarget(companyRoot, translatedTarget);
 
   return {
     companyName: safeCompanyName,

@@ -51,8 +51,9 @@ function parseFieldsFromGoal(goal) {
 
 function extractDataPathFromGoal(goal) {
   const rawGoal = String(goal || "").replace(/\//g, "\\");
-  const match = rawGoal.match(/(?:agent-workspace\\)?dados\\([^\\/:*?"<>|\r\n]+)(?:\\([^:*?"<>|\r\n]+(?:\\[^:*?"<>|\r\n]+)*))?/i);
-
+  const workspaceMatch = rawGoal.match(/workspace\\([^\\/:*?"<>|\r\n]+)(?:\\([^:*?"<>|\r\n]+(?:\\[^:*?"<>|\r\n]+)*))?/i);
+  const legacyMatch = rawGoal.match(/(?:agent-workspace\\)?dados\\([^\\/:*?"<>|\r\n]+)(?:\\([^:*?"<>|\r\n]+(?:\\[^:*?"<>|\r\n]+)*))?/i);
+  const match = workspaceMatch || legacyMatch;
   if (!match?.[1]) {
     return null;
   }

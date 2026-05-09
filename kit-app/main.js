@@ -14,7 +14,9 @@ const {
 } = require("electron");
 const fs = require("fs");
 const http = require("http");
+const os = require("os");
 const path = require("path");
+const { execFile, spawn } = require("child_process");
 const { pathToFileURL } = require("url");
 const { EventSource } = require("eventsource");
 const { createProcessManager } = require("./processManager");
@@ -29,6 +31,33 @@ const {
   loadProjectFromFile,
   saveProjectToFile
 } = require("./main/projectFile");
+const { createStudioWindow } = require("./main/studioWindow");
+const {
+  createStudioProject,
+  updateStudioProject
+} = require("../backend/skills/studio/studioProjectSchema");
+const {
+  STUDIO_EXTENSION,
+  STUDIO_PROJECTS_DIR,
+  ensureStudioProjectsDir,
+  saveStudioProject,
+  loadStudioProject
+} = require("../backend/skills/studio/studioProjectStore");
+const workspaceLayout = require("../backend/services/workspaceLayout.cjs");
+const {
+  ensurePresetDirectories,
+  getPresetManagerMeta,
+  createEmptyPreset,
+  readPresetFile,
+  listPresets,
+  makeManagedFilePath,
+  savePresetToPath,
+  validatePreset,
+  duplicatePreset,
+  deletePreset,
+  TYPE_CONFIGS
+} = require("../backend/services/presetManager");
+const { createPresetManagerWindow } = require("./main/presetManagerWindow");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const PRELOAD_PATH = path.join(__dirname, "preload.js");
@@ -43,6 +72,8 @@ let chatWindow = null;
 let configWindow = null;
 let monitorWindow = null;
 let canvasWindow = null;
+let studioWindow = null;
+let presetManagerWindow = null;
 let notifyWindow = null;
 let wakeWindow = null;
 let tray = null;
@@ -53,21 +84,18 @@ let activeConversationId = null;
 let wakeListeningConfig = null;
 let wakeConfigModulePromise = null;
 let llmIdleTimer = null;
-let xttsIdleTimer = null;
 let webSearchBridge = null;
 let canvasBridgeServer = null;
 let canvasCommandCounter = 0;
 const pendingCanvasCommands = new Map();
+let lastCpuSnapshot = null;
+let pendingStudioInitialState = null;
 
 const LLM_IDLE_TIMEOUT_MS = Math.max(
   60000,
   Number(process.env.KIT_IDLE_LLM_TIMEOUT_MS || 5 * 60 * 1000)
 );
 const AUTO_UNLOAD_LLM = process.env.KIT_AUTO_UNLOAD_LLM === "true";
-const XTTS_IDLE_TIMEOUT_MS = Math.max(
-  LLM_IDLE_TIMEOUT_MS * 2,
-  Number(process.env.KIT_IDLE_XTTS_TIMEOUT_MS || LLM_IDLE_TIMEOUT_MS * 2)
-);
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
 if (!gotSingleInstanceLock) {
@@ -107,15 +135,6 @@ async function notifyBackendActivity(source = "unknown") {
   } catch {}
 }
 
-async function warmupBackendLLM() {
-  try {
-    await fetch("http://localhost:3001/llm/warmup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" }
-    });
-  } catch {}
-}
-
 async function unloadBackendLLM() {
   try {
     await fetch("http://localhost:3001/llm/unload", {
@@ -127,7 +146,6 @@ async function unloadBackendLLM() {
 
 function scheduleIdlePowerDown() {
   llmIdleTimer = clearIdleTimer(llmIdleTimer);
-  xttsIdleTimer = clearIdleTimer(xttsIdleTimer);
 
   if (AUTO_UNLOAD_LLM) {
     llmIdleTimer = setTimeout(() => {
@@ -135,18 +153,162 @@ function scheduleIdlePowerDown() {
     }, LLM_IDLE_TIMEOUT_MS);
     llmIdleTimer.unref?.();
   }
-
-  xttsIdleTimer = setTimeout(() => {
-    void processManager.stopService("xtts");
-  }, XTTS_IDLE_TIMEOUT_MS);
-  xttsIdleTimer.unref?.();
 }
 
-async function ensureInteractiveServices(source = "unknown") {
-  await notifyBackendActivity(source);
-  await processManager.startService("xtts");
-  void warmupBackendLLM();
+function ensureServicesForIntent(intent = "unknown") {
+  void notifyBackendActivity(intent);
+  void processManager.startForIntent(intent);
   scheduleIdlePowerDown();
+}
+
+function takeCpuSnapshot() {
+  const cpus = os.cpus?.() || [];
+  let idle = 0;
+  let total = 0;
+
+  cpus.forEach((cpu) => {
+    const times = cpu?.times || {};
+    idle += Number(times.idle || 0);
+    total += Object.values(times).reduce((sum, value) => sum + Number(value || 0), 0);
+  });
+
+  return {
+    idle,
+    total,
+    at: Date.now()
+  };
+}
+
+function formatBytesToGb(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return "0 GB";
+  }
+
+  return `${(numeric / (1024 ** 3)).toFixed(1)} GB`;
+}
+
+function formatPercent(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return "0%";
+  }
+
+  return `${Math.max(0, Math.min(100, Math.round(numeric)))}%`;
+}
+
+function getCpuUsagePercent() {
+  const snapshot = takeCpuSnapshot();
+  if (!lastCpuSnapshot) {
+    lastCpuSnapshot = snapshot;
+    return 0;
+  }
+
+  const idleDelta = snapshot.idle - lastCpuSnapshot.idle;
+  const totalDelta = snapshot.total - lastCpuSnapshot.total;
+  lastCpuSnapshot = snapshot;
+
+  if (totalDelta <= 0) {
+    return 0;
+  }
+
+  return (1 - idleDelta / totalDelta) * 100;
+}
+
+function runPowerShellJson(command) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      "powershell.exe",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+      {
+        windowsHide: true,
+        maxBuffer: 1024 * 1024
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(stderr?.trim() || error.message));
+          return;
+        }
+
+        try {
+          resolve(JSON.parse(String(stdout || "").trim() || "{}"));
+        } catch (parseError) {
+          reject(parseError);
+        }
+      }
+    );
+  });
+}
+
+async function getStudioSystemStats() {
+  const totalRam = os.totalmem?.() || 0;
+  const freeRam = os.freemem?.() || 0;
+  const usedRam = Math.max(0, totalRam - freeRam);
+  const cpuPercent = getCpuUsagePercent();
+
+  let gpuStats = {
+    gpuPercent: 0,
+    vramUsedBytes: 0,
+    vramTotalBytes: 0,
+    diskUsedBytes: 0,
+    diskTotalBytes: 0
+  };
+
+  if (process.platform === "win32") {
+    try {
+      gpuStats = await runPowerShellJson(`
+        $gpuCounter = Get-Counter '\\GPU Engine(*engtype_3D)\\Utilization Percentage' -ErrorAction SilentlyContinue;
+        $gpuSamples = @($gpuCounter.CounterSamples | ForEach-Object { $_.CookedValue });
+        $gpuTotal = 0;
+        if ($gpuSamples.Count -gt 0) {
+          $gpuTotal = ($gpuSamples | Measure-Object -Sum).Sum;
+        }
+
+        $vramCounter = Get-Counter '\\GPU Adapter Memory(*)\\Dedicated Usage' -ErrorAction SilentlyContinue;
+        $vramUsed = 0;
+        if ($vramCounter -and $vramCounter.CounterSamples) {
+          $vramUsed = (@($vramCounter.CounterSamples | ForEach-Object { $_.CookedValue }) | Measure-Object -Sum).Sum;
+        }
+
+        $vramTotal = 0;
+        $videoRegistry = Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Video\\*\\0000' -ErrorAction SilentlyContinue |
+          Where-Object { $_.'HardwareInformation.qwMemorySize' -gt 0 };
+        if ($videoRegistry) {
+          $vramTotal = ($videoRegistry | ForEach-Object { [double]$_.'HardwareInformation.qwMemorySize' } | Measure-Object -Sum).Sum;
+        }
+
+        $diskTotal = 0;
+        $diskFree = 0;
+        $drives = [System.IO.DriveInfo]::GetDrives() | Where-Object { $_.DriveType -eq 'Fixed' -and $_.IsReady };
+        if ($drives) {
+          $diskTotal = ($drives | ForEach-Object { [double]$_.TotalSize } | Measure-Object -Sum).Sum;
+          $diskFree = ($drives | ForEach-Object { [double]$_.AvailableFreeSpace } | Measure-Object -Sum).Sum;
+        }
+
+        [pscustomobject]@{
+          gpuPercent = [math]::Min(100, [math]::Round($gpuTotal, 0));
+          vramUsedBytes = [double]$vramUsed
+          vramTotalBytes = [double]$vramTotal
+          diskUsedBytes = [double]($diskTotal - $diskFree)
+          diskTotalBytes = [double]$diskTotal
+        } | ConvertTo-Json -Compress
+      `);
+    } catch {}
+  }
+
+  return {
+    vram: gpuStats.vramTotalBytes > 0
+      ? `${formatBytesToGb(gpuStats.vramUsedBytes)} / ${formatBytesToGb(gpuStats.vramTotalBytes)}`
+      : "--",
+    ram: totalRam > 0
+      ? `${formatBytesToGb(usedRam)} / ${formatBytesToGb(totalRam)}`
+      : "--",
+    gpu: formatPercent(gpuStats.gpuPercent),
+    cpu: formatPercent(cpuPercent),
+    disk: gpuStats.diskTotalBytes > 0
+      ? `${formatBytesToGb(gpuStats.diskUsedBytes)} / ${formatBytesToGb(gpuStats.diskTotalBytes)}`
+      : "--"
+  };
 }
 
 function createBaseWindow(options = {}) {
@@ -224,7 +386,7 @@ function attachSpellcheckContextMenu(windowRef) {
 }
 
 function getPreferredParentWindow() {
-  const windows = [canvasWindow, chatWindow, configWindow, monitorWindow, widgetWindow, wakeWindow];
+  const windows = [presetManagerWindow, studioWindow, canvasWindow, chatWindow, configWindow, monitorWindow, widgetWindow, wakeWindow];
   return windows.find((windowRef) => windowRef && !windowRef.isDestroyed()) || null;
 }
 
@@ -413,7 +575,7 @@ function createWidget() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   widgetWindow = createBaseWindow({
     width: 500,
-    height: 70,
+    height: 58,
     x: Math.floor((width - 500) / 2),
     y: height - 100,
     frame: false,
@@ -479,7 +641,7 @@ function pushWakeListeningConfig() {
 
 function showWidget() {
   const windowRef = createWidget();
-  void ensureInteractiveServices("widget-open");
+  ensureServicesForIntent("widget-open");
   windowRef.show();
   windowRef.focus();
 }
@@ -492,7 +654,7 @@ function resizeWidgetWindow(height) {
   const display = screen.getPrimaryDisplay();
   const workArea = display.workArea;
   const currentBounds = widgetWindow.getBounds();
-  const nextHeight = Math.max(70, Math.min(Number(height || 70), 260));
+  const nextHeight = Math.max(52, Math.min(Number(height || 52), 260));
   const nextY = workArea.y + workArea.height - nextHeight - 30;
 
   widgetWindow.setBounds({
@@ -507,19 +669,21 @@ function resizeWidgetWindow(height) {
 
 function triggerWidgetVoiceCapture() {
   const windowRef = createWidget();
-  void ensureInteractiveServices("widget-voice");
   windowRef.show();
   windowRef.focus();
-  setTimeout(() => {
+  void (async () => {
+    await notifyBackendActivity("widget-voice");
+    await processManager.startForIntent("mic-request", { timeoutMs: 90000 });
     if (!windowRef.isDestroyed()) {
       windowRef.webContents.send("start-voice");
     }
-  }, 300);
+    scheduleIdlePowerDown();
+  })();
 }
 
 function createChat() {
   if (chatWindow && !chatWindow.isDestroyed()) {
-    void ensureInteractiveServices("chat-open");
+    ensureServicesForIntent("chat-open");
     if (!chatWindow.webContents.getURL().startsWith(pathToFileURL(CHAT_HTML_PATH).href)) {
       chatWindow.loadFile(CHAT_HTML_PATH);
     }
@@ -533,7 +697,7 @@ function createChat() {
     width: 900,
     height: 700
   });
-  void ensureInteractiveServices("chat-open");
+  ensureServicesForIntent("chat-open");
 
   attachExternalLinkGuard(chatWindow);
   chatWindow.loadFile(CHAT_HTML_PATH);
@@ -641,6 +805,26 @@ function createMonitor() {
   return monitorWindow;
 }
 
+function createPresetManager() {
+  if (presetManagerWindow && !presetManagerWindow.isDestroyed()) {
+    presetManagerWindow.show();
+    presetManagerWindow.focus();
+    return presetManagerWindow;
+  }
+
+  ensurePresetDirectories();
+  presetManagerWindow = createPresetManagerWindow({
+    existingWindow: presetManagerWindow,
+    createBaseWindow,
+    screen,
+    onClosed: () => {
+      presetManagerWindow = null;
+    }
+  });
+
+  return presetManagerWindow;
+}
+
 function createCanvas() {
   if (canvasWindow && !canvasWindow.isDestroyed()) {
     canvasWindow.show();
@@ -667,6 +851,45 @@ function createCanvas() {
   });
 
   return canvasWindow;
+}
+
+function createStudio(initialState = null) {
+  if (initialState && typeof initialState === "object") {
+    pendingStudioInitialState = initialState;
+  }
+
+  studioWindow = createStudioWindow({
+    existingWindow: studioWindow,
+    createBaseWindow,
+    screen,
+    onClosed: () => {
+      studioWindow = null;
+    }
+  });
+
+  if (initialState && !studioWindow.webContents.isDestroyed()) {
+    const pushState = () => {
+      studioWindow.webContents.send("studio:init-state", initialState);
+    };
+
+    if (studioWindow.webContents.isLoading()) {
+      studioWindow.webContents.once("did-finish-load", pushState);
+    } else {
+      pushState();
+    }
+  }
+
+  return studioWindow;
+}
+
+function focusStudioWindow() {
+  const windowRef = createStudio();
+  if (windowRef.isMinimized()) {
+    windowRef.restore();
+  }
+  windowRef.show();
+  windowRef.focus();
+  return windowRef;
 }
 
 function ensureCanvasReady() {
@@ -1113,6 +1336,193 @@ ipcMain.on("open-canvas", () => {
   createCanvas();
 });
 
+ipcMain.on("open-studio", () => {
+  createStudio();
+});
+
+ipcMain.on("open-preset-manager", () => {
+  createPresetManager();
+});
+
+ipcMain.handle("studio:initial-state:get", () => {
+  const initialState = pendingStudioInitialState;
+  pendingStudioInitialState = null;
+  return initialState;
+});
+
+ipcMain.handle("studio:window:open", async (event, initialState = null) => {
+  createStudio(initialState && typeof initialState === "object" ? initialState : null);
+  return { success: true };
+});
+
+ipcMain.handle("preset-manager:meta", async () => {
+  ensurePresetDirectories();
+  return getPresetManagerMeta();
+});
+
+ipcMain.handle("preset-manager:list", async (event, type = "client") => {
+  ensurePresetDirectories();
+  return {
+    type,
+    items: listPresets(type)
+  };
+});
+
+ipcMain.handle("preset-manager:new", async (event, type = "client") => {
+  ensurePresetDirectories();
+  return {
+    type,
+    preset: createEmptyPreset(type),
+    filePath: null
+  };
+});
+
+ipcMain.handle("preset-manager:open", async (event, payload = {}) => {
+  ensurePresetDirectories();
+  const expectedType = String(payload?.type || "").trim();
+  let targetPath = String(payload?.filePath || "").trim();
+
+  if (!targetPath) {
+    const filters = Object.values(TYPE_CONFIGS).map((config) => config.filters[0]);
+    const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+      title: "Carregar preset",
+      properties: ["openFile"],
+      filters
+    });
+
+    if (result.canceled || !result.filePaths[0]) {
+      return null;
+    }
+
+    targetPath = result.filePaths[0];
+  }
+
+  const loaded = readPresetFile(targetPath, expectedType);
+  return loaded;
+});
+
+ipcMain.handle("preset-manager:validate", async (event, payload = {}) => {
+  const type = String(payload?.type || "").trim();
+  return validatePreset(type, payload?.preset || {});
+});
+
+ipcMain.handle("preset-manager:save", async (event, payload = {}) => {
+  ensurePresetDirectories();
+  const type = String(payload?.type || "").trim();
+  const preset = payload?.preset || {};
+  let targetPath = String(payload?.filePath || "").trim();
+
+  if (!targetPath) {
+    targetPath = makeManagedFilePath(type, preset, preset?.name || preset?.id || "");
+  }
+
+  return savePresetToPath(type, preset, targetPath);
+});
+
+ipcMain.handle("preset-manager:save-as", async (event, payload = {}) => {
+  ensurePresetDirectories();
+  const type = String(payload?.type || "").trim();
+  const config = TYPE_CONFIGS[type];
+  if (!config) {
+    throw new Error("Tipo de preset invalido.");
+  }
+
+  const preset = payload?.preset || {};
+  const defaultPath = makeManagedFilePath(type, preset, payload?.suggestedName || preset?.name || preset?.id || "");
+  const result = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), {
+    title: "Salvar preset como",
+    defaultPath,
+    filters: config.filters
+  });
+
+  if (result.canceled || !result.filePath) {
+    return null;
+  }
+
+  return savePresetToPath(type, preset, result.filePath);
+});
+
+ipcMain.handle("preset-manager:duplicate", async (event, payload = {}) => {
+  ensurePresetDirectories();
+  const type = String(payload?.type || "").trim();
+  const filePath = String(payload?.filePath || "").trim();
+  if (!filePath) {
+    throw new Error("Nenhum arquivo foi selecionado para duplicar.");
+  }
+  return duplicatePreset(type, filePath);
+});
+
+ipcMain.handle("preset-manager:delete", async (event, payload = {}) => {
+  ensurePresetDirectories();
+  const type = String(payload?.type || "").trim();
+  const filePath = String(payload?.filePath || "").trim();
+  if (!filePath) {
+    throw new Error("Nenhum arquivo foi selecionado para excluir.");
+  }
+  return deletePreset(type, filePath);
+});
+
+ipcMain.handle("preset-manager:select-asset", async (event, options = {}) => {
+  const selection = String(options?.selection || "file").toLowerCase();
+  const filtersBySelection = {
+    image: [{ name: "Imagens", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"] }],
+    file: [{ name: "Arquivos", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg", "pdf", "ai", "psd", "cdr", "zip", "json", "txt", "doc", "docx"] }]
+  };
+
+  const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+    title: "Selecionar arquivo",
+    properties: options?.multiple ? ["openFile", "multiSelections"] : ["openFile"],
+    filters: filtersBySelection[selection] || filtersBySelection.file
+  });
+
+  if (result.canceled) {
+    return options?.multiple ? [] : null;
+  }
+
+  return options?.multiple ? result.filePaths : result.filePaths[0] || null;
+});
+
+ipcMain.handle("studio:launch", async (event, payload = {}) => {
+  const response = await fetch("http://localhost:3001/api/studio/launch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload || {})
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || data?.success === false) {
+    throw new Error(data?.error || "Falha ao abrir KIT Studio.");
+  }
+
+  createStudio(data.initialState || null);
+  return data;
+});
+
+ipcMain.on("studio:window:minimize", () => {
+  if (studioWindow && !studioWindow.isDestroyed()) {
+    studioWindow.minimize();
+  }
+});
+
+ipcMain.on("studio:window:toggle-maximize", () => {
+  if (!studioWindow || studioWindow.isDestroyed()) {
+    return;
+  }
+
+  if (studioWindow.isMaximized()) {
+    studioWindow.unmaximize();
+    return;
+  }
+
+  studioWindow.maximize();
+});
+
+ipcMain.on("studio:close", () => {
+  if (studioWindow && !studioWindow.isDestroyed()) {
+    studioWindow.close();
+  }
+});
+
 ipcMain.on("open-widget", () => {
   showWidget();
 });
@@ -1417,12 +1827,152 @@ ipcMain.handle("canvas:image:save", async (event, payload = {}) => {
   };
 });
 
+ipcMain.handle("canvas:video:save-mp4", async (event, payload = {}) => {
+  const parentWindow = BrowserWindow.fromWebContents(event.sender);
+  const frames = Array.isArray(payload.frames) ? payload.frames.filter((item) => typeof item === "string" && item.startsWith("data:image/png;base64,")) : [];
+  const fps = Math.max(1, Math.min(30, Number(payload.fps || 12)));
+
+  if (!frames.length) {
+    throw new Error("Nenhum frame PNG informado para exportar video.");
+  }
+
+  let targetPath = String(payload.filePath || payload.targetPath || "").trim();
+  if (!targetPath) {
+    const result = await dialog.showSaveDialog(parentWindow, {
+      title: "Exportar video MP4",
+      defaultPath: `${payload.name || "slide_01"}.mp4`,
+      filters: [
+        { name: "MP4", extensions: ["mp4"] }
+      ]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return null;
+    }
+
+    targetPath = result.filePath;
+  }
+
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "kit-canvas-video-"));
+
+  try {
+    frames.forEach((dataUrl, index) => {
+      const match = dataUrl.match(/^data:image\/png;base64,(.+)$/);
+      if (!match?.[1]) {
+        throw new Error(`Frame PNG invalido no indice ${index}.`);
+      }
+      const framePath = path.join(tempDir, `frame-${String(index + 1).padStart(5, "0")}.png`);
+      fs.writeFileSync(framePath, Buffer.from(match[1], "base64"));
+    });
+
+    await new Promise((resolve, reject) => {
+      const ffmpeg = spawn("ffmpeg", [
+        "-y",
+        "-framerate", String(fps),
+        "-i", path.join(tempDir, "frame-%05d.png"),
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        "-r", String(fps),
+        targetPath
+      ], {
+        windowsHide: true
+      });
+
+      let stderr = "";
+      ffmpeg.stderr.on("data", (chunk) => {
+        stderr += String(chunk || "");
+      });
+      ffmpeg.on("error", reject);
+      ffmpeg.on("close", (code) => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(new Error(stderr.trim() || `ffmpeg retornou codigo ${code}.`));
+      });
+    });
+
+    return {
+      filePath: targetPath
+    };
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 ipcMain.handle("canvas:autosave:save", async (event, payload = {}) => {
   return writeCanvasAutosave(payload);
 });
 
 ipcMain.handle("canvas:autosave:load", async () => {
   return readCanvasAutosave();
+});
+
+ipcMain.handle("studio:project:create", async (event, payload = {}) => {
+  const project = createStudioProject(payload || {});
+  const saved = saveStudioProject(project);
+  focusStudioWindow();
+  return saved;
+});
+
+ipcMain.handle("studio:project:save", async (event, payload = {}) => {
+  const parentWindow = BrowserWindow.fromWebContents(event.sender);
+  const project = updateStudioProject(payload.project || createStudioProject(), {});
+  let targetPath = String(payload.filePath || "").trim();
+
+  if (!targetPath) {
+    ensureStudioProjectsDir();
+    const suggestedProjectPath = workspaceLayout.ensureProjectWorkspace({
+      clientName: project.clientName || "cliente",
+      projectName: `${project.projectName || project.id}-${project.id}`,
+      projectId: project.id
+    }).projectFilePath;
+    const result = await dialog.showSaveDialog(parentWindow, {
+      title: "Salvar Projeto Studio",
+      defaultPath: suggestedProjectPath,
+      filters: [
+        { name: "Projeto Studio KIT", extensions: ["kstudio"] }
+      ]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return null;
+    }
+
+    targetPath = result.filePath;
+  }
+
+  return saveStudioProject(project, targetPath);
+});
+
+ipcMain.handle("studio:project:open", async (event, filePath = "") => {
+  let targetPath = String(filePath || "").trim();
+  if (!targetPath) {
+    const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+      title: "Abrir Projeto Studio",
+      properties: ["openFile"],
+      filters: [
+        { name: "Projeto Studio KIT", extensions: ["kstudio"] },
+        { name: "JSON", extensions: ["json"] }
+      ]
+    });
+
+    if (result.canceled || !result.filePaths[0]) {
+      return null;
+    }
+
+    targetPath = result.filePaths[0];
+  }
+
+  const loaded = loadStudioProject(targetPath);
+  focusStudioWindow();
+  return loaded;
+});
+
+ipcMain.handle("studio:system-stats", async () => {
+  return getStudioSystemStats();
 });
 
 ipcMain.handle("vocabulary:select-excel", async (event) => {
@@ -1443,11 +1993,11 @@ ipcMain.handle("monitor:get-state", async () => {
 
 ipcMain.handle("service:control", async (event, service, action) => {
   if (action === "start") {
-    return processManager.startService(service);
+    return processManager.ensureStarted(service, { trigger: "manual" });
   }
 
   if (action === "stop") {
-    return processManager.stopService(service);
+    return processManager.ensureStopped(service);
   }
 
   if (action === "restart") {
@@ -1458,7 +2008,9 @@ ipcMain.handle("service:control", async (event, service, action) => {
 });
 
 ipcMain.handle("kit:activity", async (event, source) => {
-  await ensureInteractiveServices(source || "renderer");
+  await notifyBackendActivity(source || "renderer");
+  void processManager.startForIntent(source || "renderer");
+  scheduleIdlePowerDown();
   return { success: true };
 });
 
@@ -1513,6 +2065,7 @@ app.on("will-quit", () => {
 
 app.whenReady().then(async () => {
   app.setAppUserModelId("kit.ia.host");
+  ensurePresetDirectories();
   configureMediaPermissions();
   configureSpellChecker();
   await ensureWakeListeningConfigLoaded();
