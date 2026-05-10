@@ -44,19 +44,6 @@ const {
   loadStudioProject
 } = require("../backend/skills/studio/studioProjectStore");
 const workspaceLayout = require("../backend/services/workspaceLayout.cjs");
-const {
-  ensurePresetDirectories,
-  getPresetManagerMeta,
-  createEmptyPreset,
-  readPresetFile,
-  listPresets,
-  makeManagedFilePath,
-  savePresetToPath,
-  validatePreset,
-  duplicatePreset,
-  deletePreset,
-  TYPE_CONFIGS
-} = require("../backend/services/presetManager");
 const { createPresetManagerWindow } = require("./main/presetManagerWindow");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
@@ -66,6 +53,8 @@ const CHAT_HTML_PATH = path.join(__dirname, "renderer", "index.html");
 const CANVAS_HTML_PATH = path.join(__dirname, "renderer", "canvas", "canvas.html");
 const CANVAS_AUTOSAVE_FILE = "canvas-autosave.json";
 const CANVAS_BRIDGE_PORT = Number(process.env.KIT_CANVAS_BRIDGE_PORT || 31977);
+const KIT_USER_DATA_PATH = path.join(ROOT_DIR, "temp", "electron-user-data");
+const KIT_STARTUP_LOG = path.join(ROOT_DIR, "logs", "kit-app-startup.log");
 
 let widgetWindow = null;
 let chatWindow = null;
@@ -83,6 +72,7 @@ let isShuttingDown = false;
 let activeConversationId = null;
 let wakeListeningConfig = null;
 let wakeConfigModulePromise = null;
+let presetManagerModulePromise = null;
 let llmIdleTimer = null;
 let webSearchBridge = null;
 let canvasBridgeServer = null;
@@ -91,16 +81,21 @@ const pendingCanvasCommands = new Map();
 let lastCpuSnapshot = null;
 let pendingStudioInitialState = null;
 
+function logStartup(message = "", extra = null) {
+  try {
+    fs.mkdirSync(path.dirname(KIT_STARTUP_LOG), { recursive: true });
+    const suffix = extra ? ` ${JSON.stringify(extra)}` : "";
+    fs.appendFileSync(KIT_STARTUP_LOG, `[${new Date().toISOString()}] ${message}${suffix}\n`, "utf8");
+  } catch {}
+}
+
 const LLM_IDLE_TIMEOUT_MS = Math.max(
   60000,
   Number(process.env.KIT_IDLE_LLM_TIMEOUT_MS || 5 * 60 * 1000)
 );
 const AUTO_UNLOAD_LLM = process.env.KIT_AUTO_UNLOAD_LLM === "true";
-const gotSingleInstanceLock = app.requestSingleInstanceLock();
-
-if (!gotSingleInstanceLock) {
-  app.quit();
-}
+fs.mkdirSync(KIT_USER_DATA_PATH, { recursive: true });
+app.setPath("userData", KIT_USER_DATA_PATH);
 
 const processManager = createProcessManager({
   rootDir: ROOT_DIR,
@@ -534,6 +529,17 @@ async function loadWakeConfigModule() {
   return wakeConfigModulePromise;
 }
 
+async function getPresetManagerModule() {
+  if (!presetManagerModulePromise) {
+    const moduleUrl = pathToFileURL(
+      path.join(ROOT_DIR, "backend", "services", "presetManager", "index.js")
+    ).href;
+    presetManagerModulePromise = import(moduleUrl);
+  }
+
+  return presetManagerModulePromise;
+}
+
 async function ensureWakeListeningConfigLoaded() {
   const wakeConfigModule = await loadWakeConfigModule();
   wakeListeningConfig = wakeConfigModule.loadWakeListeningConfig();
@@ -682,6 +688,9 @@ function triggerWidgetVoiceCapture() {
 }
 
 function createChat() {
+  logStartup("createChat:start", {
+    hasWindow: Boolean(chatWindow && !chatWindow.isDestroyed())
+  });
   if (chatWindow && !chatWindow.isDestroyed()) {
     ensureServicesForIntent("chat-open");
     if (!chatWindow.webContents.getURL().startsWith(pathToFileURL(CHAT_HTML_PATH).href)) {
@@ -690,16 +699,30 @@ function createChat() {
     chatWindow.show();
     chatWindow.focus();
     syncChatConversation();
+    logStartup("createChat:reuse");
     return chatWindow;
   }
 
   chatWindow = createBaseWindow({
     width: 900,
-    height: 700
+    height: 700,
+    title: "KIT IA"
   });
   ensureServicesForIntent("chat-open");
 
   attachExternalLinkGuard(chatWindow);
+  chatWindow.webContents.on("did-fail-load", (event, errorCode, errorDescription, validatedURL) => {
+    logStartup("chatWindow:did-fail-load", { errorCode, errorDescription, validatedURL });
+  });
+  chatWindow.webContents.on("render-process-gone", (event, details) => {
+    logStartup("chatWindow:render-process-gone", details);
+  });
+  chatWindow.on("show", () => {
+    logStartup("chatWindow:show", chatWindow.getBounds());
+  });
+  chatWindow.on("hide", () => {
+    logStartup("chatWindow:hide");
+  });
   chatWindow.loadFile(CHAT_HTML_PATH);
   attachHideOnClose(chatWindow);
   chatWindow.on("closed", () => {
@@ -707,9 +730,33 @@ function createChat() {
   });
 
   chatWindow.once("ready-to-show", () => {
+    logStartup("chatWindow:ready-to-show");
+    chatWindow.setTitle("KIT IA");
     chatWindow.show();
+    chatWindow.focus();
     syncChatConversation();
   });
+
+  chatWindow.webContents.once("did-finish-load", () => {
+    logStartup("chatWindow:did-finish-load");
+    if (!chatWindow || chatWindow.isDestroyed()) {
+      return;
+    }
+    chatWindow.setTitle("KIT IA");
+    chatWindow.show();
+    chatWindow.focus();
+    syncChatConversation();
+  });
+
+  setTimeout(() => {
+    logStartup("chatWindow:show-fallback");
+    if (!chatWindow || chatWindow.isDestroyed()) {
+      return;
+    }
+    chatWindow.setTitle("KIT IA");
+    chatWindow.show();
+    chatWindow.focus();
+  }, 2500);
 
   return chatWindow;
 }
@@ -812,7 +859,6 @@ function createPresetManager() {
     return presetManagerWindow;
   }
 
-  ensurePresetDirectories();
   presetManagerWindow = createPresetManagerWindow({
     existingWindow: presetManagerWindow,
     createBaseWindow,
@@ -1086,6 +1132,14 @@ function buildTrayMenu() {
       click: () => createCanvas()
     },
     {
+      label: "KIT Studio",
+      click: () => createStudio()
+    },
+    {
+      label: "Gerador de Presets",
+      click: () => createPresetManager()
+    },
+    {
       label: "Widget",
       click: () => showWidget()
     },
@@ -1356,11 +1410,13 @@ ipcMain.handle("studio:window:open", async (event, initialState = null) => {
 });
 
 ipcMain.handle("preset-manager:meta", async () => {
+  const { ensurePresetDirectories, getPresetManagerMeta } = await getPresetManagerModule();
   ensurePresetDirectories();
   return getPresetManagerMeta();
 });
 
 ipcMain.handle("preset-manager:list", async (event, type = "client") => {
+  const { ensurePresetDirectories, listPresets } = await getPresetManagerModule();
   ensurePresetDirectories();
   return {
     type,
@@ -1369,6 +1425,7 @@ ipcMain.handle("preset-manager:list", async (event, type = "client") => {
 });
 
 ipcMain.handle("preset-manager:new", async (event, type = "client") => {
+  const { ensurePresetDirectories, createEmptyPreset } = await getPresetManagerModule();
   ensurePresetDirectories();
   return {
     type,
@@ -1378,6 +1435,7 @@ ipcMain.handle("preset-manager:new", async (event, type = "client") => {
 });
 
 ipcMain.handle("preset-manager:open", async (event, payload = {}) => {
+  const { ensurePresetDirectories, readPresetFile, TYPE_CONFIGS } = await getPresetManagerModule();
   ensurePresetDirectories();
   const expectedType = String(payload?.type || "").trim();
   let targetPath = String(payload?.filePath || "").trim();
@@ -1402,11 +1460,13 @@ ipcMain.handle("preset-manager:open", async (event, payload = {}) => {
 });
 
 ipcMain.handle("preset-manager:validate", async (event, payload = {}) => {
+  const { validatePreset } = await getPresetManagerModule();
   const type = String(payload?.type || "").trim();
   return validatePreset(type, payload?.preset || {});
 });
 
 ipcMain.handle("preset-manager:save", async (event, payload = {}) => {
+  const { ensurePresetDirectories, makeManagedFilePath, savePresetToPath } = await getPresetManagerModule();
   ensurePresetDirectories();
   const type = String(payload?.type || "").trim();
   const preset = payload?.preset || {};
@@ -1420,6 +1480,7 @@ ipcMain.handle("preset-manager:save", async (event, payload = {}) => {
 });
 
 ipcMain.handle("preset-manager:save-as", async (event, payload = {}) => {
+  const { ensurePresetDirectories, makeManagedFilePath, savePresetToPath, TYPE_CONFIGS } = await getPresetManagerModule();
   ensurePresetDirectories();
   const type = String(payload?.type || "").trim();
   const config = TYPE_CONFIGS[type];
@@ -1443,6 +1504,7 @@ ipcMain.handle("preset-manager:save-as", async (event, payload = {}) => {
 });
 
 ipcMain.handle("preset-manager:duplicate", async (event, payload = {}) => {
+  const { ensurePresetDirectories, duplicatePreset } = await getPresetManagerModule();
   ensurePresetDirectories();
   const type = String(payload?.type || "").trim();
   const filePath = String(payload?.filePath || "").trim();
@@ -1453,6 +1515,7 @@ ipcMain.handle("preset-manager:duplicate", async (event, payload = {}) => {
 });
 
 ipcMain.handle("preset-manager:delete", async (event, payload = {}) => {
+  const { ensurePresetDirectories, deletePreset } = await getPresetManagerModule();
   ensurePresetDirectories();
   const type = String(payload?.type || "").trim();
   const filePath = String(payload?.filePath || "").trim();
@@ -2064,8 +2127,8 @@ app.on("will-quit", () => {
 });
 
 app.whenReady().then(async () => {
+  logStartup("app:whenReady:start");
   app.setAppUserModelId("kit.ia.host");
-  ensurePresetDirectories();
   configureMediaPermissions();
   configureSpellChecker();
   await ensureWakeListeningConfigLoaded();
@@ -2077,6 +2140,8 @@ app.whenReady().then(async () => {
   startCanvasBridgeServer();
   createTray();
   createWidget();
+  createChat();
+  logStartup("app:created-initial-windows");
   createWakeListeningWindow();
   registerShortcuts();
   connectSSE();
@@ -2084,4 +2149,5 @@ app.whenReady().then(async () => {
   scheduleIdlePowerDown();
   void syncWakeListeningConfigToBackend(wakeListeningConfig);
   pushWakeListeningConfig();
+  logStartup("app:whenReady:done");
 });

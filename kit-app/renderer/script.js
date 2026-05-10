@@ -11,6 +11,8 @@ const scrollToBottomBtn = document.getElementById("scrollToBottomBtn");
 const fileBtn = document.getElementById("fileBtn");
 const fileInput = document.getElementById("fileInput");
 const configBtn = document.getElementById("configBtn");
+const appMenuBtn = document.getElementById("appMenuBtn");
+const appMenu = document.getElementById("appMenu");
 const presetManagerBtn = document.getElementById("presetManagerBtn");
 const studioBtn = document.getElementById("studioBtn");
 const canvasBtn = document.getElementById("canvasBtn");
@@ -1228,6 +1230,38 @@ if (configBtn) {
     window.open("./config/config.html", "_blank");
   });
 }
+
+function closeAppMenu() {
+  appMenu?.parentElement?.classList.remove("open");
+  appMenuBtn?.setAttribute("aria-expanded", "false");
+}
+
+if (appMenuBtn) {
+  appMenuBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const menuRoot = appMenuBtn.closest(".app-menu");
+    const isOpen = menuRoot?.classList.toggle("open");
+    appMenuBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+}
+
+if (appMenu) {
+  appMenu.addEventListener("click", () => {
+    closeAppMenu();
+  });
+}
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest?.(".app-menu")) {
+    closeAppMenu();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeAppMenu();
+  }
+});
 
 if (presetManagerBtn) {
   presetManagerBtn.addEventListener("click", () => {

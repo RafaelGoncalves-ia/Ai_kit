@@ -37,9 +37,25 @@
     <div class="header-actions">
       <button id="thinkingBtn" class="btn-thinking" title="Thinking na rota curta">🧠</button>
       <button id="internetBtn" class="btn-internet" type="button" title="Pesquisa web ligada" aria-label="Pesquisa web ligada" aria-pressed="true">&#127760;</button>
-      <button id="presetManagerBtn" class="btn-canvas" type="button" title="Abrir Gerenciador de Presets" aria-label="Abrir Gerenciador de Presets">Presets</button>
-      <button id="studioBtn" class="btn-canvas" type="button" title="Abrir KIT Studio" aria-label="Abrir KIT Studio">Studio</button>
-      <button id="canvasBtn" class="btn-canvas" type="button" title="Abrir Canvas KIT IA" aria-label="Abrir Canvas KIT IA">Canvas</button>
+      <div class="app-menu">
+        <button id="appMenuBtn" class="btn-app-menu" type="button" title="Abrir menu de ferramentas" aria-label="Abrir menu de ferramentas" aria-expanded="false">
+          <span aria-hidden="true">&#8942;</span>
+        </button>
+        <div id="appMenu" class="app-menu-dropdown" role="menu" aria-label="Ferramentas KIT">
+          <button id="canvasBtn" class="app-menu-item" type="button" role="menuitem" title="Abrir Canvas KIT IA">
+            <img src="assets/icones/Toolsbar/foto-filme-musica.svg" alt="">
+            <span>Canvas</span>
+          </button>
+          <button id="studioBtn" class="app-menu-item" type="button" role="menuitem" title="Abrir KIT Studio">
+            <img src="assets/icones/Studio/microchip.svg" alt="">
+            <span>Studio</span>
+          </button>
+          <button id="presetManagerBtn" class="app-menu-item" type="button" role="menuitem" title="Abrir Gerenciador de Presets">
+            <img src="assets/icones/config.svg" alt="">
+            <span>Gerador de presets</span>
+          </button>
+        </div>
+      </div>
       <button id="configBtn" class="btn-config" title="Configurações">⚙</button>
     </div>
   </header>

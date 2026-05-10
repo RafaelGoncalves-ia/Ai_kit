@@ -10,4 +10,9 @@ If Not fso.FileExists(electronPath) Then
   WScript.Quit 1
 End If
 
+On Error Resume Next
+shell.Environment("PROCESS").Remove "ELECTRON_RUN_AS_NODE"
+shell.Environment("USER").Remove "ELECTRON_RUN_AS_NODE"
+shell.Environment("SYSTEM").Remove "ELECTRON_RUN_AS_NODE"
+On Error GoTo 0
 shell.Run """" & electronPath & """ """ & appPath & """", 0, False
