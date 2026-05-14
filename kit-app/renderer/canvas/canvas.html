@@ -76,7 +76,6 @@
                 <option value="custom">Custom</option>
               </select>
             </label>
-            <span id="artboardSizeLabel" class="artboard-size-label">1080 x 1080</span>
             <div id="customArtboardControls" class="custom-artboard-controls" hidden>
               <input id="customWidth" type="number" min="64" max="8192" step="1" value="1080" aria-label="Largura custom">
               <span>x</span>
@@ -85,10 +84,13 @@
             </div>
           </div>
 
-          <div class="topbar-quick-actions" aria-label="Acoes rapidas">
-            <button type="button" class="quick-action" data-app-action="chat" title="Abrir Chat completo">Chat</button>
-            <button id="undoButton" type="button" class="quick-action" data-history-action="undo" title="Desfazer">Desfazer</button>
-            <button id="redoButton" type="button" class="quick-action" data-history-action="redo" title="Refazer">Refazer</button>
+          <div id="topbarGenerationStatus" class="topbar-generation-status" data-phase="idle" hidden aria-live="polite">
+            <div class="generation-status-line">
+              <span id="topbarGenerationLabel">Pronto</span>
+            </div>
+            <div class="generation-progress-track" aria-hidden="true">
+              <span id="topbarGenerationProgress" class="generation-progress-fill"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -352,13 +354,12 @@
 
         <section class="inspector-accordion" data-inspector-section="sd">
           <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="sd" aria-expanded="false">
-            <span>Stable Diffusion</span>
+            <span>Gerador IA</span>
           </button>
           <div class="inspector-accordion-body">
-            <div class="sd-status-row">
-              <button type="button" class="icon-button" data-sd-action="start-worker" title="Iniciar worker">
-                <img src="../assets/icones/terminal-quadrado.svg" alt="">
-                <span class="sr-only">Iniciar worker</span>
+            <div class="ai-engine-row">
+              <button id="aiEngineToggleButton" type="button" class="ai-engine-toggle" data-ai-action="activate-engine">
+                Ativar motor IA
               </button>
               <button type="button" class="icon-button" data-sd-action="refresh-models" title="Atualizar modelos">
                 <img src="../assets/icones/config.svg" alt="">
@@ -366,120 +367,204 @@
               </button>
             </div>
             <div id="sdStatus" class="sd-status">Worker ainda nao consultado</div>
+            <div class="ai-tab-row" role="tablist" aria-label="Tipo de geracao">
+              <button id="aiGeneratorTabImage" type="button" class="ai-tab-button is-active" data-ai-tab="image" role="tab" aria-selected="true">
+                Imagem
+              </button>
+              <button id="aiGeneratorTabVideo" type="button" class="ai-tab-button" data-ai-tab="video" role="tab" aria-selected="false">
+                Video
+              </button>
+            </div>
             <label>
               Prompt positivo
-              <textarea id="sdPrompt" rows="3" placeholder="Descreva a imagem"></textarea>
+              <textarea id="sdPrompt" rows="3" placeholder="Descreva o que deseja gerar"></textarea>
             </label>
             <label>
               Prompt negativo
               <textarea id="sdNegativePrompt" rows="3" placeholder="Itens a evitar"></textarea>
             </label>
-            <label>
-              Checkpoint
-              <select id="sdCheckpoint"></select>
-            </label>
-            <label>
-              Tipo do modelo
-              <select id="sdArchitecture">
-                <option value="auto">Auto</option>
-                <option value="sd15">SD 1.5</option>
-                <option value="sdxl">SDXL</option>
-              </select>
-            </label>
-            <label>
-              LoRA
-              <select id="sdLora"></select>
-            </label>
-            <label>
-              Modo principal
-              <select id="sdMode">
-                <option value="txt2img">T2I / txt2img</option>
-                <option value="i2i">I2I / img2img</option>
-              </select>
-            </label>
-            <div id="sdI2IControls">
+            <div class="ai-common-grid">
               <label>
-                Subtipo I2I
-                <select id="sdI2IMode">
-                  <option value="img2img">img2img</option>
-                  <option value="sketch">Sketch</option>
-                  <option value="inpaint">Inpaint</option>
-                  <option value="inpaint-sketch">Inpaint Sketch</option>
-                </select>
-              </label>
-              <div id="sdSourceStatus" class="inspector-note">Selecione uma camada de imagem para usar img2img.</div>
-              <div id="sdInpaintMaskContext" class="inspector-note">Quando o modo for inpaint, o SD usara a mascara de inpaint do canvas. Essa mascara e separada da mascara de layer.</div>
-            </div>
-            <label>
-              Sampling method
-              <select id="sdScheduler">
-                <option value="DPMSolverMultistepScheduler">DPMSolverMultistepScheduler</option>
-                <option value="EulerDiscreteScheduler">EulerDiscreteScheduler</option>
-                <option value="EulerAncestralDiscreteScheduler">EulerAncestralDiscreteScheduler</option>
-                <option value="DDIMScheduler">DDIMScheduler</option>
-                <option value="LMSDiscreteScheduler">LMSDiscreteScheduler</option>
-              </select>
-            </label>
-            <div class="sd-grid">
-              <label>
-                Steps
-                <input id="sdSteps" type="number" min="1" max="80" step="1" value="24">
+                Estilo visual
+                <input id="aiStyle" type="text" placeholder="Ex.: cinematografico, clean, editorial">
               </label>
               <label>
-                CFG
-                <input id="sdCfgScale" type="number" min="1" max="30" step="0.5" value="7">
-              </label>
-              <label>
-                Width
-                <input id="sdWidth" type="number" min="64" max="2048" step="8" placeholder="auto">
-              </label>
-              <label>
-                Height
-                <input id="sdHeight" type="number" min="64" max="2048" step="8" placeholder="auto">
-              </label>
-              <label>
-                Seed
-                <input id="sdSeed" type="number" step="1" value="-1">
-              </label>
-              <label>
-                Denoising
-                <input id="sdDenoising" type="number" min="0" max="1" step="0.05" value="0.55">
-              </label>
-            </div>
-            <div class="inpaint-controls">
-              <label>
-                Insercao do resultado
-                <select id="sdInpaintInsertMode">
-                  <option value="new-layer">Nova layer</option>
-                  <option value="replace">Substituir preservando original</option>
-                  <option value="variation">Variacao</option>
+                Preset rapido
+                <select id="aiPreset">
+                  <option value="standard">Standard</option>
+                  <option value="rapid">Rapid</option>
+                  <option value="quality">Quality</option>
                 </select>
               </label>
             </div>
-            <div class="outpaint-controls">
+
+            <div id="aiImageSection" class="ai-generator-section">
               <label>
-                Formato outpaint
-                <select id="sdOutpaintTarget">
-                  <option value="instagram-story">9:16 Story/Reels</option>
-                  <option value="instagram-portrait">4:5 Retrato</option>
-                  <option value="instagram-post">1:1 Quadrado</option>
-                  <option value="youtube-thumb">16:9 Horizontal</option>
+                Checkpoint
+                <select id="sdCheckpoint"></select>
+              </label>
+              <div class="ai-preview-card" id="aiImageModelPreviewCard" hidden>
+                <img id="aiImageModelPreview" alt="Preview do modelo de imagem">
+              </div>
+              <label>
+                Tipo do modelo
+                <select id="sdArchitecture">
+                  <option value="auto">Auto</option>
+                  <option value="sd15">SD 1.5</option>
+                  <option value="sdxl">SDXL</option>
                 </select>
               </label>
               <label>
-                Expandir para
-                <select id="sdOutpaintSide">
-                  <option value="auto">Automatico</option>
-                  <option value="left">Esquerda</option>
-                  <option value="right">Direita</option>
-                  <option value="top">Topo</option>
-                  <option value="bottom">Base</option>
+                LoRA
+                <select id="sdLora"></select>
+              </label>
+              <div class="ai-preview-card" id="aiImageLoraPreviewCard" hidden>
+                <img id="aiImageLoraPreview" alt="Preview da LoRA de imagem">
+              </div>
+              <label>
+                Modo principal
+                <select id="sdMode">
+                  <option value="txt2img">T2I / txt2img</option>
+                  <option value="i2i">I2I / img2img</option>
                 </select>
               </label>
+              <div id="sdI2IControls">
+                <label>
+                  Subtipo I2I
+                  <select id="sdI2IMode">
+                    <option value="img2img">img2img</option>
+                    <option value="sketch">Sketch</option>
+                    <option value="inpaint">Inpaint</option>
+                    <option value="inpaint-sketch">Inpaint Sketch</option>
+                  </select>
+                </label>
+                <div id="sdSourceStatus" class="inspector-note">Selecione uma camada de imagem para usar img2img.</div>
+                <div id="sdInpaintMaskContext" class="inspector-note">Quando o modo for inpaint, o SD usara a mascara de inpaint do canvas. Essa mascara e separada da mascara de layer.</div>
+              </div>
+              <details class="ai-advanced-details">
+                <summary>Configuracao Avancada</summary>
+                <label>
+                  Sampling method
+                  <select id="sdScheduler">
+                    <option value="DPMSolverMultistepScheduler">DPMSolverMultistepScheduler</option>
+                    <option value="EulerDiscreteScheduler">EulerDiscreteScheduler</option>
+                    <option value="EulerAncestralDiscreteScheduler">EulerAncestralDiscreteScheduler</option>
+                    <option value="DDIMScheduler">DDIMScheduler</option>
+                    <option value="LMSDiscreteScheduler">LMSDiscreteScheduler</option>
+                  </select>
+                </label>
+                <div class="sd-grid">
+                  <label>
+                    Steps
+                    <input id="sdSteps" type="number" min="1" max="80" step="1" value="24">
+                  </label>
+                  <label>
+                    CFG
+                    <input id="sdCfgScale" type="number" min="1" max="30" step="0.5" value="7">
+                  </label>
+                  <label>
+                    Width
+                    <input id="sdWidth" type="number" min="64" max="2048" step="8" placeholder="auto">
+                  </label>
+                  <label>
+                    Height
+                    <input id="sdHeight" type="number" min="64" max="2048" step="8" placeholder="auto">
+                  </label>
+                  <label>
+                    Seed
+                    <input id="sdSeed" type="number" step="1" value="-1">
+                  </label>
+                  <label>
+                    Denoising
+                    <input id="sdDenoising" type="number" min="0" max="1" step="0.05" value="0.55">
+                  </label>
+                </div>
+                <div class="inpaint-controls">
+                  <label>
+                    Insercao do resultado
+                    <select id="sdInpaintInsertMode">
+                      <option value="new-layer">Nova layer</option>
+                      <option value="replace">Substituir preservando original</option>
+                      <option value="variation">Variacao</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="outpaint-controls">
+                  <label>
+                    Formato outpaint
+                    <select id="sdOutpaintTarget">
+                      <option value="instagram-story">9:16 Story/Reels</option>
+                      <option value="instagram-portrait">4:5 Retrato</option>
+                      <option value="instagram-post">1:1 Quadrado</option>
+                      <option value="youtube-thumb">16:9 Horizontal</option>
+                    </select>
+                  </label>
+                  <label>
+                    Expandir para
+                    <select id="sdOutpaintSide">
+                      <option value="auto">Automatico</option>
+                      <option value="left">Esquerda</option>
+                      <option value="right">Direita</option>
+                      <option value="top">Topo</option>
+                      <option value="bottom">Base</option>
+                    </select>
+                  </label>
+                </div>
+              </details>
             </div>
-            <button id="sdGenerateButton" type="button" class="icon-button icon-button-primary" data-sd-action="generate" title="Gerar e inserir">
-              <img src="../assets/icones/Toolsbar/varinha-magica.svg" alt="">
-              <span class="sr-only">Gerar e inserir</span>
+
+            <div id="aiVideoSection" class="ai-generator-section" hidden>
+              <div class="ai-section-title">Video Wan</div>
+              <label>
+                Modo
+                <select id="aiVideoMode">
+                  <option value="text_to_video">Text to Video</option>
+                  <option value="image_to_video">Image to Video</option>
+                </select>
+              </label>
+              <div id="aiVideoSourceStatus" class="inspector-note">T2V funciona sem layer selecionada. Para I2V, selecione uma camada raster compativel.</div>
+              <label>
+                Preset
+                <select id="aiVideoPreset">
+                  <option value="wan_wide_5s">Wan seguro 5s</option>
+                  <option value="wan_low_vram_3s">Wan baixo VRAM 3s</option>
+                  <option value="wan_tiny_test">Wan tiny teste</option>
+                </select>
+              </label>
+              <label>
+                Duracao
+                <input id="aiVideoDuration" type="number" min="1" max="15" step="1" value="5">
+              </label>
+              <label>
+                Modelo Wan
+                <select id="aiVideoModel"></select>
+              </label>
+              <div class="ai-preview-card" id="aiVideoModelPreviewCard" hidden>
+                <img id="aiVideoModelPreview" alt="Preview do modelo de video">
+              </div>
+              <div class="video-lora-panel">
+                <div class="video-lora-header">
+                  <span>LoRAs Wan</span>
+                  <span>max. 3</span>
+                </div>
+                <div id="aiVideoLoraList" class="video-lora-list"></div>
+                <div id="aiVideoLoraWarning" class="inspector-note" hidden>Muitas LoRAs podem exceder VRAM.</div>
+              </div>
+              <div class="ai-preview-card" id="aiVideoLoraPreviewCard" hidden>
+                <img id="aiVideoLoraPreview" alt="Preview da LoRA de video">
+              </div>
+              <div class="video-runtime-summary">
+                <div><span>Resolucao real</span><strong id="aiVideoFinalResolution">832 x 480</strong></div>
+                <div><span>Duracao real</span><strong id="aiVideoFinalDuration">5s / 81 frames</strong></div>
+                <div><span>Estimativa</span><strong id="aiVideoEstimate">pesado</strong></div>
+              </div>
+            </div>
+
+            <button id="sdGenerateButton" type="button" class="ai-generate-button" data-sd-action="generate">
+              Gerar
+            </button>
+            <button id="aiVideoAbortButton" type="button" class="ai-abort-button" data-video-action="abort" hidden>
+              Abortar video
             </button>
           </div>
         </section>

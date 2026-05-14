@@ -1,0 +1,14 @@
+﻿{
+    "mode":  "t2v",
+    "height":  512,
+    "id":  "smoke",
+    "cfg":  1.5,
+    "sequenceLength":  17,
+    "modelPath":  "F:\\AI\\models\\diffusion_models\\wan2.2-t2v-rapid-aio-v10-nsfw-Q4_K.gguf",
+    "outputPath":  "F:\\AI\\Ai_kit\\temp\\video-worker-smoke\\out.mp4",
+    "width":  512,
+    "steps":  4,
+    "workingDir":  "F:\\AI\\Ai_kit\\temp\\video-worker-smoke",
+    "prompt":  "smoke",
+    "fps":  16
+}

@@ -1,0 +1,20 @@
+﻿{
+    "id":  "wan-smoke",
+    "negativePrompt":  "",
+    "workingDir":  "F:\\AI\\Ai_kit\\temp\\video-worker-wan-smoke",
+    "duration":  1,
+    "steps":  1,
+    "shift":  8,
+    "modelPath":  "F:\\AI\\models\\diffusion_models\\wan2.2-t2v-rapid-aio-v10-nsfw-Q4_K.gguf",
+    "scheduler":  "beta",
+    "fps":  8,
+    "width":  256,
+    "sequenceLength":  5,
+    "sampler":  "euler_ancestral",
+    "cfg":  1.5,
+    "height":  256,
+    "outputPath":  "F:\\AI\\Ai_kit\\temp\\video-worker-wan-smoke\\out.mp4",
+    "prompt":  "a woman walking on the beach",
+    "frames":  4,
+    "mode":  "t2v"
+}

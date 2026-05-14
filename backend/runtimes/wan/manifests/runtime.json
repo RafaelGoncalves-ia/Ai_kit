@@ -1,0 +1,15 @@
+{
+  "runtime": "kit-wan-legacy",
+  "base": {
+    "comfyui_commit": "123a7874a97c4a8b8f06d4b7c2b1a566b8f0d057",
+    "gguf_commit": "local-tracking-no-git-2026-05-13"
+  },
+  "kit": {
+    "runtime_version": "1.0.0",
+    "patches": [
+      "Express workflow integration",
+      "Internal Wan runtime facade",
+      "No ComfyUI server/UI/API startup"
+    ]
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "id": "video-job-3d7eebb0-4ff8-4bd4-914b-248338e1e224",
+  "projectId": "",
+  "sceneId": "",
+  "sessionId": "canvas",
+  "source": "canvas",
+  "fileName": "",
+  "prompt": "A woman, blonde, petite, reading a book by the pool, naked, wearing a hat, lying down, teen, leafing through the book,",
+  "negativePrompt": "",
+  "motionPrompt": "",
+  "duration": 5,
+  "fps": 12,
+  "frames": 60,
+  "sequenceLength": 61,
+  "width": 1080,
+  "height": 1080,
+  "ratio": "1080:1080",
+  "preset": "standard",
+  "model": "wan2-2-t2v-rapid-aio-v10-nsfw-q4-k",
+  "modelPath": "F:\\AI\\models\\diffusion_models\\wan2.2-t2v-rapid-aio-v10-nsfw-Q4_K.gguf",
+  "modelFamily": "wan",
+  "modelRegistryEntry": {
+    "id": "wan2-2-t2v-rapid-aio-v10-nsfw-q4-k",
+    "name": "wan2.2-t2v-rapid-aio-v10-nsfw-Q4_K",
+    "family": "wan",
+    "task": "text-to-video",
+    "modelPath": "F:\\AI\\models\\diffusion_models\\wan2.2-t2v-rapid-aio-v10-nsfw-Q4_K.gguf",
+    "preview": "",
+    "precision": "auto",
+    "quantization": "none",
+    "recommendedModes": [
+      "t2v",
+      "i2v"
+    ],
+    "minVramGb": 12,
+    "notes": "Compatível com pipelines Wan para vídeo local.",
+    "available": true,
+    "sourceDir": "F:\\AI\\models\\diffusion_models",
+    "sourceRoot": "F:\\AI\\models\\diffusion_models",
+    "type": "video-model"
+  },
+  "quality": "standard",
+  "exportSettings": {
+    "format": "mp4",
+    "videoCodec": "libx264",
+    "pixelFormat": "yuv420p"
+  },
+  "references": [],
+  "startImage": "",
+  "endImage": "",
+  "outputPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-3d7eebb0-4ff8-4bd4-914b-248338e1e224.mp4",
+  "thumbnailPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-3d7eebb0-4ff8-4bd4-914b-248338e1e224.png",
+  "lastFramePath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-3d7eebb0-4ff8-4bd4-914b-248338e1e224-last-frame.png",
+  "projectAssetDir": "F:\\AI\\Ai_kit\\workspace\\projects\\studio\\assets\\video",
+  "workingDir": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-3d7eebb0-4ff8-4bd4-914b-248338e1e224",
+  "mode": "t2v",
+  "pipeline": {
+    "id": "text-to-video",
+    "mode": "t2v",
+    "sourceStrategy": "prompt-slate",
+    "supports": [
+      "interpolation",
+      "startFrame",
+      "endFrame",
+      "chaining",
+      "frame-guidance"
+    ]
+  },
+  "conditioning": {
+    "preferredMode": "t2v",
+    "startImage": "",
+    "endImage": "",
+    "primaryReference": null,
+    "references": [],
+    "loras": [],
+    "logs": [
+      "preferred-mode:t2v",
+      "references:0",
+      "loras:0",
+      "start-image:none"
+    ]
+  },
+  "output": {
+    "assetDir": "F:\\AI\\Ai_kit\\output\\canvas-video",
+    "outputPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-3d7eebb0-4ff8-4bd4-914b-248338e1e224.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-3d7eebb0-4ff8-4bd4-914b-248338e1e224.png",
+    "lastFramePath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-3d7eebb0-4ff8-4bd4-914b-248338e1e224-last-frame.png",
+    "ratio": "1080:1080"
+  },
+  "summaryLogs": [
+    "pipeline:t2v",
+    "source:prompt-slate",
+    "preferred-mode:t2v",
+    "references:0",
+    "loras:0",
+    "start-image:none"
+  ]
+}

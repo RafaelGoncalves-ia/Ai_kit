@@ -1,7 +1,7 @@
 import { computeFrameCount } from "./computeFrameCount.js";
 import { computeSequenceLength } from "./computeSequenceLength.js";
 
-const ALLOWED_VIDEO_DURATIONS = [3, 5, 7, 10, 12, 15];
+const ALLOWED_VIDEO_DURATIONS = [1, 3, 5, 7, 10, 12, 15];
 const VIDEO_SIZE_TABLE = {
   "1:1": { width: 768, height: 768 },
   "4:5": { width: 768, height: 960 },
@@ -75,4 +75,3 @@ export function buildVideoGenerationConfig({
 }
 
 export { ALLOWED_VIDEO_DURATIONS };
-

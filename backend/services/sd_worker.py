@@ -225,10 +225,12 @@ def normalize_architecture(value, checkpoint):
 
 def resolve_checkpoint(value):
     requested = os.path.abspath(str(value or "").strip())
+    if requested and DIFFUSION_MODELS_PATH.lower() in requested.lower():
+        raise ValueError("Modelo de video detectado em diffusion_models. O motor de imagem aceita apenas checkpoints SD15/SDXL.")
     if requested and os.path.exists(requested):
         return requested
     scanned = scan_all_models()
-    models = scanned["checkpoints"] + scanned["diffusionModels"]
+    models = scanned["checkpoints"]
     for item in models:
         if value and (value == item["path"] or value == item["name"] or value == item["filename"]):
             return item["path"]
@@ -637,6 +639,15 @@ def models():
             "originalConfigsPath": ORIGINAL_CONFIGS_PATH,
             "outputPath": OUTPUT_DIR,
         },
+    })
+
+
+@app.route("/unload", methods=["POST"])
+def unload():
+    unload_model()
+    return jsonify({
+        "status": "ok",
+        "message": "Stable Diffusion model unloaded"
     })
 
 

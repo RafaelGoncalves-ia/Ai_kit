@@ -1,0 +1,110 @@
+{
+  "id": "video-job-458c8493-e4af-4401-8f27-c932eed59926",
+  "projectId": "",
+  "sceneId": "",
+  "sessionId": "canvas",
+  "source": "canvas",
+  "fileName": "",
+  "prompt": "Blonde woman in a hat, lying naked by the pool reading a book.",
+  "negativePrompt": "",
+  "motionPrompt": "",
+  "duration": 5,
+  "fps": 16,
+  "frames": 80,
+  "sequenceLength": 81,
+  "width": 1080,
+  "height": 1080,
+  "ratio": "1080:1080",
+  "preset": "standard-T2V",
+  "model": "realismbystableyogi-v40fp16",
+  "modelPath": "F:\\AI\\models\\diffusion_models\\realismByStableYogi_v40FP16.safetensors",
+  "modelFamily": "generic-video",
+  "modelRegistryEntry": {
+    "id": "realismbystableyogi-v40fp16",
+    "name": "realismByStableYogi_v40FP16",
+    "family": "generic-video",
+    "task": "video-generation",
+    "modelPath": "F:\\AI\\models\\diffusion_models\\realismByStableYogi_v40FP16.safetensors",
+    "preview": "F:\\AI\\models\\diffusion_models\\realismByStableYogi_v40FP16.jpeg",
+    "precision": "auto",
+    "quantization": "none",
+    "recommendedModes": [
+      "t2v",
+      "i2v"
+    ],
+    "minVramGb": 8,
+    "notes": "Modelo de vídeo local detectado sem família mapeada.",
+    "available": true,
+    "sourceDir": "F:\\AI\\models\\diffusion_models",
+    "sourceRoot": "F:\\AI\\models\\diffusion_models",
+    "type": "video-model"
+  },
+  "wanRuntime": "",
+  "wanDiagnostics": null,
+  "quality": "standard-T2V",
+  "exportSettings": {
+    "format": "mp4",
+    "videoCodec": "libx264",
+    "pixelFormat": "yuv420p"
+  },
+  "references": [],
+  "startImage": "",
+  "endImage": "",
+  "seed": -1,
+  "steps": 4,
+  "cfg": 1.5,
+  "sampler": "euler_ancestral",
+  "scheduler": "beta",
+  "shift": 8,
+  "denoise": 0.7,
+  "motionStrength": 0.5,
+  "imageStrength": 0.65,
+  "loras": [],
+  "outputPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-458c8493-e4af-4401-8f27-c932eed59926.mp4",
+  "thumbnailPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-458c8493-e4af-4401-8f27-c932eed59926.png",
+  "lastFramePath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-458c8493-e4af-4401-8f27-c932eed59926-last-frame.png",
+  "projectAssetDir": "F:\\AI\\Ai_kit\\workspace\\projects\\studio\\assets\\video",
+  "workingDir": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-458c8493-e4af-4401-8f27-c932eed59926",
+  "mode": "t2v",
+  "pipeline": {
+    "id": "standard-T2V",
+    "mode": "t2v",
+    "sourceStrategy": "text-conditioning",
+    "supports": [
+      "interpolation",
+      "startFrame",
+      "endFrame",
+      "chaining",
+      "frame-guidance"
+    ]
+  },
+  "conditioning": {
+    "preferredMode": "t2v",
+    "startImage": "",
+    "endImage": "",
+    "primaryReference": null,
+    "references": [],
+    "loras": [],
+    "logs": [
+      "preferred-mode:t2v",
+      "references:0",
+      "loras:0",
+      "start-image:none"
+    ]
+  },
+  "output": {
+    "assetDir": "F:\\AI\\Ai_kit\\output\\canvas-video",
+    "outputPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-458c8493-e4af-4401-8f27-c932eed59926.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-458c8493-e4af-4401-8f27-c932eed59926.png",
+    "lastFramePath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-458c8493-e4af-4401-8f27-c932eed59926-last-frame.png",
+    "ratio": "1080:1080"
+  },
+  "summaryLogs": [
+    "pipeline:t2v",
+    "source:text-conditioning",
+    "preferred-mode:t2v",
+    "references:0",
+    "loras:0",
+    "start-image:none"
+  ]
+}

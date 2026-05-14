@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node backend/server.js",
-    "start:kit": "npm --prefix kit-app start"
+    "start:kit": "npm --prefix kit-app start",
+    "diagnose:wan": "node backend/scripts/diagnoseWan.js",
+    "test:wan:tiny": "node backend/scripts/testWanTiny.js"
   },
   "dependencies": {
     "@tavily/core": "^0.7.2",

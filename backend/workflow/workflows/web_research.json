@@ -1,0 +1,32 @@
+{
+  "id": "web_research",
+  "version": "1.0",
+  "nodes": [
+    {
+      "id": "query",
+      "type": "input.text",
+      "params": { "key": "prompt" }
+    },
+    {
+      "id": "search",
+      "type": "web.search",
+      "inputs": {
+        "query": { "node": "query", "output": "text" }
+      }
+    },
+    {
+      "id": "summary",
+      "type": "llm.ollama",
+      "inputs": {
+        "prompt": { "node": "search", "output": "text" }
+      }
+    },
+    {
+      "id": "text",
+      "type": "output.text",
+      "inputs": {
+        "text": { "node": "summary", "output": "text" }
+      }
+    }
+  ]
+}

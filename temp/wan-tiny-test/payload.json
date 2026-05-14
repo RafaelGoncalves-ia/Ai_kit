@@ -1,0 +1,27 @@
+{
+  "id": "wan-tiny-test",
+  "mode": "t2v",
+  "prompt": "Video of a kitten walking.",
+  "negativePrompt": "",
+  "duration": 1,
+  "fps": 16,
+  "frames": 16,
+  "sequenceLength": 17,
+  "width": 512,
+  "height": 512,
+  "modelFamily": "wan",
+  "modelPath": "F:\\AI\\models\\diffusion_models\\wan2.2-t2v-rapid-aio-v10-nsfw-Q4_K.gguf",
+  "seed": 12345,
+  "steps": 1,
+  "cfg": 1.5,
+  "sampler": "euler_ancestral",
+  "scheduler": "beta",
+  "shift": 8,
+  "denoise": 0.7,
+  "loras": [],
+  "conditioning": {
+    "loras": []
+  },
+  "outputPath": "F:\\AI\\Ai_kit\\temp\\wan-tiny-test\\kit-wan-kitten-tiny.mp4",
+  "workingDir": "F:\\AI\\Ai_kit\\temp\\wan-tiny-test"
+}

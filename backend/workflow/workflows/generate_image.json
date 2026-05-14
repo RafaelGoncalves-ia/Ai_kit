@@ -1,0 +1,40 @@
+{
+  "id": "generate_image",
+  "version": "1.0",
+  "nodes": [
+    {
+      "id": "resources_start",
+      "type": "system.resource_profile",
+      "params": { "profile": "gpu_image_exclusive" }
+    },
+    {
+      "id": "prompt",
+      "type": "input.text",
+      "params": { "key": "prompt" }
+    },
+    {
+      "id": "image",
+      "type": "image.stable_diffusion",
+      "inputs": {
+        "text": { "node": "prompt", "output": "text" }
+      }
+    },
+    {
+      "id": "file",
+      "type": "output.file",
+      "inputs": {
+        "path": { "node": "image", "output": "path" },
+        "content": { "node": "image", "output": "raw" }
+      },
+      "params": { "extension": "json" }
+    },
+    {
+      "id": "resources_end",
+      "type": "system.resource_profile",
+      "inputs": {
+        "previous": { "node": "file", "output": "path" }
+      },
+      "params": { "profile": "chat_runtime" }
+    }
+  ]
+}

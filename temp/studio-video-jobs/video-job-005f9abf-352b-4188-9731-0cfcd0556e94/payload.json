@@ -1,0 +1,120 @@
+{
+  "id": "video-job-005f9abf-352b-4188-9731-0cfcd0556e94",
+  "projectId": "",
+  "sceneId": "",
+  "sessionId": "canvas",
+  "source": "canvas",
+  "fileName": "",
+  "prompt": "A woman, blonde, petite, reading a book by the pool, naked, wearing a hat, lying down,teen, foliando o livro,",
+  "negativePrompt": "",
+  "motionPrompt": "",
+  "duration": 5,
+  "fps": 16,
+  "frames": 80,
+  "sequenceLength": 81,
+  "width": 1080,
+  "height": 1080,
+  "ratio": "1080:1080",
+  "preset": "standard-T2V",
+  "model": "wan2-2-t2v-rapid-aio-v10-nsfw-q4-k",
+  "modelPath": "F:\\AI\\models\\diffusion_models\\wan2.2-t2v-rapid-aio-v10-nsfw-Q4_K.gguf",
+  "modelFamily": "wan",
+  "modelRegistryEntry": {
+    "id": "wan2-2-t2v-rapid-aio-v10-nsfw-q4-k",
+    "name": "wan2.2-t2v-rapid-aio-v10-nsfw-Q4_K",
+    "family": "wan",
+    "task": "text-to-video",
+    "modelPath": "F:\\AI\\models\\diffusion_models\\wan2.2-t2v-rapid-aio-v10-nsfw-Q4_K.gguf",
+    "preview": "",
+    "precision": "auto",
+    "quantization": "none",
+    "recommendedModes": [
+      "t2v",
+      "i2v"
+    ],
+    "minVramGb": 12,
+    "notes": "Compatível com pipelines Wan para vídeo local.",
+    "available": true,
+    "sourceDir": "F:\\AI\\models\\diffusion_models",
+    "sourceRoot": "F:\\AI\\models\\diffusion_models",
+    "type": "video-model"
+  },
+  "quality": "standard-T2V",
+  "exportSettings": {
+    "format": "mp4",
+    "videoCodec": "libx264",
+    "pixelFormat": "yuv420p"
+  },
+  "references": [],
+  "startImage": "",
+  "endImage": "",
+  "seed": -1,
+  "steps": 4,
+  "cfg": 1.5,
+  "sampler": "euler_ancestral",
+  "scheduler": "beta",
+  "denoise": 0.7,
+  "motionStrength": 0.5,
+  "imageStrength": 0.65,
+  "loras": [
+    {
+      "path": "F:\\AI\\models\\loras\\wan\\WAN2.2_T2V_I2V-14B_INVISIBLEGROPE-LOW-epoch35_v1.1_qqqq4413.safetensors",
+      "name": "WAN2.2_T2V_I2V-14B_INVISIBLEGROPE-LOW-epoch35_v1.1_qqqq4413",
+      "weight": 1
+    }
+  ],
+  "outputPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-005f9abf-352b-4188-9731-0cfcd0556e94.mp4",
+  "thumbnailPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-005f9abf-352b-4188-9731-0cfcd0556e94.png",
+  "lastFramePath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-005f9abf-352b-4188-9731-0cfcd0556e94-last-frame.png",
+  "projectAssetDir": "F:\\AI\\Ai_kit\\workspace\\projects\\studio\\assets\\video",
+  "workingDir": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-005f9abf-352b-4188-9731-0cfcd0556e94",
+  "mode": "t2v",
+  "pipeline": {
+    "id": "standard-T2V",
+    "mode": "t2v",
+    "sourceStrategy": "text-conditioning",
+    "supports": [
+      "interpolation",
+      "startFrame",
+      "endFrame",
+      "chaining",
+      "frame-guidance"
+    ]
+  },
+  "conditioning": {
+    "preferredMode": "t2v",
+    "startImage": "",
+    "endImage": "",
+    "primaryReference": null,
+    "references": [],
+    "loras": [
+      {
+        "id": "lora-1",
+        "name": "WAN2.2_T2V_I2V-14B_INVISIBLEGROPE-LOW-epoch35_v1.1_qqqq4413",
+        "path": "F:\\AI\\models\\loras\\wan\\WAN2.2_T2V_I2V-14B_INVISIBLEGROPE-LOW-epoch35_v1.1_qqqq4413.safetensors",
+        "weight": 1
+      }
+    ],
+    "logs": [
+      "preferred-mode:t2v",
+      "references:0",
+      "loras:1",
+      "start-image:none"
+    ]
+  },
+  "output": {
+    "assetDir": "F:\\AI\\Ai_kit\\output\\canvas-video",
+    "outputPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-005f9abf-352b-4188-9731-0cfcd0556e94.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-005f9abf-352b-4188-9731-0cfcd0556e94.png",
+    "lastFramePath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-005f9abf-352b-4188-9731-0cfcd0556e94-last-frame.png",
+    "ratio": "1080:1080"
+  },
+  "summaryLogs": [
+    "pipeline:t2v",
+    "source:text-conditioning",
+    "preferred-mode:t2v",
+    "references:0",
+    "loras:1",
+    "start-image:none"
+  ]
+}

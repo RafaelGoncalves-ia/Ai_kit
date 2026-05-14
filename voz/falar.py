@@ -7,21 +7,8 @@ if torch.cuda.is_available():
     tts = tts.to("cuda")
 
 texto = """
-Quando o cliente consegue se ver ali
-a venda começa antes da visita
-
-É isso que o marketing certo faz
-
-Transforma conteúdo em percepção
-interesse em valor
-e visualização em oportunidade real
-
-Com estratégia
-cada imóvel ganha vida
-antes mesmo de alguém entrar
-
-Quer aplicar isso no seu negócio
-fala com a Adsune
+Quer parar de queimar dinheiro com impulsionamento?
+Então talvez esteja na hora de anunciar do jeito certo
 """
 
 tts.tts_to_file(

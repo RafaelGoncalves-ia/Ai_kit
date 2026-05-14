@@ -210,6 +210,7 @@ export default function createStableDiffusionRoutes(context) {
           loras: scanned.loras.length,
           diffusionModels: scanned.diffusionModels.length
         },
+        selectableModels: scanned.checkpoints,
         config: {
           source: config.source,
           modelsRoot: config.modelsRoot,

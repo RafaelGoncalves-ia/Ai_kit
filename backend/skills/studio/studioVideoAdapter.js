@@ -5,6 +5,7 @@ const studioProjectSchema = require("./studioProjectSchema");
 
 const { saveStudioProject, findStudioProjectRecordById } = studioProjectStore;
 const { normalizeStudioProject, updateStudioProject } = studioProjectSchema;
+const WAN_PRESETS_PATH = path.resolve(process.cwd(), "backend", "runtimes", "wan", "presets", "wan_presets.json");
 
 function ensureArray(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
@@ -57,6 +58,83 @@ function resolveSceneStartImage(scene = {}) {
   });
 
   return String(imageReference?.path || imageReference?.filePath || "").trim();
+}
+
+function resolveWanPresetForStudio(name = "wan_wide_5s", overrides = {}) {
+  const presets = safeReadJson(WAN_PRESETS_PATH) || {};
+  const preset = presets[name] || presets.wan_low_vram_3s || {};
+  const merged = {
+    ...preset,
+    ...overrides
+  };
+  const seconds = Math.max(1, Math.round(Number(merged.seconds ?? merged.duration ?? 5)));
+  const fps = Math.max(1, Math.round(Number(merged.fps ?? 16)));
+  const length = seconds * fps + 1;
+  return {
+    ...merged,
+    seconds,
+    duration: seconds,
+    fps,
+    length,
+    sequenceLength: length,
+    frames: Math.max(1, length - 1)
+  };
+}
+
+function resolveWanSizeFromRatio(ratio = "") {
+  const normalized = String(ratio || "").trim();
+  if (normalized === "16:9") {
+    return { width: 832, height: 480, ratio: "16:9" };
+  }
+  if (["9:16", "3:4", "4:5"].includes(normalized)) {
+    return { width: 480, height: 832, ratio: "9:16" };
+  }
+  return { width: 512, height: 512, ratio: "1:1" };
+}
+
+function normalizeStudioWanMode(value = "", hasStartImage = false) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["i2v", "image_to_video", "image-to-video", "standard-i2v"].includes(normalized)) {
+    return "i2v";
+  }
+  if (["t2v", "text_to_video", "text-to-video", "standard-t2v"].includes(normalized)) {
+    return "t2v";
+  }
+  return hasStartImage ? "i2v" : "t2v";
+}
+
+function normalizeStudioWanLoras(input = {}) {
+  const explicit = ensureArray(input.loras);
+  const legacy = String(input.lora || "").trim();
+  const loras = explicit.length ? explicit : (legacy ? [{ path: legacy, name: path.basename(legacy), weight: 1 }] : []);
+  return loras
+    .filter((item) => item && (typeof item === "string" || item.enabled !== false))
+    .map((item, index) => {
+      if (typeof item === "string") {
+        return {
+          id: `studio-wan-lora-${index + 1}`,
+          name: path.basename(item),
+          path: item,
+          enabled: true,
+          strength_model: 1,
+          strength_clip: 1,
+          weight: 1
+        };
+      }
+      const strengthModel = Number(item.strength_model ?? item.strengthModel ?? item.weight ?? 1);
+      const strengthClip = Number(item.strength_clip ?? item.strengthClip ?? item.weight ?? strengthModel);
+      return {
+        id: item.id || `studio-wan-lora-${index + 1}`,
+        name: item.name || item.label || path.basename(item.path || "") || `LoRA ${index + 1}`,
+        path: item.path || "",
+        enabled: item.enabled !== false,
+        strength_model: Number.isFinite(strengthModel) ? strengthModel : 1,
+        strength_clip: Number.isFinite(strengthClip) ? strengthClip : 1,
+        weight: Number.isFinite(strengthModel) ? strengthModel : 1
+      };
+    })
+    .filter((item) => item.path)
+    .slice(0, 3);
 }
 
 function appendSceneHistory(scene = {}, entry = {}) {
@@ -143,6 +221,16 @@ function buildStudioVideoPayload(input = {}) {
     ...scene,
     references
   });
+  const mode = normalizeStudioWanMode(input.mode || scene.generationMode || "", Boolean(startImage));
+  const requestedRatio = String(input.ratio || projectRecord.project?.briefing?.ratio || "9:16").trim();
+  const wanSize = resolveWanSizeFromRatio(requestedRatio);
+  const presetId = String(input.presetId || input.preset_id || "wan_wide_5s").trim() || "wan_wide_5s";
+  const wanPreset = resolveWanPresetForStudio(presetId, {
+    seconds: input.durationSeconds ?? input.duration ?? scene.duration ?? 5,
+    width: wanSize.width,
+    height: wanSize.height,
+    ratio: wanSize.ratio
+  });
 
   return {
     projectRecord,
@@ -152,20 +240,35 @@ function buildStudioVideoPayload(input = {}) {
       sceneId,
       sessionId: `studio-${projectId}`,
       source: "studio",
-      mode: String(input.mode || "").trim(),
+      mode,
       prompt: String(input.prompt || scene.visualPrompt || scene.visualDescription || scene.title || "").trim(),
       negativePrompt: String(input.negativePrompt || scene.negativePrompt || "").trim(),
       motionPrompt: String(input.motionPrompt || scene.motionPrompt || "").trim(),
       startImage,
+      inputImagePath: startImage,
       endImage: String(input.endImage || "").trim(),
-      duration: Number(input.duration || scene.duration || 5),
-      fps: Number(input.fps || 12),
-      ratio: String(input.ratio || projectRecord.project?.briefing?.ratio || "9:16").trim(),
-      width: input.width,
-      height: input.height,
+      duration: wanPreset.seconds,
+      durationSeconds: wanPreset.seconds,
+      fps: wanPreset.fps,
+      frames: wanPreset.frames,
+      sequenceLength: wanPreset.sequenceLength,
+      ratio: wanPreset.ratio || wanSize.ratio,
+      width: wanPreset.width,
+      height: wanPreset.height,
       model: String(input.model || "").trim(),
-      preset: String(input.preset || input.quality || "standard").trim() || "standard",
-      quality: String(input.quality || input.preset || "standard").trim() || "standard",
+      loras: normalizeStudioWanLoras(input),
+      seed: Number(input.seed ?? -1),
+      steps: Number(wanPreset.steps ?? 4),
+      cfg: Number(wanPreset.cfg ?? 1.5),
+      sampler: String(wanPreset.sampler || "euler_ancestral").trim(),
+      scheduler: String(wanPreset.scheduler || "beta").trim(),
+      shift: Number(wanPreset.shift ?? 8),
+      denoise: Number(wanPreset.denoise ?? 0.7),
+      motionStrength: Number(input.motionStrength ?? 0.5),
+      imageStrength: Number(input.imageStrength ?? 0.65),
+      presetId,
+      preset: presetId,
+      quality: presetId,
       references
     }
   };
@@ -243,7 +346,7 @@ async function getStudioVideoJobStatus(jobId = "", videoService = {}) {
     return job;
   }
 
-  if (job.status === "failed" || job.status === "cancelled") {
+  if (job.status === "failed" || job.status === "cancelled" || job.status === "timeout") {
     persistScenePatch(projectRecord, scene.id, {
       status: job.status === "cancelled" ? "cancelado" : "erro",
       productionStatus: job.status === "cancelled" ? "cancelado" : "erro",

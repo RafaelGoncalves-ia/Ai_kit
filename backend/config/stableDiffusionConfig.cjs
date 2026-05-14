@@ -5,9 +5,10 @@ const ROOT_DIR = path.resolve(__dirname, "..", "..");
 const CONFIG_DIR = __dirname;
 const LOCAL_CONFIG_PATH = path.join(CONFIG_DIR, "stable-diffusion.local.json");
 const EXAMPLE_CONFIG_PATH = path.join(CONFIG_DIR, "stable-diffusion.example.json");
+const KIT_PYTHON_PATH = path.join(ROOT_DIR, "venv", "Scripts", "python.exe");
 
 const DEFAULT_CONFIG = {
-  pythonPath: "python",
+  pythonPath: KIT_PYTHON_PATH,
   modelsRoot: "models",
   checkpointsPath: path.join("models", "stable-diffusion"),
   lorasPath: path.join("models", "lora"),
@@ -144,7 +145,7 @@ function normalizeStableDiffusionConfig(rawConfig = {}) {
   };
 
   const config = {
-    pythonPath: resolveExecutablePath(process.env.SD_PYTHON_PATH || merged.pythonPath, DEFAULT_CONFIG.pythonPath),
+    pythonPath: resolveExecutablePath(KIT_PYTHON_PATH, DEFAULT_CONFIG.pythonPath),
     modelsRoot: resolveProjectPath(process.env.SD_MODELS_ROOT || merged.modelsRoot, DEFAULT_CONFIG.modelsRoot),
     checkpointsPath: resolveProjectPath(process.env.SD_CHECKPOINTS_PATH || merged.checkpointsPath, DEFAULT_CONFIG.checkpointsPath),
     lorasPath: resolveProjectPath(process.env.SD_LORAS_PATH || merged.lorasPath, DEFAULT_CONFIG.lorasPath),

@@ -1,0 +1,45 @@
+{
+  "id": "generate_video",
+  "version": "1.0",
+  "nodes": [
+    {
+      "id": "resources_start",
+      "type": "system.resource_profile",
+      "params": { "profile": "gpu_video_exclusive" }
+    },
+    {
+      "id": "prompt",
+      "type": "input.text",
+      "params": { "key": "prompt" }
+    },
+    {
+      "id": "video",
+      "type": "video.wan",
+      "inputs": {
+        "text": { "node": "prompt", "output": "text" }
+      },
+      "params": {
+        "preset": "wan_low_vram_3s",
+        "ratio": "9:16",
+        "steps": 4
+      }
+    },
+    {
+      "id": "file",
+      "type": "output.file",
+      "inputs": {
+        "path": { "node": "video", "output": "path" },
+        "content": { "node": "video", "output": "job" }
+      },
+      "params": { "extension": "json" }
+    },
+    {
+      "id": "resources_end",
+      "type": "system.resource_profile",
+      "inputs": {
+        "previous": { "node": "file", "output": "path" }
+      },
+      "params": { "profile": "chat_runtime" }
+    }
+  ]
+}

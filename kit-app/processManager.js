@@ -1,6 +1,13 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
+
+try {
+  require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
+} catch {
+  // The packaged app can still run with explicit config files when dotenv is unavailable.
+}
+
 const {
   buildStableDiffusionWorkerEnv,
   loadStableDiffusionConfig
@@ -111,6 +118,7 @@ function withTimeout(url) {
 }
 
 function createProcessManager({ rootDir, onLog, onStatus }) {
+  const wanLockPath = path.join(rootDir, "temp", "wan_generation.lock");
   const xttsConfigPath = path.join(rootDir, "reades", "xtts-config.txt");
   const xttsConfig = parseEnvFile(xttsConfigPath);
   const xttsVenv = xttsConfig.XTTS_VENV || "C:\\GitHub\\XTTS\\venv";
@@ -345,6 +353,20 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
     idleTimers.delete(serviceKey);
   }
 
+  function getWanGenerationLock() {
+    try {
+      if (!fs.existsSync(wanLockPath)) return null;
+      return JSON.parse(fs.readFileSync(wanLockPath, "utf8"));
+    } catch {
+      return { owner: "wan_generation" };
+    }
+  }
+
+  function isBlockedByWanLock(key) {
+    const serviceKey = normalizeServiceName(key);
+    return ["xtts", "stt", "sd", "ollama"].includes(serviceKey) && Boolean(getWanGenerationLock());
+  }
+
   async function waitUntilReady(key, timeoutMs = 90000) {
     const serviceKey = normalizeServiceName(key);
     const startedAt = Date.now();
@@ -487,6 +509,14 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
     key = normalizeServiceName(key);
     const service = getService(key);
 
+    if (isBlockedByWanLock(key)) {
+      pushLog(key, "system", "[WAN][EXCLUSIVE] inicio bloqueado: wan_generation lock ativo");
+      service.status = "stopped";
+      service.health = "offline";
+      emitStatus(key);
+      return snapshotService(service);
+    }
+
     if (service.logical) {
       service.lastStartedAt = service.lastStartedAt || Date.now();
       service.status = "starting";
@@ -623,6 +653,14 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
 
   async function ensureStarted(key, options = {}) {
     const serviceKey = normalizeServiceName(key);
+    if (isBlockedByWanLock(serviceKey)) {
+      const service = getService(serviceKey);
+      pushLog(serviceKey, "system", "[WAN][EXCLUSIVE] ensureStarted bloqueado: Wan em GPU exclusive mode");
+      service.status = "stopped";
+      service.health = "offline";
+      emitStatus(serviceKey);
+      return snapshotService(service);
+    }
     const policy = getPolicy(serviceKey);
     if (!policy.enabled) {
       pushLog(serviceKey, "system", "[host] servico desabilitado por politica");

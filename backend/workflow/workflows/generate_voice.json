@@ -1,0 +1,30 @@
+{
+  "id": "generate_voice",
+  "version": "1.0",
+  "nodes": [
+    {
+      "id": "prompt",
+      "type": "input.text",
+      "name": "Texto",
+      "params": { "key": "prompt" }
+    },
+    {
+      "id": "voice",
+      "type": "audio.xtts",
+      "name": "XTTS",
+      "inputs": {
+        "text": { "node": "prompt", "output": "text" }
+      }
+    },
+    {
+      "id": "file",
+      "type": "output.file",
+      "name": "Arquivo",
+      "inputs": {
+        "path": { "node": "voice", "output": "path" },
+        "content": { "node": "voice", "output": "raw" }
+      },
+      "params": { "extension": "json" }
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "pythonPath": "python",
+  "pythonPath": "F:\\AI\\Ai_kit\\venv\\Scripts\\python.exe",
   "modelsRoot": "models",
   "checkpointsPath": "models/stable-diffusion",
   "lorasPath": "models/lora",

@@ -13,7 +13,7 @@ export function runImageToVideo({ payload = {}, conditioning = {}, output = {} }
       mode: "i2v",
       startImage: conditioning.startImage || payload.startImage || "",
       pipeline: {
-        id: "image-to-video",
+        id: "standard-I2V",
         mode: "i2v",
         sourceStrategy: "start-image",
         supports: ["interpolation", "startFrame", "endFrame", "chaining", "frame-guidance"]

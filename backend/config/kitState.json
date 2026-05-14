@@ -1,25 +1,25 @@
 {
   "needs": {
-    "energy": 75.25000000000053,
-    "hunger": 17.190000000000012,
-    "mood": 93.120000000002,
-    "aura": 56.09869999972996,
-    "hygiene": 35.340000000400906
+    "energy": 61.760000000000126,
+    "hunger": 16.999999999975984,
+    "mood": 89.32000000000131,
+    "aura": 57.50789999967711,
+    "hygiene": 35.8200000004811
   },
   "emotion": {
     "type": "hype",
     "intensity": 0.8,
-    "lastUpdate": 1778360424012
+    "lastUpdate": 1778797991654
   },
   "routine": {
-    "currentAction": "cook_meal",
-    "startedAt": 1778360379635,
-    "duration": 60000,
+    "currentAction": "sleep",
+    "startedAt": 1778797625740,
+    "duration": 480000,
     "forced": null,
     "lockedUntil": 0
   },
   "world": {
-    "location": "kitchen",
+    "location": "bed",
     "isMoving": false
   },
   "user": {
@@ -32,6 +32,6 @@
   },
   "tokens": 0,
   "system": {
-    "lastTick": 1778360424012
+    "lastTick": 1778797991654
   }
 }

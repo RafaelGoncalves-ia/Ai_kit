@@ -1,16 +1,18 @@
 import { createVideoEngine } from "./videoEngine.js";
 
 let videoEngineSingleton = null;
+let videoEngineContext = null;
 
-export function getVideoEngine() {
+export function getVideoEngine(context = null) {
   if (!videoEngineSingleton) {
-    videoEngineSingleton = createVideoEngine();
+    videoEngineContext = context || {};
+    videoEngineSingleton = createVideoEngine(videoEngineContext);
   }
   return videoEngineSingleton;
 }
 
-export async function enqueueVideoJob(payload = {}) {
-  return getVideoEngine().enqueue(payload);
+export async function enqueueVideoJob(payload = {}, context = null) {
+  return getVideoEngine(context).enqueue(payload);
 }
 
 export function getVideoJob(jobId = "") {

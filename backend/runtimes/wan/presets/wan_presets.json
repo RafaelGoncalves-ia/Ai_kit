@@ -1,0 +1,41 @@
+{
+  "wan_tiny_test": {
+    "width": 512,
+    "height": 512,
+    "fps": 16,
+    "seconds": 1,
+    "length": 17,
+    "steps": 1,
+    "cfg": 1.5,
+    "sampler": "euler_ancestral",
+    "scheduler": "beta",
+    "shift": 8.0,
+    "denoise": 0.7
+  },
+  "wan_low_vram_3s": {
+    "width": 512,
+    "height": 512,
+    "fps": 16,
+    "seconds": 3,
+    "length": 49,
+    "steps": 4,
+    "cfg": 1.5,
+    "sampler": "euler_ancestral",
+    "scheduler": "beta",
+    "shift": 8.0,
+    "denoise": 0.7
+  },
+  "wan_wide_5s": {
+    "width": 832,
+    "height": 480,
+    "fps": 16,
+    "seconds": 5,
+    "length": 81,
+    "steps": 4,
+    "cfg": 1.5,
+    "sampler": "euler_ancestral",
+    "scheduler": "beta",
+    "shift": 8.0,
+    "denoise": 0.7
+  }
+}

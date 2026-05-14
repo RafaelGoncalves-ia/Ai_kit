@@ -129,6 +129,10 @@ const kitAPI = {
     const response = await fetch(`${BACKEND}/api/media/list-video-jobs?${query.toString()}`);
     return parseJson(response);
   },
+  getGlobalVideoModels: async () => {
+    const response = await fetch(`${BACKEND}/api/media/video-models`);
+    return parseJson(response);
+  },
   getStudioClientMedia: async ({ clientId = "", clientName = "", projectId = "" } = {}) => {
     const query = new URLSearchParams();
     if (clientId) query.set("clientId", clientId);

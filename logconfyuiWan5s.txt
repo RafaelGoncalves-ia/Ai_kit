@@ -1,0 +1,171 @@
+Atacar a raiz do problema Wan comparando KIT vs ComfyUI usando o log real do ComfyUI.
+
+Referência real do ComfyUI:
+- Python: 3.10.6
+- Torch: 2.5.1+cu121
+- Device: RTX 3060 12GB
+- CUDA allocator: cudaMallocAsync
+- VRAM state: NORMAL_VRAM
+- async weight offloading: enabled, 2 streams
+- pinned memory: 7347 MB
+- VAE load device: cuda:0
+- VAE offload device: cpu
+- VAE dtype: torch.bfloat16
+- CLIP/text encoder load device: cuda:0
+- CLIP/text encoder offload device: cpu
+- CLIP dtype: torch.float16
+- WanTEModel loaded completely: 3901.45 MB
+- WAN21 loaded partially:
+  - 6572.92 MB loaded
+  - 2762.71 MB offloaded
+  - 96.28 MB buffer reserved
+- Sampling:
+  - 4/4 steps
+  - 07:11
+  - média 107.89s/it
+- VAE decode/load:
+  - WanVAE loaded completely
+  - 242.03 MB loaded
+- Tempo total:
+  - 11:22
+
+Objetivo:
+Criar auditoria comparativa real entre ComfyUI e KIT, focando no caminho de execução e na estratégia de memória/offload.
+
+Implementar WAN_PARITY_AUDIT com comparação obrigatória:
+
+CAMPO | COMFYUI | KIT | STATUS | IMPACTO
+
+Campos obrigatórios:
+- python_version
+- torch_version
+- cuda_version
+- cuda_allocator
+- vram_state
+- async_weight_offloading_enabled
+- async_weight_offloading_streams
+- pinned_memory_mb
+- attention_backend
+- vae_load_device
+- vae_offload_device
+- vae_dtype
+- clip_load_device
+- clip_offload_device
+- clip_current_device
+- clip_dtype
+- text_encoder_full_load
+- wan_model_load_mode
+- wan_loaded_mb
+- wan_offloaded_mb
+- wan_buffer_reserved_mb
+- lowvram_patches
+- unet_model
+- clip_model
+- vae_model
+- lora_model
+- lora_strength_model
+- lora_strength_clip
+- model_sampling_shift
+- sampler
+- scheduler
+- steps
+- cfg
+- denoise
+- width
+- height
+- fps
+- seconds
+- length
+- vae_decode_mode
+- sampling_step_count
+- sampling_total_seconds
+- sampling_seconds_per_step
+- total_generation_seconds
+
+Comparar também o caminho:
+
+COMFYUI_PATH_REAL:
+1. Load VAE on cuda:0 with cpu offload, dtype bfloat16
+2. Load CLIP GGUF with cuda load device, cpu offload, current cpu, dtype float16
+3. Load/apply LoRA wan DR34ML4Y strength 0.6
+4. Load WanTEModel completely
+5. Load WAN21 partially with part in VRAM and part offloaded to RAM
+6. Reserve small buffer
+7. Run KSampler 4 steps
+8. Decode/load WanVAE
+9. Save output video
+10. Total execution around 11-15 minutes
+
+KIT_PATH_REAL:
+Capturar automaticamente no runtime da KIT:
+1. ...
+2. ...
+3. ...
+
+Investigar especificamente se a KIT NÃO está fazendo:
+- cudaMallocAsync
+- async weight offloading com streams
+- pinned memory
+- partial load do WAN21
+- CPU offload controlado
+- VAE bfloat16
+- CLIP float16 com current cpu
+- WAN loaded/offloaded com proporção parecida
+- KSampler com progresso real 4/4
+- tiled VAE decode
+- ModelSamplingSD3 shift=8
+
+Regra:
+Não tratar VRAM alta como problema.
+No ComfyUI a VRAM fica alta e isso é esperado.
+O problema é se a KIT não está usando o mesmo mecanismo de offload, dtype, allocator e sampler progress.
+
+Adicionar logs na KIT:
+
+[WAN][ENV]
+python=...
+torch=...
+cuda=...
+allocator=...
+device=...
+vram_total=...
+ram_total=...
+
+[WAN][MEMORY_STRATEGY]
+vram_state=...
+async_weight_offloading=...
+offload_streams=...
+pinned_memory_mb=...
+attention_backend=...
+
+[WAN][LOAD]
+component=VAE load_device=... offload_device=... dtype=... loaded_mb=...
+component=CLIP load_device=... offload_device=... current=... dtype=... loaded_mb=...
+component=WAN21 mode=partial loaded_mb=... offloaded_mb=... buffer_reserved_mb=...
+
+[WAN][SAMPLING]
+step=1/4 elapsed=... step_seconds=...
+step=2/4 elapsed=... step_seconds=...
+step=3/4 elapsed=... step_seconds=...
+step=4/4 elapsed=... step_seconds=...
+
+[WAN][SUMMARY]
+sampling_seconds=...
+seconds_per_step=...
+total_seconds=...
+compare_to_comfyui=...
+
+Critério de sucesso:
+A KIT deve conseguir explicar exatamente por que está mais lenta que o ComfyUI:
+- parâmetro diferente
+- dtype diferente
+- offload diferente
+- allocator diferente
+- sampler diferente
+- carregamento total em vez de parcial
+- ausência de async offloading
+- ausência de pinned memory
+- ausência de progresso real
+
+Antes de otimizar, provar a diferença.
+Depois corrigir para aproximar o caminho da KIT ao caminho real do ComfyUI.

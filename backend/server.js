@@ -49,6 +49,7 @@ import createStudioRoutes from "./routes/studio.js";
 import createStudioVideoAdapterRoutes from "./routes/studioVideoAdapterRoutes.js";
 import createMediaVideoRoutes from "./routes/mediaVideoRoutes.js";
 import createStableDiffusionRoutes from "./routes/stableDiffusion.js";
+import createWorkflowRoutes from "./routes/workflow.js";
 import vocabularyRouter from "./routes/vocabulary.js";
 import sttRoute from "./routes/stt.js";
 import { initSkills } from "./skills/needs/startup.js";
@@ -394,7 +395,9 @@ app.use("/tasks", createTasksRoutes(context));
 app.use("/api/studio", createStudioRoutes(context));
 app.use("/api/studio", createStudioVideoAdapterRoutes(context));
 app.use("/api/media", createMediaVideoRoutes(context));
+app.use("/api/video", createMediaVideoRoutes(context));
 app.use("/sd", createStableDiffusionRoutes(context));
+app.use("/workflow", createWorkflowRoutes(context));
 app.use("/api/vocabulary", vocabularyRouter);
 
 app.get("/history", (req, res) => {

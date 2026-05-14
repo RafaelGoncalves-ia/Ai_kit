@@ -1,0 +1,30 @@
+{
+  "id": "smoke",
+  "projectId": null,
+  "sceneId": null,
+  "mode": "t2v",
+  "input": {
+    "mode": "t2v",
+    "height": 512,
+    "id": "smoke",
+    "cfg": 1.5,
+    "sequenceLength": 17,
+    "modelPath": "F:\\AI\\models\\diffusion_models\\wan2.2-t2v-rapid-aio-v10-nsfw-Q4_K.gguf",
+    "outputPath": "F:\\AI\\Ai_kit\\temp\\video-worker-smoke\\out.mp4",
+    "width": 512,
+    "steps": 4,
+    "workingDir": "F:\\AI\\Ai_kit\\temp\\video-worker-smoke",
+    "prompt": "smoke",
+    "fps": 16
+  },
+  "output": null,
+  "error": "[ERROR] WanEngineError: Modelo .gguf selecionado, mas nenhum loader GGUF Python esta disponivel. Instale/registre o GGUFLoader da KIT para Wan antes de executar.",
+  "status": "failed",
+  "progress": 100,
+  "logs": [
+    "[VIDEO_WORKER] Iniciando inferencia real Wan2.2.",
+    "[CONFIG] Resolucao: 512x512 | Frames: 17 | FPS: 16 | Steps: 4.",
+    "[MODEL] Carregando: wan2.2-t2v-rapid-aio-v10-nsfw-Q4_K.gguf via CPU.",
+    "[ERROR] WanEngineError: Modelo .gguf selecionado, mas nenhum loader GGUF Python esta disponivel. Instale/registre o GGUFLoader da KIT para Wan antes de executar."
+  ]
+}

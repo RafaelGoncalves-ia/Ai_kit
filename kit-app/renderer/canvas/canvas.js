@@ -167,6 +167,9 @@ const customArtboardControls = document.getElementById("customArtboardControls")
 const customWidthInput = document.getElementById("customWidth");
 const customHeightInput = document.getElementById("customHeight");
 const artboardSizeLabel = document.getElementById("artboardSizeLabel");
+const topbarGenerationStatus = document.getElementById("topbarGenerationStatus");
+const topbarGenerationLabel = document.getElementById("topbarGenerationLabel");
+const topbarGenerationProgress = document.getElementById("topbarGenerationProgress");
 const brandKitStatus = document.getElementById("brandKitStatus");
 const brandKitName = document.getElementById("brandKitName");
 const brandKitVoice = document.getElementById("brandKitVoice");
@@ -222,6 +225,17 @@ const exportStatus = document.getElementById("exportStatus");
 const sdStatus = document.getElementById("sdStatus");
 const sdPrompt = document.getElementById("sdPrompt");
 const sdNegativePrompt = document.getElementById("sdNegativePrompt");
+const aiEngineToggleButton = document.getElementById("aiEngineToggleButton");
+const aiGeneratorTabImage = document.getElementById("aiGeneratorTabImage");
+const aiGeneratorTabVideo = document.getElementById("aiGeneratorTabVideo");
+const aiImageSection = document.getElementById("aiImageSection");
+const aiVideoSection = document.getElementById("aiVideoSection");
+const aiStyle = document.getElementById("aiStyle");
+const aiPreset = document.getElementById("aiPreset");
+const aiImageModelPreviewCard = document.getElementById("aiImageModelPreviewCard");
+const aiImageModelPreview = document.getElementById("aiImageModelPreview");
+const aiImageLoraPreviewCard = document.getElementById("aiImageLoraPreviewCard");
+const aiImageLoraPreview = document.getElementById("aiImageLoraPreview");
 const sdCheckpoint = document.getElementById("sdCheckpoint");
 const sdArchitecture = document.getElementById("sdArchitecture");
 const sdLora = document.getElementById("sdLora");
@@ -240,7 +254,22 @@ const sdDenoising = document.getElementById("sdDenoising");
 const sdInpaintInsertMode = document.getElementById("sdInpaintInsertMode");
 const sdOutpaintTarget = document.getElementById("sdOutpaintTarget");
 const sdOutpaintSide = document.getElementById("sdOutpaintSide");
+const aiVideoMode = document.getElementById("aiVideoMode");
+const aiVideoSourceStatus = document.getElementById("aiVideoSourceStatus");
+const aiVideoPreset = document.getElementById("aiVideoPreset");
+const aiVideoModel = document.getElementById("aiVideoModel");
+const aiVideoLoraList = document.getElementById("aiVideoLoraList");
+const aiVideoLoraWarning = document.getElementById("aiVideoLoraWarning");
+const aiVideoModelPreviewCard = document.getElementById("aiVideoModelPreviewCard");
+const aiVideoModelPreview = document.getElementById("aiVideoModelPreview");
+const aiVideoLoraPreviewCard = document.getElementById("aiVideoLoraPreviewCard");
+const aiVideoLoraPreview = document.getElementById("aiVideoLoraPreview");
+const aiVideoDuration = document.getElementById("aiVideoDuration");
+const aiVideoFinalResolution = document.getElementById("aiVideoFinalResolution");
+const aiVideoFinalDuration = document.getElementById("aiVideoFinalDuration");
+const aiVideoEstimate = document.getElementById("aiVideoEstimate");
 const sdGenerateButton = document.getElementById("sdGenerateButton");
+const aiVideoAbortButton = document.getElementById("aiVideoAbortButton");
 const timelineTrack = document.getElementById("timelineTrack");
 const timelineStatus = document.getElementById("timelineStatus");
 const timelineResizeHandle = document.getElementById("timelineResizeHandle");
@@ -277,7 +306,46 @@ let artboardWidth = DEFAULT_ARTBOARD_WIDTH;
 let artboardHeight = DEFAULT_ARTBOARD_HEIGHT;
 let currentArtboardPreset = "instagram-post";
 let currentProject = null;
+let availableVideoLoras = [];
 let currentProjectFilePath = null;
+let activeAiGeneratorTab = "image";
+let globalVideoEngineReady = false;
+const CANVAS_VIDEO_JOB_TIMEOUT_MS = Math.max(
+  30000,
+  Number(localStorage.getItem("kitCanvas.videoJobTimeoutMs") || 3600000)
+);
+const CANVAS_VIDEO_STALE_JOB_MS = Math.max(
+  60000,
+  Number(localStorage.getItem("kitCanvas.videoStaleJobMs") || 30 * 60 * 1000)
+);
+const CANVAS_VIDEO_ACTIVE_STATUSES = new Set([
+  "pending",
+  "queued",
+  "preparing",
+  "preparing_resources",
+  "loading_model",
+  "encoding",
+  "generating",
+  "sampling",
+  "decoding",
+  "combining",
+  "saving",
+  "exporting"
+]);
+const CANVAS_VIDEO_DONE_STATUSES = new Set(["done", "completed"]);
+const CANVAS_VIDEO_ERROR_STATUSES = new Set(["error", "failed", "cancelled", "timeout", "interrupted"]);
+const aiEngineState = {
+  image: {
+    status: "desligado",
+    detail: "Motor de imagem desligado."
+  },
+  video: {
+    status: "desligado",
+    detail: "Motor de video desligado."
+  },
+  generating: false
+};
+let topbarGenerationHideTimer = null;
 let currentBrandKit = null;
 let currentBrandKitFilePath = null;
 let inheritedBrandKit = null;
@@ -1620,7 +1688,7 @@ function syncInspectorContext(object = canvas?.getActiveObject?.() || null) {
   });
 
   updateLayerMaskPanelState(object);
-  updateStableDiffusionPanelState();
+  updateAiGeneratorPanelState();
 }
 
 function getLayerObjects() {
@@ -4014,21 +4082,24 @@ document.addEventListener("click", (event) => {
   }
 
   if (action === "generate-video") {
-    void CanvasVideoActions.generateVideo({
-      fromSelection: false
-    }).catch((error) => {
-      showToolNotice(error.message || "Falha ao gerar video.");
-    });
+    setInspectorAccordionVisible("sd", true);
+    setInspectorAccordionOpen("sd", true, { persist: false });
+    setAiGeneratorTab("video");
+    if (aiVideoMode) {
+      aiVideoMode.value = "text_to_video";
+    }
+    updateAiGeneratorPanelState();
     return;
   }
 
   if (action === "animate-selection") {
-    void CanvasVideoActions.generateVideo({
-      fromSelection: true,
-      useSelectedLayer: true
-    }).catch((error) => {
-      showToolNotice(error.message || "Falha ao animar selecao.");
-    });
+    setInspectorAccordionVisible("sd", true);
+    setInspectorAccordionOpen("sd", true, { persist: false });
+    setAiGeneratorTab("video");
+    if (aiVideoMode) {
+      aiVideoMode.value = "image_to_video";
+    }
+    updateAiGeneratorPanelState();
   }
 });
 
@@ -4068,8 +4139,8 @@ function openMediaPanel() {
     <span>Escolha como deseja adicionar ou gerar midia no Canvas.</span>
     <div class="toolbar-media-actions">
       <button type="button" data-media-panel-action="upload">Inserir arquivo</button>
-      <button type="button" data-media-panel-action="generate-video">Gerar video</button>
-      <button type="button" data-media-panel-action="animate-selection">Animar selecao</button>
+      <button type="button" data-media-panel-action="generate-video">Abrir Gerador IA (T2V)</button>
+      <button type="button" data-media-panel-action="animate-selection">Abrir Gerador IA (I2V)</button>
     </div>
   `;
   positionFloatingPanelNearToolbarAction(panel, "add-image");
@@ -6501,10 +6572,11 @@ async function applyProject(project, filePath = null, inherited = null, options 
   const previousApplyingSnapshot = isApplyingSnapshot;
   isApplyingSnapshot = true;
   try {
-    renderProject(project, filePath);
-    artboardWidth = clampArtboardDimension(project.artboard?.width || DEFAULT_ARTBOARD_WIDTH);
-    artboardHeight = clampArtboardDimension(project.artboard?.height || DEFAULT_ARTBOARD_HEIGHT);
-    currentArtboardPreset = project.artboard?.preset || "custom";
+    const safeProject = markStaleCanvasVideoJobs(project || createLocalDefaultProject());
+    renderProject(safeProject, filePath);
+    artboardWidth = clampArtboardDimension(safeProject.artboard?.width || DEFAULT_ARTBOARD_WIDTH);
+    artboardHeight = clampArtboardDimension(safeProject.artboard?.height || DEFAULT_ARTBOARD_HEIGHT);
+    currentArtboardPreset = safeProject.artboard?.preset || "custom";
 
     if (artboardPreset) {
       const hasPreset = Boolean(ARTBOARD_PRESETS[currentArtboardPreset]);
@@ -6515,18 +6587,18 @@ async function applyProject(project, filePath = null, inherited = null, options 
       customArtboardControls.hidden = artboardPreset?.value !== "custom";
     }
 
-    timelineSlides = normalizeTimelineSlides(project);
-    activeSlideId = project.timeline?.activeSlideId && timelineSlides.some((slide) => slide.id === project.timeline.activeSlideId)
-      ? project.timeline.activeSlideId
+    timelineSlides = normalizeTimelineSlides(safeProject);
+    activeSlideId = safeProject.timeline?.activeSlideId && timelineSlides.some((slide) => slide.id === safeProject.timeline.activeSlideId)
+      ? safeProject.timeline.activeSlideId
       : timelineSlides[0]?.id || null;
-    timelineTrackLabels = normalizeTimelineTrackLabels(project);
-    timelineItems = normalizeTimelineItems(project);
+    timelineTrackLabels = normalizeTimelineTrackLabels(safeProject);
+    timelineItems = normalizeTimelineItems(safeProject);
     selectedTimelineItemId = null;
     timelinePlayhead = getActiveTimelineSlide()?.startTime || 0;
     syncArtboardLabel();
-    renderProjectBrandKit(project, inherited);
-    const globalObjects = Array.isArray(project.fabric?.objects)
-      ? project.fabric.objects
+    renderProjectBrandKit(safeProject, inherited);
+    const globalObjects = Array.isArray(safeProject.fabric?.objects)
+      ? safeProject.fabric.objects
       : getActiveTimelineSlide()?.fabric?.objects || [];
     await loadFabricObjects(globalObjects);
     await loadTimelineSlide(getActiveTimelineSlide());
@@ -7524,8 +7596,62 @@ function makeCanvasCommandResult(ok, message, data = {}) {
 }
 
 function setStableDiffusionStatus(message) {
+  const engineKey = getCurrentAiEngineKey();
+  const current = getAiEngineStatus(engineKey);
+  aiEngineState[engineKey] = {
+    ...current,
+    detail: String(message || "").trim()
+  };
+  renderAiEngineState();
+}
+
+function getCurrentAiEngineKey() {
+  return getAiGeneratorTab() === "video" ? "video" : "image";
+}
+
+function getCurrentAiEngineLabel() {
+  return getCurrentAiEngineKey() === "video" ? "video" : "imagem";
+}
+
+function setAiEngineStatus(engineKey = "image", status = "desligado", detail = "") {
+  const normalizedKey = engineKey === "video" ? "video" : "image";
+  aiEngineState[normalizedKey] = {
+    status,
+    detail: String(detail || "").trim()
+  };
+  if (status === "gerando") {
+    setTopbarGenerationStatus({
+      active: true,
+      type: normalizedKey === "video" ? "video" : "image",
+      engine: normalizedKey === "video" ? "wan" : "stable",
+      phase: "preparing",
+      label: String(detail || "").trim() || (normalizedKey === "video" ? "Gerando video Wan: preparando pipeline" : "Gerando imagem: preparando pipeline"),
+      progress: null,
+      indeterminate: true
+    });
+  }
+  renderAiEngineState();
+}
+
+function getAiEngineStatus(engineKey = "image") {
+  const normalizedKey = engineKey === "video" ? "video" : "image";
+  return aiEngineState[normalizedKey] || { status: "desligado", detail: "" };
+}
+
+function renderAiEngineState() {
+  const currentKey = getCurrentAiEngineKey();
+  const currentState = getAiEngineStatus(currentKey);
+  const label = currentKey === "video" ? "video" : "imagem";
+  const detail = currentState.detail || `Motor de ${label} ${currentState.status}.`;
+
   if (sdStatus) {
-    sdStatus.textContent = message;
+    sdStatus.textContent = `Motor ${label}: ${currentState.status}. ${detail}`;
+  }
+
+  if (aiEngineToggleButton) {
+    const isActive = currentState.status === "pronto" || currentState.status === "carregando" || currentState.status === "gerando";
+    aiEngineToggleButton.textContent = isActive ? "Desativar motor IA" : "Ativar motor IA";
+    aiEngineToggleButton.disabled = aiEngineState.generating || currentState.status === "carregando";
   }
 }
 
@@ -7565,8 +7691,53 @@ function setSelectOptions(select, items = [], config = {}) {
     if (item.type) {
       option.dataset.modelType = item.type;
     }
+    if (item.originLabel) {
+      option.dataset.originLabel = item.originLabel;
+    }
+    if (item.compatibilityWarning) {
+      option.dataset.compatibilityWarning = item.compatibilityWarning;
+    }
     select.appendChild(option);
   });
+}
+
+function updateSelectPreview(select, imageElement, cardElement) {
+  if (!select || !imageElement || !cardElement) {
+    return;
+  }
+  const previewPath = select.selectedOptions?.[0]?.dataset?.preview || "";
+  if (!previewPath) {
+    imageElement.removeAttribute("src");
+    cardElement.hidden = true;
+    return;
+  }
+  imageElement.src = resolveMediaSourceUrl(previewPath);
+  cardElement.hidden = false;
+}
+
+function getAiGeneratorTab() {
+  return activeAiGeneratorTab === "video" ? "video" : "image";
+}
+
+function setAiGeneratorTab(tab = "image") {
+  activeAiGeneratorTab = tab === "video" ? "video" : "image";
+  const isVideo = activeAiGeneratorTab === "video";
+  if (aiGeneratorTabImage) {
+    aiGeneratorTabImage.classList.toggle("is-active", !isVideo);
+    aiGeneratorTabImage.setAttribute("aria-selected", String(!isVideo));
+  }
+  if (aiGeneratorTabVideo) {
+    aiGeneratorTabVideo.classList.toggle("is-active", isVideo);
+    aiGeneratorTabVideo.setAttribute("aria-selected", String(isVideo));
+  }
+  if (aiImageSection) {
+    aiImageSection.hidden = isVideo;
+  }
+  if (aiVideoSection) {
+    aiVideoSection.hidden = !isVideo;
+  }
+  renderAiEngineState();
+  updateAiGeneratorPanelState();
 }
 
 function getSelectedCheckpointArchitecture() {
@@ -7665,6 +7836,10 @@ function getStableSourceStatusMessage(options = {}) {
 }
 
 function updateStableDiffusionPanelState() {
+  if (getAiGeneratorTab() !== "image") {
+    return;
+  }
+  const engineState = getAiEngineStatus("image");
   const isI2I = getSelectedStablePrimaryMode() === "i2i";
   const sourceObject = getStableSourceObject();
   const i2iMode = getSelectedStableI2ISubmode();
@@ -7709,18 +7884,378 @@ function updateStableDiffusionPanelState() {
     const promptReady = Boolean(sdPrompt?.value?.trim());
     const checkpointReady = Boolean(sdCheckpoint?.value);
     const sourceReady = !isI2I || Boolean(sourceObject);
-    sdGenerateButton.disabled = !promptReady || !checkpointReady || !sourceReady;
+    const engineReady = engineState.status === "pronto";
+    sdGenerateButton.disabled = aiEngineState.generating || !engineReady || !promptReady || !checkpointReady || !sourceReady;
   }
+}
+
+function getVideoSourceObject() {
+  return getStableSourceObject({
+    useSelectedLayer: true
+  });
+}
+
+function resolveCanvasWanOutputSize(width = artboardWidth, height = artboardHeight) {
+  const safeWidth = Math.max(1, Number(width || artboardWidth || 1));
+  const safeHeight = Math.max(1, Number(height || artboardHeight || 1));
+  const ratio = safeWidth / safeHeight;
+  if (ratio > 1.2) {
+    return { width: 832, height: 480, ratio: "16:9" };
+  }
+  if (ratio < 0.8) {
+    return { width: 480, height: 832, ratio: "9:16" };
+  }
+  return { width: 512, height: 512, ratio: "1:1" };
+}
+
+function getSelectedWanPresetId() {
+  return String(aiVideoPreset?.value || "wan_wide_5s").trim() || "wan_wide_5s";
+}
+
+function getWanDurationSeconds() {
+  return Math.max(1, Math.min(15, Math.round(getNumericValue(aiVideoDuration, 5))));
+}
+
+function estimateWanLoad(presetId = getSelectedWanPresetId(), durationSeconds = getWanDurationSeconds()) {
+  const size = resolveCanvasWanOutputSize();
+  const pixels = size.width * size.height;
+  if (presetId === "wan_tiny_test" || durationSeconds <= 1) {
+    return "leve";
+  }
+  if (pixels <= 512 * 512 && durationSeconds <= 3) {
+    return "medio";
+  }
+  return "pesado";
+}
+
+function updateWanRuntimeSummary() {
+  const size = resolveCanvasWanOutputSize();
+  const seconds = getWanDurationSeconds();
+  const fps = 16;
+  const length = seconds * fps + 1;
+  if (aiVideoFinalResolution) {
+    aiVideoFinalResolution.textContent = `${size.width} x ${size.height}`;
+  }
+  if (aiVideoFinalDuration) {
+    aiVideoFinalDuration.textContent = `${seconds}s / ${length} frames`;
+  }
+  if (aiVideoEstimate) {
+    aiVideoEstimate.textContent = estimateWanLoad(getSelectedWanPresetId(), seconds);
+  }
+}
+
+function createVideoLoraSelect(selectedPath = "") {
+  const select = document.createElement("select");
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "Sem LoRA";
+  select.appendChild(empty);
+  availableVideoLoras.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item.path || item.id || item.name || "";
+    option.textContent = item.name || item.path || "LoRA";
+    if (item.preview) {
+      option.dataset.preview = item.preview;
+    }
+    if (item.compatibilityWarning) {
+      option.dataset.compatibilityWarning = item.compatibilityWarning;
+    }
+    select.appendChild(option);
+  });
+  select.value = selectedPath || "";
+  return select;
+}
+
+function renderVideoLoraSlots(loras = availableVideoLoras) {
+  availableVideoLoras = Array.isArray(loras) ? loras : [];
+  if (!aiVideoLoraList) {
+    return;
+  }
+  const current = collectSelectedVideoLoras();
+  aiVideoLoraList.innerHTML = "";
+  for (let index = 0; index < 3; index += 1) {
+    const row = document.createElement("div");
+    row.className = "video-lora-row";
+    row.dataset.loraSlot = String(index);
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = Boolean(current[index]?.enabled ?? current[index]?.path);
+    checkbox.title = "Ativar LoRA";
+
+    const selectLabel = document.createElement("label");
+    const selectCaption = document.createElement("span");
+    selectCaption.textContent = index === 0 ? "Nome" : `Nome ${index + 1}`;
+    const select = createVideoLoraSelect(current[index]?.path || "");
+    selectLabel.append(selectCaption, select);
+
+    const modelLabel = document.createElement("label");
+    const modelCaption = document.createElement("span");
+    modelCaption.textContent = "Model";
+    const modelStrength = document.createElement("input");
+    modelStrength.type = "number";
+    modelStrength.min = "-2";
+    modelStrength.max = "2";
+    modelStrength.step = "0.05";
+    modelStrength.value = String(current[index]?.strength_model ?? current[index]?.weight ?? 1);
+    modelLabel.append(modelCaption, modelStrength);
+
+    const clipLabel = document.createElement("label");
+    const clipCaption = document.createElement("span");
+    clipCaption.textContent = "CLIP";
+    const clipStrength = document.createElement("input");
+    clipStrength.type = "number";
+    clipStrength.min = "-2";
+    clipStrength.max = "2";
+    clipStrength.step = "0.05";
+    clipStrength.value = String(current[index]?.strength_clip ?? current[index]?.weight ?? 1);
+    clipLabel.append(clipCaption, clipStrength);
+
+    row.append(checkbox, selectLabel, modelLabel, clipLabel);
+    aiVideoLoraList.appendChild(row);
+  }
+  updateVideoLoraState();
+}
+
+function collectSelectedVideoLoras() {
+  if (!aiVideoLoraList) {
+    return [];
+  }
+  return Array.from(aiVideoLoraList.querySelectorAll(".video-lora-row"))
+    .map((row, index) => {
+      const checkbox = row.querySelector('input[type="checkbox"]');
+      const select = row.querySelector("select");
+      const strengths = row.querySelectorAll('input[type="number"]');
+      const pathValue = String(select?.value || "").trim();
+      const selectedOption = select?.selectedOptions?.[0] || null;
+      return {
+        id: `canvas-wan-lora-${index + 1}`,
+        name: selectedOption?.textContent || pathValue || `LoRA ${index + 1}`,
+        path: pathValue,
+        enabled: Boolean(checkbox?.checked && pathValue),
+        strength_model: Number(strengths[0]?.value || 1),
+        strength_clip: Number(strengths[1]?.value || strengths[0]?.value || 1),
+        weight: Number(strengths[0]?.value || 1)
+      };
+    })
+    .filter((item) => item.enabled && item.path)
+    .slice(0, 3);
+}
+
+function updateVideoLoraState() {
+  const selected = collectSelectedVideoLoras();
+  if (aiVideoLoraWarning) {
+    aiVideoLoraWarning.hidden = selected.length < 2;
+  }
+  const firstPreview = Array.from(aiVideoLoraList?.querySelectorAll("select") || [])
+    .map((select) => select.selectedOptions?.[0]?.dataset?.preview || "")
+    .find(Boolean);
+  if (aiVideoLoraPreview && aiVideoLoraPreviewCard) {
+    if (firstPreview) {
+      aiVideoLoraPreview.src = resolveMediaSourceUrl(firstPreview);
+      aiVideoLoraPreviewCard.hidden = false;
+    } else {
+      aiVideoLoraPreview.removeAttribute("src");
+      aiVideoLoraPreviewCard.hidden = true;
+    }
+  }
+}
+
+function updateVideoPanelState() {
+  if (getAiGeneratorTab() !== "video") {
+    return;
+  }
+  const engineState = getAiEngineStatus("video");
+  const mode = normalizeVideoModeValue(aiVideoMode?.value || "text_to_video");
+  const sourceObject = getVideoSourceObject();
+  const promptReady = Boolean(sdPrompt?.value?.trim());
+  const sourceReady = mode !== "i2v" || Boolean(sourceObject);
+
+  if (aiVideoSourceStatus) {
+    if (mode === "i2v" && sourceObject) {
+      aiVideoSourceStatus.textContent = `Camada ativa: ${makeObjectName(sourceObject)} pronta para I2V.`;
+    } else if (mode === "i2v") {
+      aiVideoSourceStatus.textContent = "Selecione uma camada raster/imagem valida antes de gerar em I2V.";
+    } else {
+      aiVideoSourceStatus.textContent = "T2V funciona sem layer selecionada. I2V usa a layer raster ativa como imagem base.";
+    }
+  }
+
+  if (sdGenerateButton) {
+    const engineReady = engineState.status === "pronto";
+    sdGenerateButton.disabled = aiEngineState.generating || !engineReady || !promptReady || !sourceReady;
+  }
+  updateWanRuntimeSummary();
+  updateVideoLoraState();
+}
+
+function normalizeVideoModeValue(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "standard-i2v" || normalized === "i2v" || normalized === "image_to_video" || normalized === "image-to-video"
+    ? "i2v"
+    : "t2v";
+}
+
+function getVideoPresetValue(value = "") {
+  return normalizeVideoModeValue(value) === "i2v" ? "image_to_video" : "text_to_video";
+}
+
+function updateAiGeneratorPanelState() {
+  updateStableDiffusionPanelState();
+  updateVideoPanelState();
+  updateSelectPreview(sdCheckpoint, aiImageModelPreview, aiImageModelPreviewCard);
+  updateSelectPreview(sdLora, aiImageLoraPreview, aiImageLoraPreviewCard);
+  updateSelectPreview(aiVideoModel, aiVideoModelPreview, aiVideoModelPreviewCard);
+  renderAiEngineState();
+}
+
+function normalizeGenerationPhase(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["queued", "pending", "preparing_resources"].includes(normalized)) return "preparing";
+  if (["generating", "sample", "sampling"].includes(normalized)) return "sampling";
+  if (["decode", "decoding"].includes(normalized)) return "decoding";
+  if (["encode", "encoding", "combining", "encode_mp4", "encode_video"].includes(normalized)) return "encoding";
+  if (["saving", "exporting"].includes(normalized)) return "saving";
+  if (["done", "completed", "pronto"].includes(normalized)) return "completed";
+  if (["error", "failed", "cancelled", "timeout", "interrupted", "erro"].includes(normalized)) return "error";
+  if (normalized === "loading_model") return "loading_model";
+  return normalized || "idle";
+}
+
+function getGenerationPhaseText(phase = "idle") {
+  const labels = {
+    idle: "aguardando",
+    preparing: "preparando pipeline",
+    loading_model: "carregando modelo",
+    sampling: "sampling",
+    decoding: "decodificando frames",
+    encoding: "codificando video",
+    saving: "salvando resultado",
+    completed: "finalizando geracao",
+    error: "erro na geracao"
+  };
+  return labels[phase] || phase;
+}
+
+function parseGenerationStepFromLogs(logs = []) {
+  const lines = Array.isArray(logs) ? logs : [];
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = String(lines[index] || "");
+    const match = line.match(/(?:sample_step|step)\s+(\d+)\s*\/\s*(\d+)/i);
+    if (match) {
+      const step = Number(match[1]);
+      const total = Number(match[2]);
+      if (Number.isFinite(step) && Number.isFinite(total) && total > 0) {
+        return { step, total };
+      }
+    }
+  }
+  return null;
+}
+
+function inferGenerationPhaseFromLogs(logs = []) {
+  const lines = Array.isArray(logs) ? logs : [];
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = String(lines[index] || "").toLowerCase();
+    if (line.includes("encode_video_done") || line.includes("encode_mp4")) return "saving";
+    if (line.includes("encode_video_start")) return "encoding";
+    if (line.includes("decode_start") || line.includes("phase_decode")) return "decoding";
+    if (line.includes("sample_step") || line.includes("sample_start") || line.includes("phase_sample")) return "sampling";
+    if (line.includes("encode_prompt")) return "preparing";
+    if (line.includes("load_model") || line.includes("loading gguf")) return "loading_model";
+    if (line.includes("preparing_resources")) return "preparing";
+  }
+  return "";
+}
+
+function setTopbarGenerationStatus(state = {}) {
+  if (!topbarGenerationStatus || !topbarGenerationLabel || !topbarGenerationProgress) {
+    return;
+  }
+  if (topbarGenerationHideTimer) {
+    clearTimeout(topbarGenerationHideTimer);
+    topbarGenerationHideTimer = null;
+  }
+
+  const phase = normalizeGenerationPhase(state.phase || "idle");
+  const active = Boolean(state.active) && phase !== "idle";
+  if (!active) {
+    topbarGenerationStatus.hidden = true;
+    topbarGenerationStatus.classList.remove("is-indeterminate");
+    topbarGenerationStatus.dataset.phase = "idle";
+    topbarGenerationStatus.style.setProperty("--generation-progress", "0%");
+    topbarGenerationLabel.textContent = "";
+    return;
+  }
+
+  const typeLabel = state.type === "image" ? "imagem" : "video";
+  const engineLabel = state.engine === "wan" ? " Wan" : "";
+  let label = String(state.label || "").trim();
+  if (!label) {
+    label = phase === "completed"
+      ? "Finalizando geracao"
+      : `Gerando ${typeLabel}${engineLabel}: ${getGenerationPhaseText(phase)}`;
+  }
+  if (state.step && state.total && phase === "sampling") {
+    label = `Gerando ${typeLabel}${engineLabel}: sampling ${state.step}/${state.total}`;
+  }
+
+  const progress = Number(state.progress);
+  const hasProgress = Number.isFinite(progress) && progress >= 0;
+  const boundedProgress = clampValue(hasProgress ? progress : 0, 0, 1);
+  const indeterminate = Boolean(state.indeterminate || !hasProgress);
+
+  topbarGenerationStatus.hidden = false;
+  topbarGenerationStatus.dataset.phase = phase;
+  topbarGenerationStatus.classList.toggle("is-indeterminate", indeterminate && phase !== "completed" && phase !== "error");
+  topbarGenerationStatus.style.setProperty("--generation-progress", `${Math.round(boundedProgress * 100)}%`);
+  topbarGenerationLabel.textContent = label;
+  topbarGenerationProgress.style.width = indeterminate ? "" : `${Math.round(boundedProgress * 100)}%`;
+
+  if (phase === "completed") {
+    topbarGenerationHideTimer = setTimeout(() => setTopbarGenerationStatus({ active: false }), 2200);
+  }
+}
+
+function normalizeVideoJobGenerationState(job = {}) {
+  const logs = Array.isArray(job.logs) ? job.logs : (Array.isArray(job.output?.logs) ? job.output.logs : []);
+  const phase = normalizeGenerationPhase(inferGenerationPhaseFromLogs(logs) || job.internalStatus || job.status || "preparing");
+  const parsedStep = parseGenerationStepFromLogs(logs);
+  const rawProgress = Number(job.progress);
+  const hasBackendProgress = Number.isFinite(rawProgress) && rawProgress > 0 && rawProgress <= 100;
+  const stepProgress = parsedStep ? parsedStep.step / parsedStep.total : null;
+  const progress = phase === "completed"
+    ? 1
+    : phase === "error"
+      ? 1
+      : Number.isFinite(stepProgress)
+        ? clampValue(stepProgress, 0, 1)
+        : hasBackendProgress
+          ? clampValue(rawProgress / 100, 0, 1)
+          : null;
+
+  return {
+    active: !["idle", "completed"].includes(phase),
+    type: "video",
+    engine: "wan",
+    phase,
+    label: parsedStep && phase === "sampling"
+      ? `Gerando video Wan: sampling ${parsedStep.step}/${parsedStep.total}`
+      : `Gerando video Wan: ${getGenerationPhaseText(phase)}`,
+    step: parsedStep?.step || null,
+    total: parsedStep?.total || null,
+    progress,
+    indeterminate: progress === null
+  };
 }
 
 async function refreshStableDiffusionModels() {
   try {
-    setStableDiffusionStatus("Consultando worker SD...");
+    setAiEngineStatus("image", "carregando", "Consultando worker SD...");
     const data = await window.kitAPI?.getStableDiffusionModels?.();
-    const checkpoints = [
-      ...(data?.checkpoints || []),
-      ...(data?.diffusionModels || [])
-    ];
+    const checkpoints = Array.isArray(data?.selectableModels)
+      ? data.selectableModels
+      : (data?.checkpoints || []);
     setSelectOptions(sdCheckpoint, checkpoints, {
       placeholder: checkpoints.length ? "Selecione um checkpoint/modelo" : "Nenhum modelo local"
     });
@@ -7742,42 +8277,178 @@ async function refreshStableDiffusionModels() {
 
     const counts = data?.counts || {};
     const warningText = data?.config?.warnings?.length ? ` Avisos: ${data.config.warnings.length}.` : "";
-    setStableDiffusionStatus(
+    setAiEngineStatus(
+      "image",
+      "pronto",
       `${counts.checkpoints ?? data?.checkpoints?.length ?? 0} checkpoint(s), ` +
-      `${counts.loras ?? data?.loras?.length ?? 0} LoRA(s), ` +
-      `${counts.diffusionModels ?? data?.diffusionModels?.length ?? 0} diffusion model(s).${warningText}`
+      `${counts.loras ?? data?.loras?.length ?? 0} LoRA(s).${warningText}`
     );
-    updateStableDiffusionPanelState();
+    updateAiGeneratorPanelState();
   } catch (err) {
-    setStableDiffusionStatus(`Worker SD indisponivel: ${err.message || err}`);
-    updateStableDiffusionPanelState();
+    console.error("[Gerador IA] Falha ao consultar worker SD:", err);
+    setAiEngineStatus("image", "erro", `Worker SD indisponivel: ${err.message || err}`);
+    updateAiGeneratorPanelState();
+    throw err;
   }
 }
 
 async function startStableDiffusionWorker() {
   try {
-    setStableDiffusionStatus("Iniciando worker SD...");
-    await window.kitAPI?.controlService?.("sd", "start");
+    setAiEngineStatus("image", "carregando", "Iniciando worker SD...");
+    const serviceState = await window.kitAPI?.controlService?.("sd", "start");
     await new Promise((resolve) => setTimeout(resolve, 1200));
     const health = await window.kitAPI?.getStableDiffusionHealth?.().catch(() => null);
-    if (health?.counts) {
-      setStableDiffusionStatus(
-        `Worker SD: ${health.ready ? "pronto" : "carregando"} | ` +
-        `${health.counts.checkpoints} checkpoint(s), ${health.counts.loras} LoRA(s), ` +
-        `${health.counts.diffusionModels} diffusion model(s).`
+    if (serviceState?.status === "error") {
+      throw new Error("Nao foi possivel iniciar o worker SD.");
+    }
+    if (health?.ready) {
+      setAiEngineStatus(
+        "image",
+        "pronto",
+        `${health.counts?.checkpoints || 0} checkpoint(s), ${health.counts?.loras || 0} LoRA(s), ${health.counts?.diffusionModels || 0} diffusion model(s).`
       );
+    } else {
+      setAiEngineStatus("image", "carregando", "Worker SD respondeu, mas ainda esta carregando.");
     }
     await refreshStableDiffusionModels();
   } catch (err) {
-    setStableDiffusionStatus(`Erro ao iniciar worker SD: ${err.message || err}`);
+    console.error("[Gerador IA] Falha ao iniciar worker SD:", err);
+    setAiEngineStatus("image", "erro", `Erro ao iniciar worker SD: ${err.message || err}`);
+    throw err;
   }
+}
+
+function isWanGgufModelEntry(item = {}) {
+  const name = String(item.name || item.modelPath || item.path || "").toLowerCase();
+  const filePath = String(item.modelPath || item.path || "").toLowerCase();
+  const sourceRoot = String(item.sourceRoot || item.sourceDir || filePath).toLowerCase();
+  const fromWanModelRoot = sourceRoot.includes("f:\\ai\\models\\diffusion_models".toLowerCase()) ||
+    sourceRoot.includes("f:/ai/models/diffusion_models");
+  return fromWanModelRoot && (name.includes("wan") || item.family === "wan") && (filePath.endsWith(".gguf") || name.endsWith(".gguf"));
+}
+
+function selectDefaultWanModel() {
+  if (!aiVideoModel) {
+    return;
+  }
+  const defaultName = "wan2.2-t2v-rapid-aio-v10-nsfw-q4_k.gguf";
+  const defaultStem = defaultName.replace(/\.gguf$/i, "");
+  const options = Array.from(aiVideoModel.options || []);
+  const defaultOption = options.find((option) => (
+    option.textContent.trim().toLowerCase() === defaultName ||
+    option.textContent.trim().toLowerCase() === defaultStem ||
+    option.value.trim().toLowerCase().endsWith(defaultName) ||
+    option.value.trim().toLowerCase() === defaultStem
+  ));
+  if (defaultOption) {
+    aiVideoModel.value = defaultOption.value;
+    return;
+  }
+  const firstModel = options.find((option) => option.value);
+  if (firstModel) {
+    aiVideoModel.value = firstModel.value;
+  }
+}
+
+async function refreshGlobalVideoModels() {
+  try {
+    setAiEngineStatus("video", "carregando", "Consultando motor global de video...");
+    const data = await window.kitAPI?.getGlobalVideoModels?.();
+    const wanGgufModels = (data?.models || []).filter(isWanGgufModelEntry);
+    const wanLoras = (data?.loras || []).filter((item) => (
+      String(item.familyHint || "").toLowerCase() === "wan" ||
+      String(item.originLabel || "").toLowerCase() === "wan" ||
+      /\bwan\b/i.test(String(item.name || item.path || ""))
+    ));
+    setSelectOptions(aiVideoModel, wanGgufModels, {
+      placeholder: wanGgufModels.length ? "Selecione um modelo Wan GGUF" : "Nenhum modelo Wan GGUF local"
+    });
+    selectDefaultWanModel();
+    renderVideoLoraSlots(wanLoras);
+    globalVideoEngineReady = true;
+    setAiEngineStatus(
+      "video",
+      "pronto",
+      `${wanGgufModels.length} modelo(s) Wan GGUF, ${wanLoras.length} LoRA(s) Wan.`
+    );
+  } catch (err) {
+    globalVideoEngineReady = false;
+    console.error("[Gerador IA] Falha ao consultar motor global de video:", err);
+    setAiEngineStatus("video", "erro", `Motor global de video indisponivel: ${err.message || err}`);
+    throw err;
+  } finally {
+    updateAiGeneratorPanelState();
+  }
+}
+
+async function deactivateCurrentAiEngine() {
+  const engineKey = getCurrentAiEngineKey();
+  try {
+    if (engineKey === "image") {
+      setAiEngineStatus("image", "carregando", "Desativando worker SD...");
+      await window.kitAPI?.controlService?.("sd", "stop");
+      setAiEngineStatus("image", "desligado", "Motor de imagem desligado.");
+      return;
+    }
+    globalVideoEngineReady = false;
+    setAiEngineStatus("video", "desligado", "Motor de video desligado.");
+  } catch (err) {
+    console.error("[Gerador IA] Falha ao desativar motor:", err);
+    setAiEngineStatus(engineKey, "erro", `Falha ao desativar motor: ${err.message || err}`);
+    throw err;
+  }
+}
+
+async function activateCurrentAiEngine() {
+  const engineKey = getCurrentAiEngineKey();
+  const state = getAiEngineStatus(engineKey);
+  if (state.status === "pronto") {
+    await deactivateCurrentAiEngine();
+    return;
+  }
+  if (engineKey === "video" && getAiEngineStatus("image").status === "pronto") {
+    await window.kitAPI?.controlService?.("sd", "stop").catch(() => null);
+    setAiEngineStatus("image", "desligado", "Motor de imagem desligado para liberar recursos.");
+  }
+  if (engineKey === "image" && getAiEngineStatus("video").status === "pronto") {
+    globalVideoEngineReady = false;
+    setAiEngineStatus("video", "desligado", "Motor de video desligado para liberar recursos.");
+  }
+  if (engineKey === "video") {
+    await refreshGlobalVideoModels();
+    return;
+  }
+  await startStableDiffusionWorker();
+}
+
+function buildAiPromptWithStyle(prompt = "", style = "") {
+  const promptText = String(prompt || "").trim();
+  const styleText = String(style || "").trim();
+  if (!styleText) {
+    return promptText;
+  }
+  return [promptText, styleText].filter(Boolean).join(", ");
+}
+
+function collectCanvasVideoPayload() {
+  const mode = normalizeVideoModeValue(aiVideoMode?.value || "text_to_video") === "i2v"
+    ? "image_to_video"
+    : "text_to_video";
+  return {
+    mode,
+    prompt: buildAiPromptWithStyle(sdPrompt?.value, aiStyle?.value),
+    model: aiVideoModel?.value || "",
+    loras: collectSelectedVideoLoras(),
+    durationSeconds: getWanDurationSeconds(),
+    presetId: getSelectedWanPresetId()
+  };
 }
 
 function collectStableDiffusionPayload() {
   return {
     mode: getStableDiffusionMode(),
     uiMode: getStableUiMode(),
-    prompt: sdPrompt?.value?.trim() || "",
+    prompt: buildAiPromptWithStyle(sdPrompt?.value, aiStyle?.value),
     negative_prompt: sdNegativePrompt?.value?.trim() || "",
     checkpoint: sdCheckpoint?.value || "",
     architecture: getSelectedCheckpointArchitecture(),
@@ -7791,6 +8462,7 @@ function collectStableDiffusionPayload() {
     denoising_strength: getNumericValue(sdDenoising, 0.55),
     batch_count: 1,
     batch_size: 1,
+    preset: aiPreset?.value || "standard",
     artboard: getCanvasStateSummary().artboard
   };
 }
@@ -7940,6 +8612,130 @@ function recordStableDiffusionOutpaint(metadata = {}) {
           source: "outpaint-mask"
         }
       ].filter((item) => item.file).slice(-100)
+    }
+  };
+}
+
+function recordCanvasVideoGeneration(metadata = {}) {
+  const base = currentProject || createLocalDefaultProject();
+  const generation = {
+    id: metadata.id || `video-${Date.now().toString(36)}`,
+    jobId: metadata.jobId || "",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    kind: "video",
+    status: metadata.status || "done",
+    error: metadata.error || "",
+    mode: metadata.mode || "t2v",
+    positivePrompt: metadata.prompt || "",
+    negativePrompt: metadata.negativePrompt || "",
+    model: metadata.model || "",
+    lora: metadata.lora || "",
+    duration: metadata.duration || 0,
+    fps: metadata.fps || 0,
+    width: metadata.width || null,
+    height: metadata.height || null,
+    outputFile: metadata.outputFile || metadata.path || ""
+  };
+
+  const previousGenerations = Array.isArray(base.ai?.generations) ? base.ai.generations : [];
+  const withoutDuplicate = previousGenerations.filter((item) => {
+    if (generation.jobId && item?.jobId === generation.jobId) {
+      return false;
+    }
+    return item?.id !== generation.id;
+  });
+
+  currentProject = {
+    ...base,
+    ai: {
+      ...(base.ai || {}),
+      generations: [
+        generation,
+        ...withoutDuplicate.slice(0, 49)
+      ]
+    }
+  };
+}
+
+function updateCanvasVideoJobRecord(job = {}, patch = {}) {
+  const jobId = String(job?.id || patch.jobId || "").trim();
+  if (!jobId) {
+    return;
+  }
+
+  const base = currentProject || createLocalDefaultProject();
+  const now = new Date().toISOString();
+  const generations = Array.isArray(base.ai?.generations) ? base.ai.generations : [];
+  const index = generations.findIndex((item) => item?.kind === "video" && item?.jobId === jobId);
+  const previous = index >= 0 ? generations[index] : {
+    id: `video-${Date.now().toString(36)}`,
+    jobId,
+    createdAt: now,
+    kind: "video",
+    mode: job?.mode || job?.input?.mode || "t2v",
+    positivePrompt: job?.input?.prompt || "",
+    negativePrompt: job?.input?.negativePrompt || "",
+    model: job?.input?.model || job?.model?.id || "",
+    lora: "",
+    duration: job?.input?.duration || 0,
+    fps: job?.input?.fps || 0,
+    width: job?.input?.width || null,
+    height: job?.input?.height || null,
+    outputFile: ""
+  };
+  const next = {
+    ...previous,
+    ...patch,
+    jobId,
+    updatedAt: now,
+    status: patch.status || job?.status || previous.status || "pending",
+    error: patch.error ?? job?.error ?? previous.error ?? "",
+    outputFile: patch.outputFile || job?.output?.path || previous.outputFile || ""
+  };
+  const nextGenerations = index >= 0
+    ? generations.map((item, itemIndex) => (itemIndex === index ? next : item))
+    : [next, ...generations].slice(0, 50);
+
+  currentProject = {
+    ...base,
+    ai: {
+      ...(base.ai || {}),
+      generations: nextGenerations
+    }
+  };
+  scheduleAutosave();
+}
+
+function markStaleCanvasVideoJobs(project = currentProject) {
+  const generations = Array.isArray(project?.ai?.generations) ? project.ai.generations : [];
+  let changed = false;
+  const now = Date.now();
+  const nextGenerations = generations.map((item) => {
+    if (item?.kind !== "video" || !CANVAS_VIDEO_ACTIVE_STATUSES.has(String(item.status || "").toLowerCase())) {
+      return item;
+    }
+    const updatedAt = Date.parse(item.updatedAt || item.createdAt || "");
+    if (Number.isFinite(updatedAt) && now - updatedAt <= CANVAS_VIDEO_STALE_JOB_MS) {
+      return item;
+    }
+    changed = true;
+    return {
+      ...item,
+      status: "interrupted",
+      error: "Job de video antigo sem atualizacao recente.",
+      updatedAt: new Date().toISOString()
+    };
+  });
+
+  if (!changed) {
+    return project;
+  }
+  return {
+    ...project,
+    ai: {
+      ...(project.ai || {}),
+      generations: nextGenerations
     }
   };
 }
@@ -8183,7 +8979,7 @@ const CanvasStableActions = {
   async ensureStableEnabled() {
     const health = await window.kitAPI?.getStableDiffusionHealth?.().catch(() => null);
     if (health?.ready) {
-      updateStableDiffusionPanelState();
+      updateAiGeneratorPanelState();
       return health;
     }
     await startStableDiffusionWorker();
@@ -8193,7 +8989,7 @@ const CanvasStableActions = {
   openStablePanel() {
     setInspectorAccordionVisible("sd", true);
     setInspectorAccordionOpen("sd", true, { persist: false });
-    updateStableDiffusionPanelState();
+    updateAiGeneratorPanelState();
     return true;
   },
 
@@ -8213,7 +9009,7 @@ const CanvasStableActions = {
           : "img2img";
       }
     }
-    updateStableDiffusionPanelState();
+    updateAiGeneratorPanelState();
     return getStableUiMode();
   },
 
@@ -8278,8 +9074,20 @@ const CanvasStableActions = {
     if (!payload.checkpoint) {
       throw new Error("Selecione um checkpoint local.");
     }
+    if (/\\diffusion_models\\|\/diffusion_models\//i.test(String(payload.checkpoint || ""))) {
+      throw new Error("Modelo de video detectado. Para imagem, selecione apenas checkpoints SD15/SDXL.");
+    }
 
     await this.ensureStableEnabled();
+    setTopbarGenerationStatus({
+      active: true,
+      type: "image",
+      engine: "stable",
+      phase: "sampling",
+      label: "Gerando imagem: sampling",
+      progress: null,
+      indeterminate: true
+    });
     const result = await window.kitAPI?.txt2imgStableDiffusionImage?.(payload);
     if (!result?.file) {
       throw new Error("Worker nao retornou arquivo de saida.");
@@ -8298,6 +9106,15 @@ const CanvasStableActions = {
       output_file: result.file
     });
     scheduleAutosave();
+    setTopbarGenerationStatus({
+      active: true,
+      type: "image",
+      engine: "stable",
+      phase: "completed",
+      label: "Finalizando geracao",
+      progress: 1,
+      indeterminate: false
+    });
     return {
       file: result.file,
       metadata,
@@ -8348,6 +9165,9 @@ const CanvasStableActions = {
     if (!payload.checkpoint) {
       throw new Error("Selecione um checkpoint local.");
     }
+    if (/\\diffusion_models\\|\/diffusion_models\//i.test(String(payload.checkpoint || ""))) {
+      throw new Error("Modelo de video detectado. Para imagem, selecione apenas checkpoints SD15/SDXL.");
+    }
 
     if (mode === "inpaint" || mode === "inpaint-sketch") {
       if (!options.maskImageData && !getMaskPaths().length) {
@@ -8365,6 +9185,15 @@ const CanvasStableActions = {
     }
 
     await this.ensureStableEnabled();
+    setTopbarGenerationStatus({
+      active: true,
+      type: "image",
+      engine: "stable",
+      phase: "sampling",
+      label: "Gerando imagem: sampling",
+      progress: null,
+      indeterminate: true
+    });
     const result = mode === "inpaint"
       ? await window.kitAPI?.inpaintStableDiffusionImage?.(payload)
       : await window.kitAPI?.img2imgStableDiffusionImage?.(payload);
@@ -8401,6 +9230,15 @@ const CanvasStableActions = {
     }
 
     scheduleAutosave();
+    setTopbarGenerationStatus({
+      active: true,
+      type: "image",
+      engine: "stable",
+      phase: "completed",
+      label: "Finalizando geracao",
+      progress: 1,
+      indeterminate: false
+    });
     return {
       file: result.file,
       metadata,
@@ -8410,23 +9248,129 @@ const CanvasStableActions = {
   }
 };
 
-async function waitForGlobalVideoJob(jobId, timeoutMs = 180000) {
+function summarizeCanvasVideoPayload(payload = {}) {
+  return {
+    source: payload.source,
+    mode: payload.mode,
+    hasPrompt: Boolean(String(payload.prompt || "").trim()),
+    hasStartImage: Boolean(payload.inputImagePath || payload.startImage),
+    model: payload.model || "",
+    presetId: payload.presetId || "",
+    durationSeconds: payload.durationSeconds,
+    loras: Array.isArray(payload.loras) ? payload.loras.length : 0,
+    outputDir: payload.outputDir || ""
+  };
+}
+
+let activeCanvasVideoJobId = "";
+
+function updateVideoAbortButton() {
+  if (!aiVideoAbortButton) {
+    return;
+  }
+  aiVideoAbortButton.hidden = !activeCanvasVideoJobId;
+  aiVideoAbortButton.disabled = !activeCanvasVideoJobId;
+}
+
+async function abortActiveCanvasVideoJob() {
+  const jobId = String(activeCanvasVideoJobId || "").trim();
+  if (!jobId) {
+    return null;
+  }
+  aiVideoAbortButton.disabled = true;
+  if (projectStatus) {
+    projectStatus.textContent = `Abortando video Wan com seguranca: ${jobId}`;
+  }
+  const result = await window.kitAPI?.cancelGlobalVideoJob?.({ jobId });
+  updateCanvasVideoJobRecord(result?.job || { id: jobId }, {
+    status: "cancelled",
+    error: "Job cancelado pelo usuario."
+  });
+  setTopbarGenerationStatus({
+    active: true,
+    type: "video",
+    engine: "wan",
+    phase: "error",
+    label: "Gerando video Wan: cancelado",
+    progress: 1,
+    indeterminate: false
+  });
+  activeCanvasVideoJobId = "";
+  updateVideoAbortButton();
+  return result;
+}
+
+async function waitForGlobalVideoJob(jobId, timeoutMs = CANVAS_VIDEO_JOB_TIMEOUT_MS) {
+  if (!jobId) {
+    throw new Error("Job de video nao foi criado: jobId ausente.");
+  }
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     const result = await window.kitAPI?.getGlobalVideoJobStatus?.({ jobId });
+    console.log("[CanvasVideo] resposta recebida", {
+      endpoint: "/api/media/video-status",
+      jobId,
+      status: result?.job?.status || null
+    });
     const job = result?.job || null;
     if (!job) {
       throw new Error("Job global de video nao encontrado.");
     }
-    if (job.status === "completed") {
+    updateCanvasVideoJobRecord(job);
+    const status = String(job.status || "").toLowerCase();
+    const logs = Array.isArray(job.logs) ? job.logs : (Array.isArray(job.output?.logs) ? job.output.logs : []);
+    const lastLog = logs.length ? String(logs[logs.length - 1] || "") : "";
+    setTopbarGenerationStatus(normalizeVideoJobGenerationState(job));
+    const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
+    if (projectStatus) {
+      projectStatus.textContent = `Gerando video Wan: ${status || "aguardando"} (${elapsedSeconds}s)${lastLog ? ` - ${lastLog.slice(0, 140)}` : ""}`;
+    }
+    if (CANVAS_VIDEO_DONE_STATUSES.has(status)) {
+      setTopbarGenerationStatus({
+        active: true,
+        type: "video",
+        engine: "wan",
+        phase: "completed",
+        label: "Finalizando geracao",
+        progress: 1,
+        indeterminate: false
+      });
       return job;
     }
-    if (job.status === "failed" || job.status === "cancelled") {
-      throw new Error(job.error || `Job de video terminou com status ${job.status}.`);
+    if (CANVAS_VIDEO_ERROR_STATUSES.has(status)) {
+      setTopbarGenerationStatus({
+        active: true,
+        type: "video",
+        engine: "wan",
+        phase: "error",
+        label: "Gerando video Wan: erro",
+        progress: 1,
+        indeterminate: false
+      });
+      const phase = job.internalStatus || job.status || status;
+      const elapsed = Math.round((Date.now() - startedAt) / 1000);
+      const message = job.error || `Job de video terminou com status ${job.status}.`;
+      throw new Error(
+        `Falha ao gerar video no Wan: ${message} Fase: ${phase}. Tempo total: ${elapsed}s.` +
+        (lastLog ? ` Ultimo log: ${lastLog}` : "")
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, 1200));
   }
-  throw new Error("Tempo excedido aguardando o job global de video.");
+  updateCanvasVideoJobRecord({ id: jobId }, {
+    status: "timeout",
+    error: "Tempo excedido aguardando o job global de video."
+  });
+  setTopbarGenerationStatus({
+    active: true,
+    type: "video",
+    engine: "wan",
+    phase: "error",
+    label: "Gerando video Wan: timeout",
+    progress: 1,
+    indeterminate: false
+  });
+  throw new Error(`Falha ao gerar video no Wan: timeout aguardando job. Fase: polling. Tempo total: ${Math.round(timeoutMs / 1000)}s.`);
 }
 
 function getCanvasVideoPrompt(options = {}) {
@@ -8462,80 +9406,159 @@ async function exportCanvasObjectToTempPng(object) {
 
 const CanvasVideoActions = {
   async generateVideo(options = {}) {
+    let activeJobId = "";
     if (!window.kitAPI?.generateGlobalVideo || !window.kitAPI?.getGlobalVideoJobStatus) {
       throw new Error("API global de video indisponivel no preload.");
     }
 
-    const sourceObject = options.sourceLayerId || options.layerId || options.useSelectedLayer
-      ? getStableSourceObject(options)
-      : (options.fromSelection ? getStableSourceObject(options) : null);
-    if ((options.fromSelection || options.useSelectedLayer || options.sourceLayerId || options.layerId) && !sourceObject) {
-      throw new Error("Selecione uma camada de imagem valida para animar.");
-    }
-    const startImage = sourceObject ? await exportCanvasObjectToTempPng(sourceObject) : "";
-    const prompt = getCanvasVideoPrompt({
-      ...options,
-      startImage
-    });
-
-    if (!prompt && !startImage) {
-      throw new Error("Informe um prompt ou selecione uma imagem para animar.");
-    }
-
-    const outputDir = currentProjectFilePath && nodePath
-      ? nodePath.join(nodePath.dirname(currentProjectFilePath), `${nodePath.parse(currentProjectFilePath).name}.assets`, "generated-video")
-      : nodePath?.resolve?.("output", "canvas-video") || "";
-
-    if (projectStatus) {
-      projectStatus.textContent = "Enviando job global de video...";
-    }
-
-    const created = await window.kitAPI.generateGlobalVideo({
-      sessionId: "canvas",
-      source: "canvas",
-      saveToCanvasContext: true,
-      attachToCanvas: true,
-      prompt,
-      negativePrompt: String(options.negativePrompt || "").trim(),
-      motionPrompt: String(options.motionPrompt || "").trim(),
-      startImage,
-      duration: Number(options.duration || 5),
-      fps: Number(options.fps || 12),
-      ratio: `${artboardWidth}:${artboardHeight}`,
-      width: artboardWidth,
-      height: artboardHeight,
-      quality: options.quality || "standard",
-      preset: options.preset || "standard",
-      outputDir,
-      references: startImage
-        ? [{
-          path: startImage,
-          source: "canvas-layer",
-          type: "image"
-        }]
-        : []
-    });
-
-    const finalJob = await waitForGlobalVideoJob(created?.job?.id || "");
-    let inserted = null;
-    if (finalJob?.output?.path && options.insertResult !== false) {
-      inserted = await insertGeneratedVideoFromPath(finalJob.output.path, {
-        duration: finalJob.output.duration || finalJob.output.metadata?.duration || 5,
-        label: getFileName(finalJob.output.path)
+    try {
+      const sourceObject = options.sourceLayerId || options.layerId || options.useSelectedLayer
+        ? getStableSourceObject(options)
+        : (options.fromSelection ? getStableSourceObject(options) : null);
+      if ((options.fromSelection || options.useSelectedLayer || options.sourceLayerId || options.layerId) && !sourceObject) {
+        throw new Error("Selecione uma camada de imagem valida para animar.");
+      }
+      const startImage = sourceObject ? await exportCanvasObjectToTempPng(sourceObject) : "";
+      const videoOptions = {
+        ...collectCanvasVideoPayload(),
+        ...options
+      };
+      const prompt = getCanvasVideoPrompt({
+        ...videoOptions,
+        startImage
       });
-    }
 
-    if (projectStatus) {
-      projectStatus.textContent = finalJob?.output?.path
-        ? `Video gerado no motor global: ${finalJob.output.path}`
-        : "Video gerado no motor global.";
-    }
+      if (!prompt && !startImage) {
+        throw new Error("Informe um prompt ou selecione uma imagem para animar.");
+      }
 
-    return {
-      job: finalJob,
-      insertedLayerId: inserted?.layerId || null,
-      insertedTimelineItemId: inserted?.timelineItemId || null
-    };
+      const outputDir = currentProjectFilePath && nodePath
+        ? nodePath.join(nodePath.dirname(currentProjectFilePath), `${nodePath.parse(currentProjectFilePath).name}.assets`, "generated-video")
+        : nodePath?.resolve?.("output", "canvas-video") || "";
+
+      const requestPayload = {
+        sessionId: "canvas",
+        source: "canvas",
+        saveToCanvasContext: true,
+        attachToCanvas: true,
+        prompt,
+        inputImagePath: startImage,
+        mode: videoOptions.mode || (startImage ? "i2v" : "t2v"),
+        model: videoOptions.model || "",
+        loras: Array.isArray(videoOptions.loras) ? videoOptions.loras : [],
+        durationSeconds: Number(videoOptions.durationSeconds || 5),
+        presetId: videoOptions.presetId || "wan_wide_5s",
+        outputDir,
+        references: startImage
+          ? [{
+            path: startImage,
+            source: "canvas-layer",
+            type: "image"
+          }]
+          : []
+      };
+
+      if (projectStatus) {
+        projectStatus.textContent = "Enviando job global de video...";
+      }
+      setTopbarGenerationStatus({
+        active: true,
+        type: "video",
+        engine: "wan",
+        phase: "preparing",
+        label: "Gerando video Wan: preparando pipeline",
+        progress: null,
+        indeterminate: true
+      });
+      console.log("[CanvasVideo] pedido enviado", {
+        endpoint: "/api/media/generate-video",
+        payload: summarizeCanvasVideoPayload(requestPayload)
+      });
+
+      const created = await window.kitAPI.generateGlobalVideo(requestPayload);
+      console.log("[CanvasVideo] resposta recebida", {
+        endpoint: "/api/media/generate-video",
+        jobId: created?.job?.id || "",
+        status: created?.job?.status || null
+      });
+      activeJobId = String(created?.job?.id || "").trim();
+      if (!activeJobId) {
+        throw new Error("Backend retornou sucesso sem jobId ativo.");
+      }
+      activeCanvasVideoJobId = activeJobId;
+      updateVideoAbortButton();
+      updateCanvasVideoJobRecord(created.job, { status: created.job.status || "pending" });
+
+      const finalJob = await waitForGlobalVideoJob(activeJobId);
+      let inserted = null;
+      if (finalJob?.output?.path && options.insertResult !== false) {
+        inserted = await insertGeneratedVideoFromPath(finalJob.output.path, {
+          duration: finalJob.output.duration || finalJob.output.metadata?.duration || 5,
+          label: getFileName(finalJob.output.path)
+        });
+      }
+
+      if (projectStatus) {
+        projectStatus.textContent = finalJob?.output?.path
+          ? `Video gerado no motor global: ${finalJob.output.path}`
+          : "Video gerado no motor global.";
+      }
+      recordCanvasVideoGeneration({
+        id: activeJobId ? `video-${activeJobId}` : undefined,
+        jobId: activeJobId,
+        status: "done",
+        mode: finalJob?.output?.metadata?.mode || videoOptions.mode || (startImage ? "i2v" : "t2v"),
+        prompt,
+        negativePrompt: "",
+        model: videoOptions.model || "",
+        lora: (videoOptions.loras || []).map((item) => item.name).filter(Boolean).join(", "),
+        duration: finalJob?.output?.duration || Number(videoOptions.durationSeconds || 5),
+        fps: finalJob?.output?.fps || 16,
+        width: finalJob?.output?.width || artboardWidth,
+        height: finalJob?.output?.height || artboardHeight,
+        outputFile: finalJob?.output?.path || ""
+      });
+      scheduleAutosave();
+
+      return {
+        job: finalJob,
+        insertedLayerId: inserted?.layerId || null,
+        insertedTimelineItemId: inserted?.timelineItemId || null
+      };
+    } catch (err) {
+      console.error("[CanvasVideo] erro recebido", {
+        endpoint: activeJobId ? "/api/media/video-status" : "/api/media/generate-video",
+        jobId: activeJobId,
+        error: err?.message || String(err)
+      });
+      if (activeJobId) {
+        updateCanvasVideoJobRecord({ id: activeJobId }, {
+          status: /tempo excedido|timeout/i.test(String(err?.message || err)) ? "timeout" : "error",
+          error: err?.message || String(err)
+        });
+      }
+      setTopbarGenerationStatus({
+        active: true,
+        type: "video",
+        engine: "wan",
+        phase: "error",
+        label: "Gerando video Wan: erro",
+        progress: 1,
+        indeterminate: false
+      });
+      if (projectStatus) {
+        projectStatus.textContent = err?.message || "Falha ao gerar video no Wan.";
+      }
+      throw err;
+    } finally {
+      if (activeCanvasVideoJobId === activeJobId) {
+        activeCanvasVideoJobId = "";
+        updateVideoAbortButton();
+      }
+      if (!activeJobId && getAiEngineStatus("video").status === "gerando") {
+        setAiEngineStatus("video", "erro", "Geracao de video encerrada sem jobId ativo.");
+      }
+    }
   }
 };
 
@@ -8560,31 +9583,80 @@ async function generateStableDiffusionImage() {
   const i2iMode = getSelectedStableI2ISubmode();
 
   try {
+    aiEngineState.generating = true;
+    setAiEngineStatus("image", "gerando", primaryMode === "txt2img" ? "Gerando imagem T2I..." : `Executando ${i2iMode}...`);
+    updateAiGeneratorPanelState();
     if (sdGenerateButton) {
       sdGenerateButton.disabled = true;
     }
     if (primaryMode === "txt2img") {
-      setStableDiffusionStatus("Gerando imagem T2I no worker local...");
       const result = await CanvasStableActions.generateT2I();
-      setStableDiffusionStatus(`Imagem gerada e inserida: ${result.file}`);
+      setAiEngineStatus("image", "pronto", `Imagem gerada e inserida: ${result.file}`);
       return result;
     }
 
-    setStableDiffusionStatus(`Executando ${i2iMode} no worker local...`);
     const result = await CanvasStableActions.generateI2I({
       mode: i2iMode,
       outputMode: getStableOutputMode()
     });
-    setStableDiffusionStatus(`Resultado ${i2iMode} inserido: ${result.file}`);
+    setAiEngineStatus("image", "pronto", `Resultado ${i2iMode} inserido: ${result.file}`);
     return result;
   } catch (err) {
-    setStableDiffusionStatus(`Erro SD: ${err.message || err}`);
+    console.error("[Gerador IA] Falha na geracao de imagem:", err);
+    setTopbarGenerationStatus({
+      active: true,
+      type: "image",
+      engine: "stable",
+      phase: "error",
+      label: "Gerando imagem: erro",
+      progress: 1,
+      indeterminate: false
+    });
+    setAiEngineStatus("image", "erro", `Erro no motor de imagem: ${err.message || err}`);
     return null;
   } finally {
+    aiEngineState.generating = false;
     if (sdGenerateButton) {
       sdGenerateButton.disabled = false;
     }
+    updateAiGeneratorPanelState();
   }
+}
+
+async function generateAiPanelContent() {
+  if (getAiGeneratorTab() === "video") {
+    const payload = collectCanvasVideoPayload();
+    if (normalizeVideoModeValue(payload.mode) === "i2v") {
+      const sourceObject = getVideoSourceObject();
+      if (!sourceObject) {
+        setAiEngineStatus("video", "erro", "Selecione uma camada raster/imagem valida antes de gerar em I2V.");
+        return null;
+      }
+    }
+    try {
+      aiEngineState.generating = true;
+      setAiEngineStatus("video", "gerando", "Enviando geracao para o motor global de video...");
+      updateAiGeneratorPanelState();
+      if (!globalVideoEngineReady) {
+        await refreshGlobalVideoModels();
+      }
+      const result = await CanvasVideoActions.generateVideo({
+        ...payload,
+        fromSelection: normalizeVideoModeValue(payload.mode) === "i2v",
+        useSelectedLayer: normalizeVideoModeValue(payload.mode) === "i2v"
+      });
+      setAiEngineStatus("video", "pronto", `Video gerado e inserido: ${result?.job?.output?.path || result?.job?.id || "ok"}`);
+      return result;
+    } catch (err) {
+      console.error("[Gerador IA] Falha na geracao de video:", err);
+      setAiEngineStatus("video", "erro", `Erro no motor de video: ${err.message || err}`);
+      return null;
+    } finally {
+      aiEngineState.generating = false;
+      updateAiGeneratorPanelState();
+    }
+  }
+  return generateStableDiffusionImage();
 }
 
 async function generateStableDiffusionInpaint(options = {}) {
@@ -10426,24 +11498,69 @@ document.querySelector('[data-timeline-action="remove-slide"]')?.addEventListene
   void removeTimelineSlide();
 });
 
-document.querySelector('[data-sd-action="start-worker"]')?.addEventListener("click", () => {
-  void startStableDiffusionWorker();
+aiEngineToggleButton?.addEventListener("click", () => {
+  void activateCurrentAiEngine().catch((error) => {
+    console.error("[Gerador IA] Falha no botao de ativacao:", error);
+    const engineKey = getCurrentAiEngineKey();
+    setAiEngineStatus(engineKey, "erro", error.message || String(error));
+  });
 });
 
 document.querySelector('[data-sd-action="refresh-models"]')?.addEventListener("click", () => {
-  void refreshStableDiffusionModels();
+  if (getAiGeneratorTab() === "video") {
+    void refreshGlobalVideoModels().catch(() => {});
+    return;
+  }
+  void refreshStableDiffusionModels().catch(() => {});
 });
 
 document.querySelector('[data-sd-action="generate"]')?.addEventListener("click", () => {
-  void generateStableDiffusionImage();
+  void generateAiPanelContent().catch((error) => {
+    console.error("[Gerador IA] Falha no botao gerar:", error);
+    const engineKey = getCurrentAiEngineKey();
+    setAiEngineStatus(engineKey, "erro", error.message || String(error));
+  });
 });
 
-[sdMode, sdI2IMode, sdPrompt, sdNegativePrompt, sdCheckpoint, sdArchitecture, sdLora, sdScheduler, sdSteps, sdCfgScale, sdWidth, sdHeight, sdSeed, sdDenoising, sdInpaintInsertMode]
+aiVideoAbortButton?.addEventListener("click", () => {
+  void abortActiveCanvasVideoJob().catch((error) => {
+    console.error("[CanvasVideo] falha ao abortar job", error);
+    if (projectStatus) {
+      projectStatus.textContent = error?.message || "Falha ao abortar video Wan.";
+    }
+    updateVideoAbortButton();
+  });
+});
+
+[aiGeneratorTabImage, aiGeneratorTabVideo]
+  .filter(Boolean)
+  .forEach((button) => {
+    button.addEventListener("click", () => {
+      setAiGeneratorTab(button.dataset.aiTab || "image");
+      if ((button.dataset.aiTab || "image") === "video" && !aiVideoModel?.options?.length) {
+        void refreshGlobalVideoModels().catch(() => {});
+      }
+    });
+  });
+
+[sdMode, sdI2IMode, sdPrompt, sdNegativePrompt, aiStyle, aiPreset, sdCheckpoint, sdArchitecture, sdLora, sdScheduler, sdSteps, sdCfgScale, sdWidth, sdHeight, sdSeed, sdDenoising, sdInpaintInsertMode, aiVideoMode, aiVideoPreset, aiVideoModel, aiVideoDuration]
   .filter(Boolean)
   .forEach((input) => {
-    input.addEventListener("input", updateStableDiffusionPanelState);
-    input.addEventListener("change", updateStableDiffusionPanelState);
+    input.addEventListener("input", updateAiGeneratorPanelState);
+    input.addEventListener("change", updateAiGeneratorPanelState);
   });
+
+aiVideoLoraList?.addEventListener("input", updateAiGeneratorPanelState);
+aiVideoLoraList?.addEventListener("change", (event) => {
+  if (event.target?.tagName === "SELECT") {
+    const row = event.target.closest(".video-lora-row");
+    const checkbox = row?.querySelector('input[type="checkbox"]');
+    if (checkbox && event.target.value) {
+      checkbox.checked = true;
+    }
+  }
+  updateAiGeneratorPanelState();
+});
 
 exportQuality?.addEventListener("input", syncExportLabels);
 exportQuality?.addEventListener("change", syncExportLabels);
@@ -10609,6 +11726,11 @@ async function bootstrapCanvasModule() {
   renderBrandKit(createLocalDefaultBrandKit(), null);
   setSelectOptions(sdCheckpoint, [], { placeholder: "Atualize modelos" });
   setSelectOptions(sdLora, [], { placeholder: "Sem LoRA" });
+  setSelectOptions(aiVideoModel, [], { placeholder: "Ative o motor de video" });
+  renderVideoLoraSlots([]);
+  setAiEngineStatus("image", "desligado", "Motor de imagem desligado.");
+  setAiEngineStatus("video", "desligado", "Motor de video desligado.");
+  setAiGeneratorTab("image");
   syncInspectorContext(null);
 
   const restored = await restoreLastCanvasSession();
@@ -10620,6 +11742,7 @@ async function bootstrapCanvasModule() {
   }
 
   updateHistoryControls();
+  updateAiGeneratorPanelState();
 }
 
 void bootstrapCanvasModule();

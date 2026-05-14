@@ -1,7 +1,7 @@
 export function runTextToVideo({ payload = {}, conditioning = {}, output = {} } = {}) {
   const summaryLogs = [
     "pipeline:t2v",
-    "source:prompt-slate",
+    "source:text-conditioning",
     ...(conditioning.logs || [])
   ];
 
@@ -13,9 +13,9 @@ export function runTextToVideo({ payload = {}, conditioning = {}, output = {} } 
       mode: "t2v",
       startImage: "",
       pipeline: {
-        id: "text-to-video",
+        id: "standard-T2V",
         mode: "t2v",
-        sourceStrategy: "prompt-slate",
+        sourceStrategy: "text-conditioning",
         supports: ["interpolation", "startFrame", "endFrame", "chaining", "frame-guidance"]
       },
       conditioning: {

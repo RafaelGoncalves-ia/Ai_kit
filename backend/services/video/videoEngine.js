@@ -4,13 +4,22 @@ import { randomUUID } from "crypto";
 import { spawn } from "child_process";
 import studioProjectStore from "../../skills/studio/studioProjectStore.js";
 import studioProjectSchema from "../../skills/studio/studioProjectSchema.js";
-import { resolveVideoModel } from "./videoModelRegistry.js";
+import { isImageModelPath, resolveVideoModel } from "./videoModelRegistry.js";
 import { selectVideoPipeline } from "./pipelines/selectVideoPipeline.js";
 import { buildVideoGenerationConfig } from "./utils/buildVideoGenerationConfig.js";
 import { buildVideoOutputMetadata } from "./utils/buildVideoOutputMetadata.js";
 import { cleanupVideoMemory } from "./utils/cleanupVideoMemory.js";
 import { extractLastFrameFromVideo } from "./utils/extractLastFrameFromVideo.js";
 import { resolveVideoPaths, resolveProjectVideoAssetDir } from "./utils/resolveVideoPaths.js";
+import {
+  assertWanCanStart,
+  attachWanTimeouts,
+  buildWanWorkerEnv,
+  setWanGenerationLock,
+  releaseWanJob,
+  resolveWanPython
+} from "./wanMemoryManager.js";
+import { ResourceManager } from "../../workflow/resource_manager.js";
 
 const {
   STUDIO_PROJECTS_DIR,
@@ -48,6 +57,27 @@ function exists(filePath = "") {
   } catch {
     return false;
   }
+}
+
+function writeJson(filePath = "", data = {}) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+}
+
+function numberOrFallback(value, fallback) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function normalizeVideoMode(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "standard-i2v" || normalized === "i2v" || normalized === "image-to-video" || normalized === "image_to_video") {
+    return "i2v";
+  }
+  if (normalized === "text-to-video" || normalized === "text_to_video" || normalized === "t2v") {
+    return "t2v";
+  }
+  return "t2v";
 }
 
 function resolveStandaloneAssetDir(payload = {}) {
@@ -94,8 +124,9 @@ function updateSceneMedia(project = {}, sceneId = "", generatedMedia = null) {
   };
 }
 
-export function createVideoEngine() {
+export function createVideoEngine(context = {}) {
   const jobs = new Map();
+  const resourceManager = new ResourceManager(context);
 
   function serializeJob(job = {}) {
     if (!job) {
@@ -207,7 +238,8 @@ export function createVideoEngine() {
     const current = jobs.get(jobId) || {};
     const next = {
       ...current,
-      ...patch
+      ...patch,
+      updatedAt: new Date().toISOString()
     };
     jobs.set(jobId, next);
     return next;
@@ -237,18 +269,55 @@ export function createVideoEngine() {
       ratio: payload.ratio || projectRecord?.project?.briefing?.ratio || "9:16",
       width: payload.width,
       height: payload.height,
-      preset: payload.preset || payload.quality || "standard",
-      quality: payload.quality || payload.preset || "standard"
+      preset: payload.preset || payload.quality || "standard-T2V",
+      quality: payload.quality || payload.preset || "standard-T2V"
     });
+    const requestedMode = normalizeVideoMode(payload.mode || scene?.generationMode || "");
     const resolvedModel = resolveVideoModel({
       requestedModel: payload.model || "",
-      mode: String(payload.mode || scene?.generationMode || "").trim().toLowerCase() || undefined
+      mode: requestedMode
     });
+    if (payload.model && !resolvedModel) {
+      if (isImageModelPath(payload.model)) {
+        throw new Error("Modelo de imagem/SD detectado no motor de video. Use apenas modelos Wan/Hunyuan/CogVideo/LTX/Mochi.");
+      }
+      throw new Error("Modelo de video nao encontrado ou incompativel com o motor atual.");
+    }
+    if (!resolvedModel) {
+      throw new Error("Nenhum modelo de video disponivel para iniciar o worker. Configure um modelo Wan/GGUF antes de gerar video.");
+    }
+    const isWanJob = (resolvedModel?.family || "").toLowerCase() === "wan" || /wan/i.test(String(resolvedModel?.name || resolvedModel?.modelPath || payload.model || ""));
     const jobId = `video-job-${randomUUID()}`;
     const jobDir = path.join(JOBS_DIR, jobId);
     fs.mkdirSync(jobDir, { recursive: true });
     const statusPath = path.join(jobDir, "status.json");
     const payloadPath = path.join(jobDir, "payload.json");
+    const exclusiveLogs = [];
+    const exclusiveLogger = (message) => {
+      exclusiveLogs.push(message);
+      console.log(message);
+      const current = safeReadJson(statusPath) || {};
+      writeJson(statusPath, {
+        ...current,
+        id: jobId,
+        status: current.status || "preparing_resources",
+        progress: current.progress ?? 3,
+        logs: [...ensureArray(current.logs), message]
+      });
+    };
+    if (isWanJob) {
+      writeJson(statusPath, {
+        id: jobId,
+        status: "preparing_resources",
+        progress: 3,
+        logs: [`[VideoAPI] job Wan preparando recursos ${jobId}`]
+      });
+      await resourceManager.prepareWanExclusiveMode(exclusiveLogger);
+    }
+    const wanDiagnostics = isWanJob ? assertWanCanStart(jobId) : null;
+    if (isWanJob) {
+      setWanGenerationLock(jobId);
+    }
     const standaloneAssetDir = !projectRecord?.filePath
       ? resolveStandaloneAssetDir(payload)
       : "";
@@ -283,11 +352,24 @@ export function createVideoEngine() {
       modelPath: resolvedModel?.modelPath || "",
       modelFamily: resolvedModel?.family || "",
       modelRegistryEntry: resolvedModel || null,
+      wanRuntime: wanDiagnostics?.runtime || "",
+      wanDiagnostics,
       quality: generationConfig.quality,
       exportSettings: generationConfig.exportSettings,
       references: ensureArray(payload.references || scene?.references),
       startImage: String(payload.startImage || "").trim(),
       endImage: payload.endImage || "",
+      useLastFrameForChaining: Boolean(payload.useLastFrameForChaining || payload.use_last_frame_for_chaining),
+      seed: Math.trunc(numberOrFallback(payload.seed, -1)),
+      steps: Math.max(1, Math.trunc(numberOrFallback(payload.steps, 4))),
+      cfg: numberOrFallback(payload.cfg ?? payload.cfgScale ?? payload.cfg_scale, 1.5),
+      sampler: String(payload.sampler || "euler_ancestral").trim(),
+      scheduler: String(payload.scheduler || "beta").trim(),
+      shift: numberOrFallback(payload.shift ?? payload.modelShift, 8),
+      denoise: numberOrFallback(payload.denoise, requestedMode === "i2v" ? 0.7 : 0.7),
+      motionStrength: numberOrFallback(payload.motionStrength, 0.5),
+      imageStrength: numberOrFallback(payload.imageStrength, 0.65),
+      loras: ensureArray(payload.loras),
       outputPath: outputs.outputPath,
       thumbnailPath: outputs.thumbnailPath,
       lastFramePath: outputs.lastFramePath,
@@ -310,7 +392,8 @@ export function createVideoEngine() {
 
     fs.writeFileSync(payloadPath, `${JSON.stringify(workerPayload, null, 2)}\n`, "utf8");
 
-    updateJob(jobId, {
+    const createdAt = new Date().toISOString();
+    const registeredJob = updateJob(jobId, {
       id: jobId,
       projectId,
       sceneId,
@@ -319,6 +402,9 @@ export function createVideoEngine() {
       mode: workerPayload.mode,
       status: "queued",
       progress: 0,
+      createdAt,
+      startedAt: null,
+      finishedAt: null,
       input: workerPayload,
       output: null,
       error: null,
@@ -327,26 +413,110 @@ export function createVideoEngine() {
       payloadPath,
       projectFilePath: projectRecord?.filePath || ""
     });
+    writeJson(statusPath, {
+      ...serializeJob(registeredJob),
+      logs: [...exclusiveLogs, `[VideoAPI] job criado ${jobId}`]
+    });
 
-    const child = spawn("python", [VIDEO_WORKER_PATH, payloadPath, statusPath], {
+    const pythonExecutable = isWanJob ? resolveWanPython() : "python";
+    console.log("[VideoAPI] chamando video_worker", {
+      jobId,
+      python: pythonExecutable,
+      worker: VIDEO_WORKER_PATH,
+      payloadPath,
+      statusPath,
+      isWanJob
+    });
+    const child = spawn(pythonExecutable, [VIDEO_WORKER_PATH, payloadPath, statusPath], {
       cwd: ROOT_DIR,
       windowsHide: true,
-      stdio: "ignore"
+      stdio: ["ignore", "pipe", "pipe"],
+      env: isWanJob ? buildWanWorkerEnv() : process.env
     });
     updateJob(jobId, {
-      childProcess: child
+      childProcess: child,
+      startedAt: new Date().toISOString()
+    });
+
+    child.stdout?.on("data", (chunk) => {
+      String(chunk || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .forEach((line) => console.log(line));
+    });
+
+    child.stderr?.on("data", (chunk) => {
+      String(chunk || "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .forEach((line) => console.error(line));
     });
 
     child.on("error", (err) => {
-      updateJob(jobId, {
+      if (isWanJob) {
+        // attachWanTimeouts releases on exit; spawn errors may not emit exit on Windows.
+        try {
+          child.kill?.();
+        } catch {
+          // ignore
+        }
+        releaseWanJob(jobId);
+      }
+      const failed = updateJob(jobId, {
         status: "failed",
         progress: 100,
-        error: err.message || String(err)
+        error: err.message || String(err),
+        finishedAt: new Date().toISOString()
       });
+      writeJson(statusPath, {
+        ...serializeJob(failed),
+        logs: [`[VideoAPI] erro ${err.message || String(err)}`]
+      });
+      console.error("[VideoAPI] erro", err);
     });
 
-    child.on("exit", () => {
-      void getJob(jobId);
+    if (isWanJob) {
+      attachWanTimeouts({
+        child,
+        jobId,
+        statusPath,
+        onTimeout: (message) => {
+          const failed = updateJob(jobId, {
+            status: "timeout",
+            progress: 100,
+            error: message,
+            finishedAt: new Date().toISOString()
+          });
+          writeJson(statusPath, {
+            ...serializeJob(failed),
+            logs: [`[VideoAPI] erro ${message}`]
+          });
+          console.error("[VideoAPI] erro", message);
+        }
+      });
+    }
+
+    child.on("exit", (code, signal) => {
+      const latest = getJob(jobId);
+      if (!latest || ["completed", "failed", "cancelled", "timeout"].includes(String(latest.status || ""))) {
+        return;
+      }
+      if (code !== 0 || signal) {
+        const message = `video_worker encerrou sem concluir (code=${code ?? "null"} signal=${signal || "none"}).`;
+        const failed = updateJob(jobId, {
+          status: "failed",
+          progress: 100,
+          error: message,
+          finishedAt: new Date().toISOString()
+        });
+        writeJson(statusPath, {
+          ...serializeJob(failed),
+          logs: [...ensureArray(latest.logs), `[VideoAPI] erro ${message}`]
+        });
+        console.error("[VideoAPI] erro", message);
+      }
     });
 
     return getJob(jobId);
@@ -367,7 +537,7 @@ export function createVideoEngine() {
       return null;
     }
 
-    if (current.status === "completed" || current.status === "failed" || current.status === "cancelled") {
+    if (current.status === "completed" || current.status === "failed" || current.status === "cancelled" || current.status === "timeout") {
       return serializeJob(current);
     }
 
@@ -375,6 +545,9 @@ export function createVideoEngine() {
       current.childProcess?.kill?.();
     } catch {
       // ignore kill failures
+    }
+    if ((current.model?.family || "").toLowerCase() === "wan" || /wan/i.test(String(current.input?.modelPath || current.input?.model || ""))) {
+      releaseWanJob(jobId);
     }
 
     const cancelled = updateJob(jobId, {
