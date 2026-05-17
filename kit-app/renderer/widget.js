@@ -14,6 +14,7 @@ const MAX_RECORD_AUDIO_MS = 90000;
 const MAX_INPUT_LINES = 7;
 const INPUT_LINE_HEIGHT = 22;
 const WIDGET_ICON_BASE = "./assets/icones/Widget";
+const TRANSCRIPT_AUTO_SEND_MS = 2000;
 
 let mediaRecorder;
 let audioChunks = [];
@@ -30,6 +31,64 @@ let attachmentRecorder = null;
 let attachmentChunks = [];
 let attachmentStream = null;
 let attachmentTimeout = null;
+let transcriptAutoSendTimer = null;
+let transcriptAutoSendArmedAt = 0;
+
+function cancelTranscriptAutoSend() {
+  if (transcriptAutoSendTimer) {
+    window.clearTimeout(transcriptAutoSendTimer);
+    transcriptAutoSendTimer = null;
+  }
+  transcriptAutoSendArmedAt = 0;
+}
+
+function scheduleTranscriptAutoSend() {
+  cancelTranscriptAutoSend();
+  transcriptAutoSendArmedAt = Date.now();
+  transcriptAutoSendTimer = window.setTimeout(() => {
+    transcriptAutoSendTimer = null;
+    transcriptAutoSendArmedAt = 0;
+    if (input.value.trim() || selectedAttachment) {
+      send();
+    }
+  }, TRANSCRIPT_AUTO_SEND_MS);
+}
+
+function cancelTranscriptAutoSendFromUserAction() {
+  if (!transcriptAutoSendTimer) {
+    return;
+  }
+
+  if (Date.now() - transcriptAutoSendArmedAt < 50) {
+    return;
+  }
+
+  cancelTranscriptAutoSend();
+}
+
+function setMicState(state = "ready") {
+  micBtn.classList.toggle("loading", state === "loading");
+  micBtn.classList.toggle("listening", state === "listening");
+  micBtn.classList.toggle("recording", state === "listening");
+
+  if (state === "loading") {
+    micBtn.title = "Carregando microfone";
+    micBtn.setAttribute("aria-label", "Carregando microfone");
+    micBtn.disabled = true;
+    return;
+  }
+
+  micBtn.disabled = false;
+
+  if (state === "listening") {
+    micBtn.title = "Parar gravacao";
+    micBtn.setAttribute("aria-label", "Parar gravacao");
+    return;
+  }
+
+  micBtn.title = "Ativar Microfone";
+  micBtn.setAttribute("aria-label", "Ativar Microfone");
+}
 
 function autoResizeInput() {
   if (!input) {
@@ -57,6 +116,7 @@ function requestWidgetResize() {
 }
 
 async function send(textOverride = null) {
+  cancelTranscriptAutoSend();
   const value = (textOverride || input.value).trim();
 
   if (!value && !selectedAttachment) return;
@@ -294,10 +354,16 @@ window.kitAPI?.onFileSelected?.((payload) => {
 });
 
 input.addEventListener("input", () => {
+  cancelTranscriptAutoSendFromUserAction();
   autoResizeInput();
 });
 
+input.addEventListener("pointerdown", () => {
+  cancelTranscriptAutoSendFromUserAction();
+});
+
 input.addEventListener("keydown", (e) => {
+  cancelTranscriptAutoSendFromUserAction();
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     send();
@@ -318,6 +384,10 @@ async function startRecording() {
   }
 
   try {
+    cancelTranscriptAutoSend();
+    setMicState("loading");
+    input.placeholder = "Carregando microfone...";
+    autoResizeInput();
     await window.kitAPI?.markActivity?.("mic-request");
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -334,6 +404,9 @@ async function startRecording() {
     mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
 
     mediaRecorder.onstop = async () => {
+      setMicState("loading");
+      input.placeholder = "Transcrevendo...";
+      autoResizeInput();
       const blob = new Blob(audioChunks, { type: "audio/webm" });
       const formData = new FormData();
       formData.append("audio", blob, "audio.webm");
@@ -351,6 +424,7 @@ async function startRecording() {
             input.focus();
             input.setSelectionRange(input.value.length, input.value.length);
             autoResizeInput();
+            scheduleTranscriptAutoSend();
           }
         }
       } catch (err) {
@@ -365,9 +439,7 @@ async function startRecording() {
     isRecording = true;
     recordingStartedAt = Date.now();
     lastVoiceAt = recordingStartedAt;
-    micBtn.title = "Parar gravacao";
-    micBtn.setAttribute("aria-label", "Parar gravacao");
-    micBtn.classList.add("recording");
+    setMicState("listening");
     input.placeholder = "Ouvindo... pare de falar para transcrever";
     autoResizeInput();
   } catch (err) {
@@ -379,6 +451,7 @@ async function startRecording() {
 
 function stopRecording() {
   if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    setMicState("loading");
     mediaRecorder.stop();
     return;
   }
@@ -388,9 +461,7 @@ function stopRecording() {
 
 function resetMicUI(placeholder = null) {
   isRecording = false;
-  micBtn.title = "Ativar Microfone";
-  micBtn.setAttribute("aria-label", "Ativar Microfone");
-  micBtn.classList.remove("recording");
+  setMicState("ready");
   input.placeholder = placeholder || (selectedAttachment ? input.placeholder : "");
   autoResizeInput();
 }

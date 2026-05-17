@@ -6,8 +6,9 @@ import { buildSpeechPayload, sanitizeSpeechText } from "./speechFilter.js";
 
 const XTTS_PORT = process.env.XTTS_PORT || 5005;
 const XTTS_HEALTH_URL = `http://localhost:${XTTS_PORT}/health`;
-const XTTS_STATUS_MAX_AGE_MS = 3000;
-const XTTS_HEALTH_TIMEOUT_MS = 1500;
+const XTTS_STATUS_MAX_AGE_MS = 15000;
+const XTTS_HEALTH_TIMEOUT_MS = 5000;
+const XTTS_TRANSIENT_OFFLINE_GRACE_MS = 60000;
 
 function toBase64PS(text) {
   return Buffer.from(text, "utf16le").toString("base64");
@@ -19,6 +20,7 @@ export default function createTTSService(context) {
   let xttsAvailable = false;
   let lastStatus = null;
   let lastCheckAt = 0;
+  let lastHealthyAt = 0;
 
   async function checkXTTS(reason = "periodic") {
     const controller = new AbortController();
@@ -40,10 +42,19 @@ export default function createTTSService(context) {
       }
 
       xttsAvailable = newStatus;
+      if (newStatus) {
+        lastHealthyAt = lastCheckAt;
+      }
       return xttsAvailable;
     } catch (err) {
       clearTimeout(timeout);
       lastCheckAt = Date.now();
+
+      if (lastHealthyAt > 0 && lastCheckAt - lastHealthyAt < XTTS_TRANSIENT_OFFLINE_GRACE_MS) {
+        console.log(`[TTS] XTTS health transient reason=${reason} error=${err.message}`);
+        xttsAvailable = true;
+        return true;
+      }
 
       if (lastStatus !== false) {
         console.log(`[TTS] XTTS status=OFF reason=${reason} error=${err.message}`);
@@ -87,6 +98,9 @@ export default function createTTSService(context) {
       try {
         console.log("[TTS] usando XTTS reason=xtts_online mode=queue");
         await speakXTTS(speechText);
+        await context.core?.cacheManager?.runAfterHeavyTask?.("xtts").catch((cleanupErr) => {
+          console.warn(`[RESOURCE][XTTS] after cleanup failed: ${cleanupErr.message}`);
+        });
         return;
       } catch (err) {
         console.error(`[TTS] erro ao usar XTTS mode=classic error=${err.message}`);

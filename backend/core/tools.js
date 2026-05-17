@@ -1025,6 +1025,9 @@ export default function createTools(context) {
     try {
       const result = await speakXTTS(text, speaker, input.language || "pt");
       const filePath = result?.file ? path.resolve(result.file) : null;
+      await context.core?.cacheManager?.runAfterHeavyTask?.("xtts").catch((cleanupErr) => {
+        console.warn(`[RESOURCE][XTTS] after cleanup failed: ${cleanupErr.message}`);
+      });
 
       return wrapOk({
         text,
@@ -1762,6 +1765,7 @@ export default function createTools(context) {
           query,
           shortMessages
         });
+        const includeLongContext = input.includeLongContext !== false;
         const contextBlocks = [];
 
         if (shortContext) {
@@ -1772,7 +1776,9 @@ export default function createTools(context) {
         }
 
         let longContext = "";
-        if (contextType === "neutro") {
+        if (!includeLongContext) {
+          console.log("[MEMORY][LONG] skipped: disabled by request");
+        } else if (contextType === "neutro") {
           console.log("[MEMORY][LONG] skipped: neutral context");
         } else {
           const rawLongMemories = getRelevantMemory({

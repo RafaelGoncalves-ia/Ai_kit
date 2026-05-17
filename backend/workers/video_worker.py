@@ -32,7 +32,7 @@ def placeholder_enabled():
 
 
 def wan_audit_only_enabled():
-    return str(os.environ.get("WAN_AUDIT_ONLY", "")).strip().lower() in {"1", "true", "yes", "on"}
+    return False
 
 
 def append_log(status_path, base_payload, logs, message, status=None, progress=None, extra=None):

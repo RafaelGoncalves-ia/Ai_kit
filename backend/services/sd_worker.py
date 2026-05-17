@@ -9,6 +9,7 @@ import sys
 import time
 import uuid
 import warnings
+import inspect
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 warnings.filterwarnings("ignore", category=FutureWarning, module=r"transformers\.utils\.hub")
@@ -57,6 +58,7 @@ try:
         EulerAncestralDiscreteScheduler,
         EulerDiscreteScheduler,
         LMSDiscreteScheduler,
+        UniPCMultistepScheduler,
         StableDiffusionImg2ImgPipeline,
         StableDiffusionInpaintPipeline,
         StableDiffusionPipeline,
@@ -71,6 +73,7 @@ except Exception:
     EulerAncestralDiscreteScheduler = None
     EulerDiscreteScheduler = None
     LMSDiscreteScheduler = None
+    UniPCMultistepScheduler = None
     StableDiffusionImg2ImgPipeline = None
     StableDiffusionInpaintPipeline = None
     StableDiffusionPipeline = None
@@ -85,7 +88,17 @@ SCHEDULERS = {
     "EulerAncestralDiscreteScheduler": EulerAncestralDiscreteScheduler,
     "DDIMScheduler": DDIMScheduler,
     "LMSDiscreteScheduler": LMSDiscreteScheduler,
+    "UniPCMultistepScheduler": UniPCMultistepScheduler,
+    "DPM++ 2M SDE": DPMSolverMultistepScheduler,
+    "DPM++ 3M SDE": DPMSolverMultistepScheduler,
+    "UniPC": UniPCMultistepScheduler,
+    "Euler": EulerDiscreteScheduler,
+    "Euler a": EulerAncestralDiscreteScheduler,
+    "DPM++ 2M": DPMSolverMultistepScheduler,
 }
+
+SAMPLERS = ["DPM++ 2M SDE", "DPM++ 3M SDE", "UniPC", "Euler", "Euler a", "DPM++ 2M"]
+SCHEDULER_MODES = ["Karras", "Exponential", "SGM Uniform"]
 
 app = Flask(__name__)
 
@@ -96,6 +109,34 @@ loaded = {
     "mode": None,
     "lora": None,
 }
+
+progress_state = {
+    "active": False,
+    "phase": "idle",
+    "percent": 0,
+    "step": None,
+    "total": None,
+    "message": "Pronto",
+    "updatedAt": None,
+}
+
+
+def update_progress(phase, percent=None, step=None, total=None, message=None, active=True):
+    safe_percent = progress_state["percent"] if percent is None else max(0, min(100, int(percent)))
+    progress_state.update({
+        "active": bool(active),
+        "phase": phase,
+        "percent": safe_percent,
+        "step": step,
+        "total": total,
+        "message": message or phase,
+        "updatedAt": time.time(),
+    })
+    print(f"[SD][progress] {phase} {safe_percent}% {step or ''}/{total or ''} {message or ''}", flush=True)
+
+
+def reset_progress(message="Pronto"):
+    update_progress("idle", 0, None, None, message, False)
 
 
 def cuda_available():
@@ -237,11 +278,53 @@ def resolve_checkpoint(value):
     raise ValueError("Checkpoint local nao encontrado.")
 
 
-def apply_scheduler(pipe, scheduler_name):
-    scheduler_class = SCHEDULERS.get(str(scheduler_name or "").strip())
+def normalize_scheduler_request(scheduler_name, sampler_name=None):
+    raw_scheduler = str(scheduler_name or "").strip()
+    raw_sampler = str(sampler_name or "").strip()
+    sampler = raw_sampler or raw_scheduler
+    scheduler_mode = raw_scheduler if raw_scheduler in SCHEDULER_MODES else ""
+
+    if raw_scheduler in SCHEDULERS and raw_scheduler not in SCHEDULER_MODES:
+        sampler = raw_scheduler
+    elif scheduler_mode and not raw_sampler:
+        sampler = "DPMSolverMultistepScheduler"
+
+    return sampler, scheduler_mode
+
+
+def build_scheduler_options(sampler_name, scheduler_mode):
+    options = {}
+    sampler = str(sampler_name or "").strip()
+    mode = str(scheduler_mode or "").strip()
+
+    if sampler == "DPM++ 2M SDE":
+        options.update({"algorithm_type": "sde-dpmsolver++", "solver_order": 2})
+    elif sampler == "DPM++ 3M SDE":
+        options.update({"algorithm_type": "sde-dpmsolver++", "solver_order": 3})
+
+    if mode == "Karras":
+        options["use_karras_sigmas"] = True
+    elif mode == "Exponential":
+        options["use_exponential_sigmas"] = True
+    elif mode == "SGM Uniform":
+        options["timestep_spacing"] = "trailing"
+
+    return options
+
+
+def apply_scheduler(pipe, scheduler_name, sampler_name=None):
+    sampler, scheduler_mode = normalize_scheduler_request(scheduler_name, sampler_name)
+    scheduler_class = SCHEDULERS.get(sampler)
     if scheduler_class is None or pipe is None:
         return pipe
-    pipe.scheduler = scheduler_class.from_config(pipe.scheduler.config)
+    options = build_scheduler_options(sampler, scheduler_mode)
+    try:
+        pipe.scheduler = scheduler_class.from_config(pipe.scheduler.config, **options)
+    except Exception:
+        pipe.scheduler = scheduler_class.from_config(pipe.scheduler.config)
+        for key, value in options.items():
+            if hasattr(pipe.scheduler.config, key):
+                setattr(pipe.scheduler.config, key, value)
     return pipe
 
 
@@ -419,7 +502,7 @@ def resolve_original_config(checkpoint, architecture, mode):
     return None
 
 
-def load_pipeline(checkpoint_value, architecture_value, mode, scheduler_name=None, lora_path=None):
+def load_pipeline(checkpoint_value, architecture_value, mode, scheduler_name=None, lora_path=None, sampler_name=None):
     checkpoint = resolve_checkpoint(checkpoint_value)
     architecture = normalize_architecture(architecture_value, checkpoint)
     lora_path = str(lora_path or "").strip() or None
@@ -436,16 +519,19 @@ def load_pipeline(checkpoint_value, architecture_value, mode, scheduler_name=Non
 
     if needs_reload:
         unload_model()
+        update_progress("loading_model", 2, None, None, "Carregando modelo SD")
         loaded["pipeline"] = create_pipeline(checkpoint, architecture, mode)
+        update_progress("loading_model", 24, None, None, "Modelo SD carregado")
         loaded["checkpoint"] = checkpoint
         loaded["architecture"] = architecture
         loaded["mode"] = mode
         loaded["lora"] = lora_path
 
         if lora_path and os.path.exists(lora_path):
+            update_progress("loading_model", 28, None, None, "Aplicando LoRA")
             loaded["pipeline"].load_lora_weights(lora_path)
 
-    apply_scheduler(loaded["pipeline"], scheduler_name)
+    apply_scheduler(loaded["pipeline"], scheduler_name, sampler_name)
     return loaded["pipeline"], checkpoint, architecture, lora_path
 
 
@@ -484,6 +570,38 @@ def save_output(image, metadata):
     }
 
 
+def supports_parameter(callable_value, parameter_name):
+    try:
+        return parameter_name in inspect.signature(callable_value).parameters
+    except Exception:
+        return False
+
+
+def make_generation_callbacks(steps):
+    safe_steps = max(1, int(steps or 1))
+
+    def publish_step(step_index):
+        step_number = max(1, min(safe_steps, int(step_index) + 1))
+        ratio = step_number / safe_steps
+        percent = 30 + round(ratio * 68)
+        update_progress(
+            "generating",
+            percent,
+            step_number,
+            safe_steps,
+            f"Gerando imagem {step_number}/{safe_steps}"
+        )
+
+    def callback(step, timestep=None, latents=None):
+        publish_step(step)
+
+    def callback_on_step_end(pipe, step, timestep, callback_kwargs):
+        publish_step(step)
+        return callback_kwargs
+
+    return callback, callback_on_step_end
+
+
 def xformers_available():
     return importlib.util.find_spec("xformers") is not None
 
@@ -517,6 +635,7 @@ def cache_status():
 
 def generate(mode):
     data = request_json()
+    update_progress("loading_model", 1, None, None, "Preparando geracao SD")
     seed = get_seed(data.get("seed", -1))
     width = int(data.get("width") or 512)
     height = int(data.get("height") or 512)
@@ -525,6 +644,7 @@ def generate(mode):
     steps = int(data.get("steps") or data.get("sampling_steps") or 24)
     cfg_scale = float(data.get("cfg_scale") or data.get("guidance_scale") or 7)
     scheduler = str(data.get("scheduler") or data.get("schedule_type") or "DPMSolverMultistepScheduler")
+    sampler = str(data.get("sampler") or "")
     denoising_strength = float(data.get("denoising_strength") or data.get("strength") or 0.55)
 
     pipe, checkpoint, architecture, lora_path = load_pipeline(
@@ -533,8 +653,10 @@ def generate(mode):
         mode,
         scheduler,
         data.get("lora"),
+        sampler,
     )
     generator = get_generator(seed)
+    update_progress("generating", 30, 0, steps, "Gerando imagem")
 
     common = {
         "prompt": prompt,
@@ -543,14 +665,20 @@ def generate(mode):
         "guidance_scale": cfg_scale,
         "generator": generator,
     }
+    callback, callback_on_step_end = make_generation_callbacks(steps)
+    if supports_parameter(pipe.__call__, "callback_on_step_end"):
+        common["callback_on_step_end"] = callback_on_step_end
+    elif supports_parameter(pipe.__call__, "callback"):
+        common["callback"] = callback
+        common["callback_steps"] = 1
 
     if mode == "txt2img":
         result = pipe(width=width, height=height, **common)
     elif mode == "img2img":
-        init_image = load_image(data.get("image_path") or data.get("imagePath")).resize((width, height))
+        init_image = load_image(data.get("initImagePath") or data.get("image_path") or data.get("imagePath")).resize((width, height))
         result = pipe(image=init_image, strength=denoising_strength, **common)
     else:
-        init_image = load_image(data.get("image_path") or data.get("imagePath")).resize((width, height))
+        init_image = load_image(data.get("initImagePath") or data.get("image_path") or data.get("imagePath")).resize((width, height))
         mask_image = load_image(data.get("mask_path") or data.get("maskPath"), "L").resize((width, height))
         result = pipe(image=init_image, mask_image=mask_image, strength=denoising_strength, **common)
 
@@ -564,7 +692,7 @@ def generate(mode):
         "mode": mode,
         "width": width,
         "height": height,
-        "sampler": scheduler,
+        "sampler": sampler or scheduler,
         "scheduler": scheduler,
         "steps": steps,
         "cfg_scale": cfg_scale,
@@ -573,10 +701,12 @@ def generate(mode):
         "device": get_device(),
     }
     output = save_output(image, metadata)
+    update_progress("saving", 99, steps, steps, "Salvando imagem")
 
     if data.get("free_vram_after", True):
         clean_cuda_cache()
 
+    update_progress("completed", 100, steps, steps, "Imagem gerada", False)
     return jsonify({"status": "ok", **output})
 
 
@@ -621,6 +751,7 @@ def health():
             "mode": loaded["mode"],
             "lora": loaded["lora"],
         },
+        "progress": progress_state,
     })
 
 
@@ -631,6 +762,8 @@ def models():
         "status": "ok",
         **scanned,
         "schedulers": list(SCHEDULERS.keys()),
+        "samplers": SAMPLERS,
+        "schedulerModes": SCHEDULER_MODES,
         "paths": {
             "modelsRoot": MODELS_ROOT,
             "checkpointsPath": CHECKPOINTS_PATH,
@@ -640,6 +773,11 @@ def models():
             "outputPath": OUTPUT_DIR,
         },
     })
+
+
+@app.route("/progress", methods=["GET"])
+def progress():
+    return jsonify({"status": "ok", **progress_state})
 
 
 @app.route("/unload", methods=["POST"])
@@ -656,6 +794,7 @@ def txt2img():
     try:
         return generate("txt2img")
     except Exception as exc:
+        update_progress("error", 100, None, None, str(exc), False)
         print("[SD] txt2img erro:", exc)
         return jsonify({"status": "error", "error": str(exc)}), 500
 
@@ -665,6 +804,7 @@ def img2img():
     try:
         return generate("img2img")
     except Exception as exc:
+        update_progress("error", 100, None, None, str(exc), False)
         print("[SD] img2img erro:", exc)
         return jsonify({"status": "error", "error": str(exc)}), 500
 
@@ -674,6 +814,7 @@ def inpaint():
     try:
         return generate("inpaint")
     except Exception as exc:
+        update_progress("error", 100, None, None, str(exc), False)
         print("[SD] inpaint erro:", exc)
         return jsonify({"status": "error", "error": str(exc)}), 500
 

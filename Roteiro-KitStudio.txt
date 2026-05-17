@@ -1,884 +1,489 @@
-Implementar o KIT Studio como fluxo fullscreen de produção assistida para imagem, carrossel e vídeo antes do Canvas, integrado à arquitetura atual da KIT, reaproveitando o que já existe e implementando o que falta, com foco em execução por etapas.
+Implementar no Studio da KIT o módulo “Studio Planner”, um sistema visual/documental para planejamento estratégico mensal de posts, cards e roteiros de conteúdo por cliente.
 
+IMPORTANTE:
+- Mexer principalmente na tela do Studio.
+- Não alterar outras telas neste momento.
+- Não misturar com o Canvas Editor, exceto na última fase de automação para abrir/criar arquivos .kia no Canvas.
+- O chat da KIT no Studio deve ficar sempre no canto direito.
+- A KIT no chat do Studio deve atuar como especialista em marketing, estratégia de conteúdo e produção editorial.
+- Não usar a persona streamer/irritante do chat comum.
+- A parte central da tela deve exibir o conteúdo da aba selecionada.
+
+==================================================
 OBJETIVO GERAL
+==================================================
 
-Criar uma tela/processo chamada KIT Studio para:
-- receber um comando inicial vindo de qualquer lugar da KIT
-- abrir um projeto Studio já iniciado
-- gerar e editar briefing
-- gerar roteiro completo
-- aprovar individualmente cada cena
-- gerar assets finais de cada cena
-- montar o projeto final
-- salvar tudo na pasta do projeto
-- exportar para o Canvas já pronto
-- também salvar MP4 final na pasta do projeto quando o conteúdo for vídeo
+Criar uma experiência estilo “documento vivo” dentro do Studio, onde o usuário consiga:
 
-FLUXO OBRIGATÓRIO
+1. Selecionar/editar um cliente.
+2. Editar os dados do arquivo .kit do cliente.
+3. Gerar um planejamento mensal estratégico.
+4. Visualizar o calendário mensal.
+5. Refinar os cards de cada item/post/anúncio.
+6. Abrir o roteiro detalhado de cada item.
+7. Solicitar à KIT a geração dos arquivos .kia para edição posterior no Canvas.
 
-comando inicial em qualquer lugar da KIT
-→ abrir Studio com projeto criado
-→ gerar briefing
-→ editar/aprovar briefing
-→ gerar roteiro completo
-→ aprovar individualmente cada cena
-→ gerar assets finais das cenas
-→ visualizar
-→ salvar projeto para Canvas
-→ abrir no Canvas se desejado
+O fluxo principal será:
 
-REGRAS GERAIS
+Cliente (.kit)
+→ Planner mensal
+→ Cards dos itens
+→ Roteiro do item selecionado
+→ Automação no Canvas para gerar .kia
 
-1. O Studio deve abrir a partir de qualquer lugar da KIT:
-- Widget
-- Chat principal
-- Canvas
-- Menu
-- futuros atalhos/automações
+==================================================
+LAYOUT PRINCIPAL DO STUDIO
+==================================================
 
-2. O comando inicial não depende de ser digitado dentro do Studio.
+Criar layout fixo com:
+
+1. Topo:
+   - Cliente selecionado
+   - Mês selecionado
+   - Status do planejamento
+   - Botões principais:
+     - Novo planejamento mensal
+     - Salvar
+     - Exportar PDF
+     - Gerar cards
+     - Gerar arquivos .kia
+
+2. Abas centrais:
+   - Cliente
+   - Planner
+   - Cards
+   - Roteiro do Item
+
+3. Chat lateral direito:
+   - Sempre visível.
+   - Contextual à aba aberta.
+   - Especialista em marketing.
+   - Deve receber contexto do cliente, mês, plano, cards e item selecionado.
+
+4. Área central:
+   - Exibe o conteúdo da aba ativa.
+   - Deve parecer um documento/editor visual limpo.
+   - Estrutura com títulos, subtítulos, tabelas, cards, blocos de funil e listas.
+   - Os blocos devem ser clicáveis/editáveis.
+   - Ao clicar em campos estratégicos, exibir controles flutuantes como editar, regenerar, trocar opção, aplicar no mês.
+
+==================================================
+ABA 1 — CLIENTE
+==================================================
+
+Criar aba “Cliente” para edição do arquivo .kit.
+
+O .kit deve salvar dados como:
+
+- Nome do cliente
+- Logo
+- Segmento
+- Nicho específico
+- Subnicho
+- Plano contratado
+- Redes sociais
+- Tom de comunicação
+- Público-alvo
+- Produtos/serviços principais
+- Produtos que dependem de informação externa
+- Restrições de linguagem
+- Objetivos comerciais recorrentes
+- Histórico de planejamentos mensais
+- Campanhas ativas
+- Observações estratégicas
+
+Exemplo importante:
+Segmento: Imobiliária
+Nicho específico:
+- Casas novas e usadas
+- Apartamentos
+- Loteamentos
+- Alto padrão
+- Minha casa minha vida
+- Locação
+- Imóveis comerciais
+
+Essas informações devem influenciar o planejamento.
+
 Exemplo:
-“Kit cria um projeto para o cliente Imobiliária Abelha, sobre o produto Casa Comeia, vídeo”
+Uma imobiliária de loteamentos não deve receber os mesmos posts de uma imobiliária de alto padrão.
 
-3. O chat lateral do Studio é compacto e operacional.
-Ele serve para:
-- mostrar o comando inicial
-- mostrar respostas da KIT sobre o projeto
-- aprovar briefing
-- aprovar roteiro
-- ajustar cenas
-- gerar também a legenda de postagem do projeto
+==================================================
+ABA 2 — PLANNER MENSAL
+==================================================
 
-4. O chat NÃO deve virar histórico gigante.
-Apenas mensagens relevantes do projeto atual.
-
-5. A tela do Studio deve ser fullscreen e funcionar bem em 1920x1080.
-
-6. A área central é o foco.
-O chat fica fixo no lado direito.
-
-7. Abas do Studio:
-- Briefing
-- Roteiro
-- Visualizar
-
-Regras das abas:
-- Briefing só aparece depois do comando inicial.
-- Roteiro só aparece depois da aprovação do briefing.
-- Visualizar só aparece depois que o roteiro já tiver sido executado/gerado.
-- Abas bloqueadas ficam ocultas.
-
-8. Cada cena é independente.
-Cada cena do roteiro deve ter sua própria:
-- duração
-- texto
-- legenda da cena
-- narração da cena
-- prompt positivo
-- prompt negativo
-- referências
-- asset final (imagem ou vídeo)
-
-9. O roteiro deve ser gerado completo após aprovação do briefing.
-Mas a aprovação deve ser individual por cena.
-
-10. Quando o briefing for aprovado, o sistema deve gerar o roteiro com todos os conteúdos e comandos de texto já preparados.
-Nesta etapa já devem estar prontos por cena:
-- texto da cena
-- legenda da cena
-- prompt positivo
-- prompt negativo
-- referências posicionadas
-Ainda faltará gerar:
-- voz XTTS da cena
-- imagem ou vídeo da cena
-
-11. No final da etapa de roteiro aprovado deve existir a opção “Gerar”.
-A geração final só começa quando o usuário mandar.
-
-12. A geração final deve ser controlada por etapas e por ordem.
-Exemplo para vídeo:
-- XTTS da cena 1
-- XTTS da cena 2
-- XTTS da cena 3
-- ...
-- só depois descarrega XTTS
-- carrega motor visual
-- gera mídia da cena 1
-- gera mídia da cena 2
-- gera mídia da cena 3
-- ...
-- no final faz limpeza e descarrega modelo
-
-13. Durante a geração sequencial, o modelo não deve ser descarregado antes de concluir seu lote.
-Exemplo:
-- XTTS roda todas as cenas em sequência antes de descarregar
-- depois carrega o motor visual e gera todas as cenas visuais em sequência
-- ao final limpa memória
-
-14. Todos os assets devem ser salvos na pasta do projeto:
-- arquivos enviados pelo usuário
-- XTTS
-- imagens geradas
-- vídeos gerados
-- thumbnails
-- JSON do projeto
-- arquivo exportado para Canvas
-- MP4 final quando aplicável
-
-15. Música de fundo NÃO é gerada.
-Ela é escolhida entre arquivos prontos de acordo com o tema/projeto.
-
-16. Música de fundo é sempre do projeto inteiro.
-Ela corre em todas as cenas independentemente da cena.
-
-17. Carrossel:
-- não gera narração
-- não gera legenda embutida
-- não gera música
-- gera apenas as imagens/slides e os textos necessários do conteúdo
-
-18. Conteúdo de vídeo:
-- cada cena pode ter duração de 3s, 5s, 7s, 10s, 12s ou 15s
-- 15s é o máximo de geração única por cena
-- duração padrão da cena deve ser 5s
-
-19. Escolha de formatos:
-- se o tipo/conteúdo/plataforma indicar Feed, Stories, Reels, TikTok, Instagram etc, usar a proporção correta
-- se não foi dito e também não estiver definido na preferência do cliente no arquivo .kit:
-  - vídeo usa padrão Stories 9:16
-  - imagem usa padrão Post 3:4
-
-20. Ao final do fluxo, ao apertar salvar:
-- salvar o arquivo correspondente ao Canvas
-- posicionar legenda, vídeo, fala e música em seus lugares
-- salvar MP4 final na pasta do projeto quando for projeto de vídeo
-
-ARQUITETURA TÉCNICA
-
-A implementação deve seguir a arquitetura atual da KIT.
-
-REGRAS TÉCNICAS IMPORTANTES
-
-1. Geração de imagem já existe e deve ser reaproveitada.
-2. Geração de vídeo precisa ser implementada no motor da própria KIT.
-3. Não usar ComfyUI como executor.
-4. Não depender de workflow JSON como execução.
-5. O workflow externo é apenas referência conceitual.
-6. A KIT deve usar os mesmos modelos compatíveis que o usuário usa no ecossistema local, como Wan 2.2 e compatíveis.
-7. O motor de vídeo deve ser nativo da KIT e modular.
-
-ETAPA 1 — TELA FULLSCREEN DO KIT STUDIO
-
-Implementar a tela fullscreen do KIT Studio no Electron.
-
-Layout obrigatório:
-- topbar minimalista
-- linha de status
-- área central grande
-- chat fixo no lado direito
-- abas centrais
-
-Topbar:
-- logo/ícone KIT Studio
-- cliente atual
-- nome do projeto
-- uso de recursos: VRAM, RAM, GPU, CPU
-- botão fechar
-
-Linha de status:
-- tarefa atual
-- barra de progresso fina
-- etapas concluídas / total
-- tempo de execução
-
-Área principal:
-- centro com conteúdo da etapa atual
-- chat fixo à direita
-- sem sidebar fixa desnecessária
-
-Abas:
-- Briefing
-- Roteiro
-- Visualizar
-
-Arquivos sugeridos:
-- kit-app/renderer/studio/studio.html
-- kit-app/renderer/studio/studio.css
-- kit-app/renderer/studio/studio.js
-- kit-app/renderer/studio/studioWindow.js
-
-Critérios de pronto da etapa 1:
-- Studio abre em fullscreen
-- layout funciona em 1920x1080
-- topbar aparece
-- barra de status aparece
-- chat lateral aparece
-- abas ficam prontas para controle por estado
-
-ETAPA 2 — MODELO DE PROJETO STUDIO
-
-Criar o modelo de estado/persistência do projeto Studio.
-
-Estrutura base do projeto:
-{
-  id,
-  source,
-  clientId,
-  clientName,
-  productName,
-  projectName,
-  status,
-  currentStep,
-  currentTab,
-  unlockedTabs,
-  inputCommand,
-  postCaption,
-  attachments,
-  createdAt,
-  updatedAt,
-
-  resourceUsage: {
-    vram,
-    ram,
-    gpu,
-    cpu
-  },
-
-  progress: {
-    currentTask,
-    percent,
-    completedSteps,
-    totalSteps,
-    elapsedMs
-  },
-
-  briefing: {
-    theme,
-    purpose,
-    audience,
-    visualMaterial,
-    duration,
-    mediaType,
-    ratio,
-    platform,
-    postType,
-    videoContent,
-    videoNarration,
-    bgmStyle,
-    bgmId,
-    subtitleInfo,
-    characters,
-    materialReferences,
-    ttsList,
-    digitalHumanList,
-    styleList,
-    referenceNodeIds,
-    rawReferences,
-    defaultsFromClientKit
-  },
-
-  script: {
-    approved,
-    totalDuration,
-    scenes: []
-  },
-
-  production: {
-    status,
-    jobs: [],
-    outputs: [],
-    errors: []
-  },
-
-  canvasExport: {
-    kiaPath,
-    ready
-  },
-
-  finalRender: {
-    mp4Path,
-    ready
-  }
-}
-
-Estrutura da cena:
-{
-  id,
-  index,
-  title,
-  approved,
-  duration,
-  narration,
-  subtitle,
-  visualDescription,
-  visualPrompt,
-  negativePrompt,
-  motionPrompt,
-  mediaType,
-  generationMode,
-  references,
-  clientMediaRefs,
-  aiMediaRefs,
-  uploadedRefs,
-  generatedMedia,
-  audioAsset,
-  subtitleAsset,
-  status,
-  history
-}
-
-Criar utilitários:
-- createStudioProject
-- updateStudioProject
-- updateBriefing
-- approveBriefing
-- setScript
-- approveScene
-- updateScene
-- setSceneMedia
-- setSceneAudio
-- setProductionStatus
-- unlockTab
-- saveStudioProject
-- loadStudioProject
-
-Persistência:
-- salvar JSON em F:\AI\Ai_kit\projects\studio\
-- extensão .kstudio
-
-Arquivos sugeridos:
-- backend/skills/studio/studioProjectSchema.js
-- backend/skills/studio/studioProjectStore.js
-- kit-app/renderer/studio/studioState.js
-
-Critérios de pronto:
-- projeto pode ser criado
-- projeto pode ser salvo e carregado
-- cenas persistem
-- etapas persistem
-- caminhos dos assets persistem
-
-ETAPA 3 — LAUNCHER GLOBAL DO STUDIO
-
-Implementar o launcher global do Studio para abrir a tela a partir de qualquer parte da KIT.
-
-Criar:
-- backend/skills/studio/studioLaunchService.js
-
-Função:
-createStudioProjectFromCommand({
-  command,
-  source,
-  attachments
-})
-
-Criar rota:
-POST /api/studio/launch
-
-Entrada:
-{
-  command,
-  source,
-  attachments
-}
-
-Saída:
-{
-  projectId,
-  initialState
-}
-
-Criar IPC:
-openStudioWindow(initialState)
-
-Comportamento:
-- detectar intenção de produção visual
-- criar projeto Studio
-- abrir janela Studio
-- injetar o comando inicial no chat lateral
-- gerar briefing inicial
-- exibir resposta da KIT
-- desbloquear aba Briefing
-
-Critérios de pronto:
-- comando vindo do Widget/Chat/Canvas/Menu abre o Studio
-- comando original aparece no chat
-- projeto nasce preenchido
-- aba Briefing aparece
-
-ETAPA 4 — PARSER DO COMANDO INICIAL + CLIENTE .KIT
-
-Implementar parser do comando inicial para preencher briefing automaticamente.
-
-Criar:
-- backend/skills/studio/studioBriefingParser.js
-- backend/skills/studio/clientKitLoader.js
-
-Criar rota:
-POST /api/studio/briefing/from-command
-
-Entrada:
-{
-  command,
-  attachments
-}
-
-Saída:
-{
-  client,
-  clientKit,
-  briefing,
-  warnings
-}
-
-Detectar:
-- cliente
-- produto
-- tipo de conteúdo
-- duração
-- plataforma
-- proporção
-- objetivo provável
-- arquivos anexos
-- necessidade de imagem ou vídeo
+Criar aba “Planner” como documento visual estilo PDF.
 
 Regras:
-- usar .kit do cliente se existir
-- não hardcodar cliente específico
-- visualMaterial deve separar user e aigc
-- se plataforma/formato não vier no pedido nem no .kit:
-  - vídeo => 9:16
-  - imagem => 3:4
 
-Critérios de pronto:
-- comando inicial gera briefing
-- briefing usa dados do .kit quando existir
-- warnings não quebram o fluxo
+- Cada cliente só pode ter 1 calendário por mês.
+- Não permitir criar dois planners para o mesmo cliente no mesmo mês.
+- Se já existir, abrir o planner existente.
+- Se não existir, permitir gerar um novo.
 
-ETAPA 5 — CHAT LATERAL COMPACTO
+O Planner deve conter:
 
-Implementar o chat lateral fixo do Studio.
+1. Diagnóstico estratégico do mês
+2. Objetivo macro
+3. Objetivos secundários
+4. Funil de conteúdo
+5. Distribuição de formatos
+6. Campanhas do mês
+7. Anúncios ADS do mês
+8. Calendário mensal de posts
+9. Itens que aguardam informação de produto
+10. Resumo de status de produção
 
-Funções:
-- mostrar comando inicial
-- mostrar resposta da KIT ia LLM
-- aprovar briefing
-- aprovar roteiro
-- ajustar cenas
-- gerar legenda de postagem do projeto
+O calendário deve ser mensal e visual, mas minimalista.
 
-Modelo de mensagem:
-{
-  id,
-  role,
-  text,
-  timestamp,
-  sceneId,
-  type
-}
+Cada item no calendário deve exibir apenas o essencial:
+
+- Data
+- Tipo: Post, Reel, Story, Carrossel, Anúncio
+- Objetivo
+- Funil
+- Status
+- Plataforma
+
+Não colocar briefing completo no calendário.
+
+==================================================
+DIFERENÇA ENTRE POST E ANÚNCIO
+==================================================
+
+Implementar separação clara entre:
+
+POST:
+- Conteúdo orgânico.
+- Normalmente publicado em uma data.
+- Pode ser imagem, vídeo, carrossel, story ou reel.
+
+ANÚNCIO ADS:
+- Conteúdo de campanha paga.
+- Pode durar 7, 15 ou 30 dias, dependendo do plano.
+- Pode ter mais de um anúncio ativo no mesmo mês.
+- Pode ter objetivos diferentes.
+
+Campos de anúncio:
+
+- Nome da campanha
+- Objetivo do anúncio
+- Plataforma
+- Duração
+- Data de início
+- Data de fim
+- Público
+- CTA
+- Oferta
+- Status
+- Criativo vinculado
+- Observações
+
+==================================================
+POSTS DE PRODUTO
+==================================================
+
+Post de produto deve ter status especial quando depender de informação externa.
+
+Exemplo para imobiliária:
+Post de imóvel precisa aguardar dados como:
+
+- Nome do imóvel
+- Bairro
+- Valor
+- Fotos
+- Características
+- Condições de venda
+- Código do imóvel
+
+Criar status:
+
+- Aguardando informação do produto
+
+Esse status deve impedir geração final automática do .kia até os dados mínimos serem preenchidos.
+
+==================================================
+ABA 3 — CARDS
+==================================================
+
+Criar aba “Cards” para refinar os itens planejados.
+
+Essa aba deve listar todos os itens do mês em formato de cards.
+
+Cada card deve conter:
+
+- Data
+- Tipo de conteúdo
+- Plataforma
+- Objetivo
+- Funil
+- CTA
+- Tema
+- Legenda inicial
+- Formato
+- Status de produção
+- Se depende de produto
+- Se tem roteiro
+- Se tem arquivo .kia gerado
+
+Status de produção:
+
+- Em branco
+- Rascunho
+- Aguardando informação do produto
+- Em produção
+- Aguardando aprovação
+- Concluído
 
 Regras:
-- sem histórico gigante
-- apenas mensagens do projeto atual
-- mensagens contextuais por cena quando necessário
 
-Critérios de pronto:
-- chat mostra o contexto atual do projeto
-- aprovações funcionam
-- mensagens contextuais funcionam
+- “Em branco” significa que só foi agendado.
+- “Rascunho” significa que já tem briefing, roteiro ou legenda, mas ainda não tem arte final.
+- “Aguardando aprovação” significa que já está pronto, mas ainda não foi aprovado/postado.
+- “Concluído” significa finalizado.
+- Status de produção não deve ser confundido com status de publicação.
 
-ETAPA 6 — ABA BRIEFING
+Criar campos separados:
 
-Implementar a aba Briefing.
+productionStatus
+publicationStatus
 
-Campos:
+publicationStatus:
+- Não agendado
+- Agendado
+- Postado
+- Cancelado
+
+==================================================
+VARIÁVEIS INTERNAS DE MARKETING
+==================================================
+
+Criar listas internas editáveis para dropdowns.
+
+Campos como objetivo, CTA, funil, formato e plataforma devem ter opções pré-definidas.
+
+Exemplo:
+
+Objetivos:
+- Autoridade
+- Reconhecimento de marca
+- Geração de leads
+- Engajamento
+- Conversão
+- Prova social
+- Educação
+- Relacionamento
+- Tráfego
+- Venda direta
+- Captação de direct
+
+Funil:
+- Topo
+- Meio
+- Fundo
+- Pós-venda
+- Reativação
+
+CTA:
+- Chamar no direct
+- Clicar no link da bio
+- Pedir orçamento
+- Agendar visita
+- Solicitar catálogo
+- Salvar o post
+- Compartilhar
+- Comentar
+- Entrar em contato pelo WhatsApp
+
+Formatos:
+- Imagem única
+- Carrossel
+- Reel
+- Story
+- Vídeo curto
+- Anúncio estático
+- Anúncio em vídeo
+
+Plataformas:
+- Instagram Feed
+- Instagram Reels
+- Instagram Stories
+- Facebook
+- TikTok
+- YouTube Shorts
+- Google Ads
+- Meta Ads
+
+Ao clicar em um campo desses, exibir dropdown.
+Permitir edição manual.
+Permitir “regenerar com IA”.
+
+==================================================
+ABA 4 — ROTEIRO DO ITEM
+==================================================
+
+Criar aba “Roteiro do Item” para edição detalhada do item selecionado.
+
+Essa aba deve abrir o item selecionado nos Cards ou no Planner.
+
+Estrutura do roteiro:
+
+- Título interno
 - Tema
 - Objetivo
-- Público
-- Material visual
-- Duração
-- Tipo de mídia
-- Proporção
+- Funil
+- CTA
 - Plataforma
-- Conteúdo
-- Narração
-- Música
-- Legenda de postagem
-- Personagens
-- Estilo visual
+- Formato
+- Briefing
+- Legenda do post
+- Hashtags
+- Direção visual
 - Referências
+- Roteiro de vídeo, quando aplicável
+- Narração, quando aplicável
+- Texto na tela
+- Cenas/slides
+- Prompt positivo
+- Prompt negativo
+- Observações de produção
+- Template sugerido
+- Status
 
-Regras:
-- não exibir JSON cru
-- cada campo editável
-- botões:
-  - salvar briefing
-  - aprovar briefing
+A tela deve parecer um documento editável.
 
-Ao aprovar briefing:
-- briefingApproved = true
-- gerar legenda de postagem do projeto
-- desbloquear aba Roteiro
+Cada bloco deve ter ações:
 
-Critérios de pronto:
-- briefing aparece
-- edição funciona
-- aprovação funciona
-- roteiro pode ser iniciado
+- Editar
+- Regenerar
+- Melhorar
+- Encurtar
+- Expandir
+- Tornar mais técnico
+- Tornar mais emocional
+- Aplicar tom da marca
+- Gerar versão para outro formato
 
-Não transforme o briefing em um monte de if/else para casos específicos como Luzisol, Dia das Mães, Adsune etc.
+==================================================
+GERAÇÃO COM IA
+==================================================
 
-O parser inicial deve apenas extrair variáveis objetivas do comando:
+A KIT no chat lateral deve conseguir executar comandos contextuais, como:
+
+- Gere o planejamento de junho para este cliente.
+- Refaça esse planejamento focando em leads.
+- Transforme esse post em carrossel.
+- Crie roteiro para esse reel.
+- Gere legendas para todos os posts em rascunho.
+- Deixe os CTAs mais fortes.
+- Ajuste esse planejamento para uma imobiliária focada em loteamentos.
+- Crie anúncios de 15 dias para captação de leads.
+- Gere arquivos .kia dos posts aprovados.
+
+A IA deve trabalhar por etapas:
+
+1. Analisar .kit do cliente.
+2. Analisar histórico.
+3. Analisar mês.
+4. Gerar estratégia macro.
+5. Gerar calendário.
+6. Gerar cards.
+7. Gerar roteiro por item.
+8. Aguardar aprovação do usuário.
+9. Só depois gerar arquivos .kia.
+
+==================================================
+EXPORTAÇÃO PDF
+==================================================
+
+A aba Planner deve ser exportável em PDF.
+
+O PDF deve ocultar:
+- botões internos
+- controles técnicos
+- status operacionais avançados
+- chat lateral
+
+O PDF deve mostrar:
 - cliente
-- produto/tema
-- tipo de conteúdo
-- plataforma
-- duração
-- arquivos anexados
-- intenção provável
+- mês
+- objetivo
+- estratégia
+- funil
+- campanhas
+- calendário
+- resumo editorial
+- anúncios planejados
+- observações relevantes
 
-Depois disso, o preenchimento criativo do briefing deve ser feito pelo LLM, usando:
-- comando original do usuário
-- variáveis extraídas
-- dados do cliente.kit
-- preferências do cliente
-- formato esperado do briefing
+O visual deve ser limpo, moderno e apresentável para cliente.
 
-O sistema deve fornecer um schema fixo de briefing e pedir para o LLM preencher esse schema.
+==================================================
+AUTOMAÇÃO FINAL COM CANVAS
+==================================================
 
-Regra:
-- if/else só para validação, defaults e segurança
-- LLM para interpretação criativa e preenchimento semântico
-- não hardcodar datas comemorativas, clientes, produtos ou campanhas específicas
+Somente nesta etapa integrar com Canvas.
 
-Fluxo correto:
-1. Parser extrai variáveis básicas.
-2. Loader carrega cliente.kit.
-3. BriefingBuilder chama LLM com schema.
-4. LLM retorna briefing estruturado.
-5. Backend valida e normaliza o JSON.
-6. Frontend exibe como formulário editável.
+Ao clicar em “Gerar arquivos .kia”:
 
-Implementar/ajustar:
+1. Selecionar itens elegíveis.
+2. Ignorar itens aguardando informação de produto.
+3. Criar um arquivo .kia por item.
+4. Usar dados do .kit do cliente.
+5. Aplicar logo, cores, fontes e identidade.
+6. Escolher template sugerido.
+7. Criar estrutura inicial:
+   - artboard
+   - textos
+   - cenas/slides
+   - legenda
+   - roteiro
+   - placeholders de imagem/vídeo
+8. Se for vídeo:
+   - preparar timeline
+   - inserir roteiro
+   - preparar narração
+   - preparar legenda
+9. Salvar caminho do .kia no item.
+10. Atualizar productionStatus para “Em produção”.
 
-- studioBriefingParser.js
-  Deve ser simples e objetivo. Não deve tentar criar briefing completo.
+Não abrir o Canvas automaticamente para todos os itens.
+Permitir abrir item por item no Canvas depois.
 
-- studioBriefingBuilder.js
-  Novo módulo responsável por chamar LLM e preencher briefing completo.
+==================================================
+CRITÉRIOS DE ACEITE
+==================================================
 
-- studioBriefingSchema.js
-  Schema fixo do briefing.
+A implementação será considerada correta se:
 
-- studioBriefingNormalizer.js
-  Garante defaults e corrige campos ausentes.
+1. O Studio tiver as abas:
+   - Cliente
+   - Planner
+   - Cards
+   - Roteiro do Item
 
-Resultado esperado:
-O sistema funciona para Luzisol Dia das Mães, Adsune, Imobiliária Abelha ou qualquer outro cliente sem criar regras específicas para cada caso.
+2. O chat ficar fixo à direita.
 
-ETAPA 7 — GERADOR DE ROTEIRO COMPLETO
+3. O .kit do cliente puder ser editado na aba Cliente.
 
-Implementar gerador de roteiro do Studio.
+4. O sistema impedir dois planners do mesmo mês para o mesmo cliente.
 
-Criar rota:
-POST /api/studio/script/generate
+5. O Planner mensal for visual, estilo documento/PDF.
 
-Entrada:
-{
-  projectId,
-  briefing,
-  clientKit
-}
+6. O calendário mensal listar os posts com informação mínima.
 
-Saída:
-{
-  totalDuration,
-  postCaption,
-  scenes: [
-    {
-      id,
-      index,
-      title,
-      approved,
-      duration,
-      narration,
-      subtitle,
-      visualDescription,
-      visualPrompt,
-      negativePrompt,
-      motionPrompt,
-      mediaType,
-      generationMode,
-      references
-    }
-  ]
-}
+7. Posts e anúncios ADS forem tratados como entidades diferentes.
 
-Regras:
-- respeitar duration do briefing
-- cada cena é independente
-- gerar prompts positivos e negativos por cena
-- posicionar referências por cena
-- gerar textos da cena já prontos
-- gerar legenda da cena já pronta
-- preparar narração da cena
-- padrão de duração por cena = 5s
-- durações permitidas: 3, 5, 7, 10, 12, 15
-- 15s é o máximo por cena
-- para carrossel:
-  - não gerar narração
-  - não gerar legenda embutida
-  - não gerar música
-- para vídeo:
-  - cada cena pode ter narração, legenda e mídia
+8. Posts de produto puderem ficar aguardando informação.
 
-Nesta etapa devem sair prontos:
-- texto da cena
-- legenda da cena
-- prompt positivo
-- prompt negativo
-- referências posicionadas
+9. Cards permitirem refinar cada item.
 
-Ainda não deve gerar:
-- voz XTTS
-- imagem final
-- vídeo final
+10. Roteiro do Item permitir edição detalhada.
 
-Critérios de pronto:
-- roteiro completo é gerado
-- todas as cenas aparecem
-- postCaption do projeto é gerado
-- cada cena fica pronta para aprovação individual
+11. Campos de marketing usarem dropdowns internos editáveis.
 
---------------------------------------------------------------
-ok
---------------------------------------------------------------
-ETAPA 8 — ABA ROTEIRO COM PREVIEW, APROVAÇÃO E PRODUÇÃO
-esta etapa ja foi parcialmente iniciada.
+12. O PDF puder ser exportado a partir do Planner.
 
-Implementar a aba Roteiro do KIT Studio.
+13. A geração .kia existir apenas como etapa final de automação para o Canvas.
 
-A aba Roteiro é a etapa principal de:
-- revisão
-- aprovação
-- preview
-- produção
-
-Não deve existir uma terceira aba chamada “Visualizar” ou “Visualização final”.
-
-A visualização deve acontecer dentro da própria aba Roteiro.
-
-Layout obrigatório:
-- lado esquerdo:
-  lista de fichas/cards das cenas
-- lado direito:
-  preview/visualização da cena selecionada
-
-Comportamento:
-- ao clicar em uma ficha, o preview da direita muda para aquela cena
-- o preview da direita deve exibir:
-  - imagem/vídeo da cena quando existir
-  - legenda visual da cena
-  - status da cena
-  - duração
-  - informações principais da geração
-
-Cada ficha de cena deve mostrar:
-- índice
-- duração
-- narração
-- legenda da cena
-- descrição visual
-- prompt positivo
-- prompt negativo
-- referências
-- status
-- mídia gerada se houver
-
-Ações por cena:
-- aprovar cena
-- editar texto
-- editar legenda
-- ajustar prompt
-- ajustar referências
-- regenerar texto da cena
-- abrir chat contextual da cena
-- revisar/desbloquear cena aprovada
-
-Regras de aprovação:
-- antes de aprovar:
-  - a cena é editável
-- depois de aprovar:
-  - a ficha fica cinza/bloqueada
-  - a cena não pode mais ser editada diretamente
-- para editar uma cena aprovada:
-  - o usuário precisa clicar em:
-    - revisar
-    - desbloquear
-
-O sistema deve permitir:
-- aprovar cena por cena
-- aprovar o roteiro inteiro de uma vez
-
-Botão obrigatório:
-- Aprovar roteiro completo
-
-Comportamento:
-- ao clicar em “Aprovar roteiro completo”:
-  - todas as cenas pendentes são marcadas como aprovadas
-
-Regra principal:
-- o roteiro só é considerado aprovado quando todas as cenas necessárias estiverem aprovadas
-
-Quando todas as cenas forem aprovadas:
-- liberar botão:
-  “Gerar produção”
-
-Ao clicar em “Gerar produção”:
-- começa a produção completa do projeto
-- continua dentro da aba Roteiro
-- não trocar para outra aba
-- não abrir tela separada
-
-Durante a produção:
-- cada ficha deve mostrar status em tempo real:
-  - aguardando
-  - gerando voz
-  - gerando mídia
-  - pronto
-  - erro
-
-O preview da direita deve atualizar conforme os assets reais forem gerados.
-
-Fluxo esperado:
-1. usuário revisa cenas
-2. usuário aprova individualmente ou aprova tudo
-3. botão “Gerar produção” é liberado
-4. produção começa
-5. status das fichas atualiza em tempo real
-6. preview mostra o resultado real da cena
-7. ao final o projeto fica pronto para exportar/salvar no Canvas
-
-Critérios de pronto:
-- fichas das cenas aparecem corretamente
-- clicar em ficha muda o preview
-- aprovação individual funciona
-- aprovação geral funciona
-- cenas aprovadas ficam cinza/bloqueadas
-- botão “Gerar produção” aparece corretamente
-- produção atualiza status das fichas
-- preview usa mídia real quando existir
-
-
-
-ETAPA 9 — BIBLIOTECA CONTEXTUAL DE REFERÊNCIAS
-
-Implementar painel contextual com:
-- mídia do cliente
-- mídia de IA
-- arquivos enviados no projeto
-
-Rotas:
-GET /api/studio/client-media?clientId=
-GET /api/studio/ai-media?clientId=&projectId=
-GET /api/studio/project-attachments?projectId=
-
-Regras:
-- painel abre sob demanda
-- não é sidebar fixa
-- selecionar mídia vincula à cena atual
-- referências da cena devem ser persistidas
-
-Critérios de pronto:
-- painel abre
-- mídias aparecem
-- seleção funciona
-- cena recebe referências corretamente
-
-ETAPA 10 — CHAT CONTEXTUAL POR CENA
-
-Implementar ajustes por cena via chat contextual.
-
-Criar rota:
-POST /api/studio/scene/instruction
-
-Entrada:
-{
-  projectId,
-  sceneId,
-  instruction,
-  scene,
-  briefing
-}
-
-Saída:
-{
-  updatedScene,
-  assistantMessage
-}
-
-Pode atualizar:
-- narration
-- subtitle
-- visualDescription
-- visualPrompt
-- negativePrompt
-- motionPrompt
-- references
-
-Regras:
-- alterar só a cena selecionada
-- não alterar briefing global salvo pedido explícito
-- histórico fica associado à cena
-
-Critérios de pronto:
-- ajustes por cena funcionam
-- histórico contextual da cena funciona
-
-ETAPA 11 — INTEGRAR GERAÇÃO DE IMAGEM JÁ EXISTENTE
-
-Reaproveitar a geração de imagem já existente da KIT dentro do Studio.
-
-Criar/adaptar rota:
-POST /api/studio/media/generate-image
-
-Entrada:
-{
-  projectId,
-  sceneId,
-  prompt,
-  negativePrompt,
-  ratio,
-  width,
-  height,
-  model,
-  quality,
-  references,
-  mode
-}
-
-Saída:
-{
-  mediaId,
-  type,
-  path,
-  thumbnailPath,
-  metadata
-}
-
-Regras:
-- não criar outro servidor
-- reutilizar o worker atual
-- txt2img quando não houver imagem base
-- img2img quando houver referência visual
-- preparar stub para inpaint futuro
-- salvar o asset na pasta do projeto
-- atualizar a cena
-- incluir o asset na biblioteca Mídia IA
-
-Critérios de pronto:
-- gerar imagem real por cena
-- salvar na pasta do projeto
-- preview da cena atualiza
-
+14. A persona da KIT no Studio for especialista em marketing, sem usar a personalidade do chat comum.

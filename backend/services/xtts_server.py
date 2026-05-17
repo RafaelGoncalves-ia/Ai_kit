@@ -52,6 +52,24 @@ except Exception as e:
 OUTPUT_DIR = os.path.abspath("output")
 
 
+def resolve_internal_speaker_name(value):
+    requested = str(value or "").strip()
+    if not requested:
+        return "Daisy Studious"
+    if os.path.isfile(requested):
+        return requested
+    requested = os.path.splitext(os.path.basename(requested))[0] if os.path.splitext(requested)[1] else requested
+    speakers = getattr(tts, "speakers", None) or []
+    for speaker_name in speakers:
+        if str(speaker_name) == requested:
+            return str(speaker_name)
+    requested_key = requested.casefold()
+    for speaker_name in speakers:
+        if str(speaker_name).casefold() == requested_key:
+            return str(speaker_name)
+    return requested
+
+
 def get_output_path():
     file_name = f"audio_{uuid.uuid4().hex[:8]}.wav"
     return os.path.join(OUTPUT_DIR, file_name)
@@ -78,7 +96,7 @@ def speak():
 
     data = request.json
     text = data.get("text", "")
-    speaker = data.get("speaker", "Daisy Studious")
+    speaker = resolve_internal_speaker_name(data.get("speaker", "Daisy Studious"))
     language = data.get("language", "pt")
     print(f"[XTTS] Texto: {text}, Speaker: {speaker}, Language: {language}")
 

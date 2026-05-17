@@ -18,6 +18,13 @@ const studioBtn = document.getElementById("studioBtn");
 const canvasBtn = document.getElementById("canvasBtn");
 const thinkingBtn = document.getElementById("thinkingBtn");
 const internetBtn = document.getElementById("internetBtn");
+const llmModeSelector = document.getElementById("llmModeSelector");
+const llmModeToggle = document.getElementById("llmModeToggle");
+const llmModeIcon = document.getElementById("llmModeIcon");
+const llmModeMenu = document.getElementById("llmModeMenu");
+const llmFastBtn = document.getElementById("llmFastBtn");
+const llmSmartBtn = document.getElementById("llmSmartBtn");
+const llmModeStatus = document.getElementById("llmModeStatus");
 
 const API_BASE = "http://localhost:3001";
 const API_URL = `${API_BASE}/chat`;
@@ -550,6 +557,90 @@ function syncInternetButton() {
     "aria-label",
     webSearchEnabled ? "Pesquisa web ligada" : "Pesquisa web desligada"
   );
+}
+
+function setLlmModeSelectorState(state = {}) {
+  const active = String(state.active || state.requested || "fast").toLowerCase();
+  const switchingTo = state.switchingTo ? String(state.switchingTo).toLowerCase() : "";
+  const disabled = Boolean(switchingTo);
+  const visibleStatusText = switchingTo === "smart"
+    ? "Trocando para Smart..."
+    : switchingTo === "fast"
+      ? "Trocando para Fast..."
+      : active === "smart"
+        ? "Smart ativo"
+        : active === "fast"
+          ? "Fast ativo"
+          : active === "off"
+            ? "LLM desligado"
+            : "LLM indisponivel";
+  const activeIcon = active === "smart" ? "\u{1F9E0}" : "\u26A1";
+
+  [llmFastBtn, llmSmartBtn].forEach((button) => {
+    if (!button) return;
+    const mode = button.dataset.mode;
+    button.disabled = disabled;
+    button.classList.toggle("active", !switchingTo && active === mode);
+    button.classList.toggle("switching", disabled);
+    button.setAttribute("aria-checked", !switchingTo && active === mode ? "true" : "false");
+  });
+
+  if (llmModeSelector) {
+    llmModeSelector.dataset.state = switchingTo || active || "unavailable";
+    llmModeSelector.title = visibleStatusText;
+    llmModeSelector.setAttribute("aria-label", visibleStatusText);
+  }
+
+  if (llmModeToggle) {
+    llmModeToggle.disabled = disabled;
+    llmModeToggle.title = visibleStatusText;
+    llmModeToggle.setAttribute("aria-label", visibleStatusText);
+  }
+
+  if (llmModeIcon) {
+    llmModeIcon.textContent = activeIcon;
+  }
+
+  if (llmModeStatus) {
+    llmModeStatus.textContent = visibleStatusText;
+  }
+}
+
+async function refreshLlmModeSelector() {
+  try {
+    const response = await fetch(`${API_BASE}/llm/mode`);
+    const data = await response.json().catch(() => ({}));
+    if (data?.success !== false) {
+      setLlmModeSelectorState(data.data || {});
+    } else {
+      setLlmModeSelectorState({ active: "unavailable" });
+    }
+  } catch {
+    setLlmModeSelectorState({ active: "unavailable" });
+  }
+}
+
+async function selectLlmMode(mode) {
+  const target = String(mode || "fast").toLowerCase() === "smart" ? "smart" : "fast";
+  setLlmModeSelectorState({ switchingTo: target, requested: target });
+  try {
+    const response = await fetch(`${API_BASE}/llm/mode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: target,
+        reason: "manual_selection"
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (data?.success === false) {
+      setLlmModeSelectorState({ active: "unavailable" });
+      return;
+    }
+    setLlmModeSelectorState(data.data || { active: target });
+  } catch {
+    setLlmModeSelectorState({ active: "unavailable" });
+  }
 }
 
 async function loadChatRuntimeConfig() {
@@ -1312,6 +1403,43 @@ if (internetBtn) {
   });
 }
 
+function closeLlmModeMenu() {
+  llmModeSelector?.classList.remove("open");
+  llmModeToggle?.setAttribute("aria-expanded", "false");
+}
+
+llmModeToggle?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  const isOpen = llmModeSelector?.classList.toggle("open");
+  llmModeToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+});
+
+llmModeMenu?.addEventListener("click", (event) => {
+  event.stopPropagation();
+});
+
+llmFastBtn?.addEventListener("click", () => {
+  closeLlmModeMenu();
+  void selectLlmMode("fast");
+});
+
+llmSmartBtn?.addEventListener("click", () => {
+  closeLlmModeMenu();
+  void selectLlmMode("smart");
+});
+
+document.addEventListener("click", (event) => {
+  if (!llmModeSelector?.contains(event.target)) {
+    closeLlmModeMenu();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeLlmModeMenu();
+  }
+});
+
 if (scrollToBottomBtn) {
   scrollToBottomBtn.addEventListener("click", () => {
     if (activeAssistantStream) {
@@ -1492,6 +1620,10 @@ function connectEvents() {
         }
       }
 
+      if (data.type === "llm:mode") {
+        setLlmModeSelectorState(data.payload || {});
+      }
+
       if (data.type === "agent_trace_started") {
         startAgentTrace(data.payload || {});
       }
@@ -1571,6 +1703,7 @@ async function init() {
   await loadChatRuntimeConfig();
   syncThinkingButton();
   syncInternetButton();
+  await refreshLlmModeSelector();
   autoResizeInput();
   setAutoScrollLocked(true);
   getChatScrollContainer()?.addEventListener("scroll", handleChatScroll, { passive: true });

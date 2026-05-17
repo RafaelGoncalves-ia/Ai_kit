@@ -49,9 +49,12 @@ import createStudioRoutes from "./routes/studio.js";
 import createStudioVideoAdapterRoutes from "./routes/studioVideoAdapterRoutes.js";
 import createMediaVideoRoutes from "./routes/mediaVideoRoutes.js";
 import createStableDiffusionRoutes from "./routes/stableDiffusion.js";
+import createComfyRoutes from "./routes/comfy.js";
 import createWorkflowRoutes from "./routes/workflow.js";
+import createCacheRoutes from "./routes/cacheRoutes.js";
 import vocabularyRouter from "./routes/vocabulary.js";
 import sttRoute from "./routes/stt.js";
+import createCacheManager from "./services/cache/cacheManager.js";
 import { initSkills } from "./skills/needs/startup.js";
 
 dotenv.config();
@@ -155,8 +158,19 @@ context.core.brain = createBrain(context);
 context.core.responseQueue = createResponseQueue(context);
 context.core.agentEngine = createAgentEngine(context);
 context.core.orchestrator = createOrchestrator(context);
+context.core.cacheManager = createCacheManager(context);
+context.services.cacheManager = context.core.cacheManager;
 context.core.longTermMemory = new LongTermMemoryConsolidator(context, context.config.memory || {});
 context.core.longTermMemory.init();
+
+void (async () => {
+  try {
+    await context.core.cacheManager.initializeCacheSystem();
+    await context.core.cacheManager.runStartupCleanup();
+  } catch (err) {
+    console.warn(`[CACHE] startup cleanup failed: ${err.message}`);
+  }
+})();
 
 // ======================
 // INIT SKILLS & HISTÃ“RICO
@@ -239,6 +253,10 @@ context.core.eventBus.on("llm:completed", (data) => {
   sendSSE({ type: "llm:completed", payload: data });
 });
 
+context.core.eventBus.on("llm:mode", (data) => {
+  sendSSE({ type: "llm:mode", payload: data });
+});
+
 context.core.eventBus.on("agent_trace_started", (data) => {
   sendSSE({ type: "agent_trace_started", payload: data });
 });
@@ -286,7 +304,8 @@ app.get("/status", (req, res) => {
     execution: {
       current: getCurrentExecutionStatus(context),
       all: listExecutionStatuses(context)
-    }
+    },
+    llm: context.services.ai.getMode?.() || null
   });
 });
 
@@ -323,6 +342,30 @@ app.get("/llm/diagnostics", async (req, res) => {
     res.status(500).json({
       success: false,
       error: err.message || "Falha ao coletar diagnostico do LLM."
+    });
+  }
+});
+
+app.get("/llm/mode", (req, res) => {
+  res.json({
+    success: true,
+    data: context.services.ai.getMode?.() || null
+  });
+});
+
+app.post("/llm/mode", async (req, res) => {
+  try {
+    const mode = String(req.body?.mode || "").trim().toLowerCase();
+    const reason = String(req.body?.reason || "manual_selection").trim() || "manual_selection";
+    const result = await context.services.ai.switchMode?.(mode, reason);
+    res.json({
+      success: result?.ok !== false,
+      data: context.services.ai.getMode?.() || result
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message || "Falha ao trocar modo do LLM."
     });
   }
 });
@@ -397,8 +440,10 @@ app.use("/api/studio", createStudioVideoAdapterRoutes(context));
 app.use("/api/media", createMediaVideoRoutes(context));
 app.use("/api/video", createMediaVideoRoutes(context));
 app.use("/sd", createStableDiffusionRoutes(context));
+app.use("/api/comfy", createComfyRoutes(context));
 app.use("/workflow", createWorkflowRoutes(context));
 app.use("/api/vocabulary", vocabularyRouter);
+app.use("/api/cache", createCacheRoutes(context));
 
 app.get("/history", (req, res) => {
   const conversations = listConversations();

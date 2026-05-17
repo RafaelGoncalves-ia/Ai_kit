@@ -1,173 +1,554 @@
-const FALLBACK_PROJECT = {
-  source: "studio",
-  clientName: "Projetar MGJ Engenharia",
-  projectName: "Usucapião e Regularização",
-  currentStep: "briefing",
-  currentTab: "briefing",
-  unlockedTabs: ["briefing", "script"],
-  progress: {
-    currentTask: "Briefing em revisão editorial",
-    percent: 32,
-    completedSteps: 1,
-    totalSteps: 2,
-    elapsedMs: 0
-  },
-  resourceUsage: {
-    vram: "--",
-    ram: "--",
-    gpu: "--",
-    cpu: "--",
-    disk: "--"
-  },
-  briefing: {
-    theme: "Regularização de imóveis e usucapião com a Projetar MGJ Engenharia.",
-    purpose: "Promover os serviços técnicos de engenharia para processos de usucapião, transmitindo segurança e profissionalismo.",
-    audience: "Proprietários de imóveis sem documentação regularizada que buscam segurança jurídica.",
-    visualMaterial: "aigc",
-    duration: "30",
-    mediaType: "clip",
-    ratio: "9:16",
-    platform: "TikTok",
-    bgmStyle: "Inspiring hopeful piano corporate music",
-    subtitleInfo: "Legendas dinâmicas em amarelo e branco",
-    rawReferences: "",
-    materialReferences: [
-      "Cena inicial com tensão documental e signos de posse do imóvel.",
-      "Bloco técnico com engenheiro, medição laser, planta e memorial descritivo.",
-      "Fechamento com família, fachada valorizada e chamada para ação."
-    ],
-    videoContent: "Ambiente brasileiro realista, luz natural de fim de tarde e foco em confiança técnica."
-  },
-  script: {
-    approved: false,
-    totalDuration: 30,
-    scenes: [
-    {
-      id: "scene_01",
-      index: 1,
-      title: "O problema",
-      duration: 10,
-      status: "Aguardando aprovação",
-      narration: "Você já mora no imóvel há anos, mas ainda não conseguiu regularizar a documentação?",
-      visualDescription: "Homem preocupado, documentos antigos, contas, IPTU e detalhes da casa com texto na tela reforçando usucapião e regularização."
-    },
-    {
-      id: "scene_02",
-      index: 2,
-      title: "A solução técnica",
-      duration: 10,
-      status: "Estrutura pronta",
-      narration: "A Projetar MGJ Engenharia realiza toda a parte técnica necessária para o seu processo de usucapião.",
-      visualDescription: "Engenheiro em ação, drone, sobreposição técnica, planta detalhada e lista dos entregáveis."
-    },
-    {
-      id: "scene_03",
-      index: 3,
-      title: "Resultado e segurança",
-      duration: 10,
-      status: "Estrutura pronta",
-      narration: "Regularize seu imóvel com segurança e acompanhamento especializado.",
-      visualDescription: "Família sorrindo, fachada valorizada, marca e CTA final."
-    }
-    ]
-  }
+const STORAGE_KEY = "kit.studioPlanner.v1";
+const MONTH_FORMATTER = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
+const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
+
+const MARKETING_OPTIONS = {
+  objectives: [
+    "Autoridade",
+    "Reconhecimento de marca",
+    "Geracao de leads",
+    "Engajamento",
+    "Conversao",
+    "Prova social",
+    "Educacao",
+    "Relacionamento",
+    "Trafego",
+    "Venda direta",
+    "Captacao de direct"
+  ],
+  funnel: ["Topo", "Meio", "Fundo", "Pos-venda", "Reativacao"],
+  ctas: [
+    "Chamar no direct",
+    "Clicar no link da bio",
+    "Pedir orcamento",
+    "Agendar visita",
+    "Solicitar catalogo",
+    "Salvar o post",
+    "Compartilhar",
+    "Comentar",
+    "Entrar em contato pelo WhatsApp"
+  ],
+  formats: ["Imagem unica", "Carrossel", "Reel", "Story", "Video curto", "Anuncio estatico", "Anuncio em video"],
+  platforms: [
+    "Instagram Feed",
+    "Instagram Reels",
+    "Instagram Stories",
+    "Facebook",
+    "TikTok",
+    "YouTube Shorts",
+    "Google Ads",
+    "Meta Ads"
+  ],
+  productionStatus: [
+    "Em branco",
+    "Rascunho",
+    "Aguardando informacao do produto",
+    "Em producao",
+    "Aguardando aprovacao",
+    "Concluido"
+  ],
+  publicationStatus: ["Nao agendado", "Agendado", "Postado", "Cancelado"],
+  contentTypes: ["Post", "Reel", "Story", "Carrossel", "Anuncio"]
 };
 
-const stateStore = window.StudioState.createStudioState(FALLBACK_PROJECT);
-const state = stateStore.getViewModel();
-const MAX_PROJECT_MESSAGES = 24;
-const PRODUCTION_STATUS_STEPS = ["aguardando", "gerando voz", "gerando mídia", "pronto"];
-const productionTimers = [];
-const SCENE_TECH_PRESETS = {
-  standard: { preset: "standard", quality: "standard", mode: "auto", fps: 12, steps: 24, cfg: 7, denoise: 0.55 },
-  fast: { preset: "fast", quality: "draft", mode: "auto", fps: 10, steps: 18, cfg: 6.5, denoise: 0.5 },
-  quality: { preset: "quality", quality: "high", mode: "auto", fps: 16, steps: 32, cfg: 7.5, denoise: 0.6 },
-  cinematic: { preset: "cinematic", quality: "high", mode: "i2v", fps: 16, steps: 36, cfg: 8, denoise: 0.58 },
-  custom: { preset: "custom" }
-};
-const TECH_QUALITY_OPTIONS = ["draft", "standard", "high"];
-const TECH_MODE_OPTIONS = ["auto", "t2v", "i2v"];
-const TECH_RATIO_OPTIONS = ["", "9:16", "16:9", "1:1", "4:5", "3:4"];
-const TECH_SCHEDULER_OPTIONS = ["", "DPMSolverMultistepScheduler", "Euler", "Euler A"];
-const TECH_SAMPLER_OPTIONS = ["", "ddim", "euler", "dpmpp-2m"];
-const TECH_ACTION_ICONS = {
-  "add-reference": '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3h6v2H5v6H3zM10 3h3v3h-2V5h-1zM7 7h6v6H7z"/></svg>',
-  "add-persona": '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2a3 3 0 1 1 0 6a3 3 0 0 1 0-6zm0 7c3 0 5 1.7 5 4v1H3v-1c0-2.3 2-4 5-4z"/></svg>',
-  "generate-image": '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM4 11l2.2-2.7L8 10l1.7-2L12 11zM5.2 6.2a1.1 1.1 0 1 0 0 .1z"/></svg>',
-  "generate-video": '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3h7v10H3zM11 6l2.5-1.5v7L11 10z"/></svg>',
-  "set-start-frame": '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3h2v10H3zM6 8l7-5v10z"/></svg>',
-  "set-end-frame": '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11 3h2v10h-2zM3 3l7 5l-7 5z"/></svg>',
-  interpolate: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 11c2-5 4-5 6 0s4 5 6 0v2c-2 4-4 4-6 0s-4-4-6 0z"/></svg>',
-  "regenerate-media": '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3a5 5 0 1 1-4.2 2.3H2V2h3.3v1.7A6 6 0 1 0 8 2z"/></svg>'
-};
-state.messages = [
-  {
-    id: "msg-1",
-    role: "user",
-    type: "command",
-    timestamp: new Date().toISOString(),
-    text: "Kit cria um vídeo vertical para Projetar MGJ sobre regularização de imóveis e usucapião."
-  },
-  {
-    id: "msg-2",
-    role: "assistant",
-    type: "status",
-    timestamp: new Date().toISOString(),
-    text: "Briefing inicial estruturado. O centro agora funciona como documento corrido com variáveis editáveis em dropdown."
-  }
+const CLIENT_SEGMENTS = [
+  "Imobiliaria",
+  "Energia solar",
+  "Escola",
+  "Clinica",
+  "Comercio local",
+  "Prestador de servico",
+  "Industria",
+  "Provedor de internet",
+  "Engenharia",
+  "Construcao civil",
+  "Alimentacao",
+  "Beleza e estetica",
+  "Saude",
+  "Advocacia",
+  "Contabilidade",
+  "Outro"
 ];
-state.selectedSceneId = FALLBACK_PROJECT.script.scenes[0]?.id || null;
-state.referenceLibrary = {
-  open: false,
-  loading: false,
-  activeTab: "client-media",
-  items: {
-    "client-media": [],
-    "ai-media": [],
-    "project-attachments": []
+
+const PLAN_RULES = {
+  "R$200 - ADS Start": {
+    attendanceMode: "Online",
+    meetingFrequency: "Sob demanda",
+    summary: [
+      "Gerenciamento de anuncios",
+      "Atendimento online",
+      "Cliente produz o organico"
+    ],
+    rules: [
+      "Ads gerenciado pela ADSune",
+      "Organico por conta do cliente",
+      "Nao sugerir visita presencial",
+      "Nao sugerir treinamento presencial"
+    ]
   },
-  error: ""
-};
-
-const elements = {
-  clientNameLabel: document.getElementById("clientNameLabel"),
-  projectNameLabel: document.getElementById("projectNameLabel"),
-  flowTypeLabel: document.getElementById("flowTypeLabel"),
-  resourceVram: document.getElementById("resourceVram"),
-  resourceRam: document.getElementById("resourceRam"),
-  resourceGpu: document.getElementById("resourceGpu"),
-  resourceCpu: document.getElementById("resourceCpu"),
-  resourceDisk: document.getElementById("resourceDisk"),
-  currentTaskLabel: document.getElementById("currentTaskLabel"),
-  progressBarFill: document.getElementById("progressBarFill"),
-  stepCountLabel: document.getElementById("stepCountLabel"),
-  elapsedLabel: document.getElementById("elapsedLabel"),
-  stageTitle: document.getElementById("stageTitle"),
-  tabStateLabel: document.getElementById("tabStateLabel"),
-  tabAvailabilityLabel: document.getElementById("tabAvailabilityLabel"),
-  studioTabs: document.getElementById("studioTabs"),
-  studioTabPanel: document.getElementById("studioTabPanel"),
-  chatMessageList: document.getElementById("chatMessageList"),
-  messageCountLabel: document.getElementById("messageCountLabel"),
-  chatInput: document.getElementById("chatInput"),
-  chatContextLabel: document.getElementById("chatContextLabel"),
-  sendChatButton: document.getElementById("sendChatButton"),
-  approveBriefingButton: document.getElementById("approveBriefingButton"),
-  approveScriptButton: document.getElementById("approveScriptButton"),
-  generateCaptionButton: document.getElementById("generateCaptionButton"),
-  minimizeStudioButton: document.getElementById("minimizeStudioButton"),
-  maximizeStudioButton: document.getElementById("maximizeStudioButton"),
-  closeStudioButton: document.getElementById("closeStudioButton")
-};
-
-function syncStateFromProject() {
-  const viewModel = stateStore.getViewModel();
-  Object.assign(state, viewModel, {
-    messages: Array.isArray(state.messages) ? state.messages : []
-  });
-  if (!getSelectedScene()) {
-    state.selectedSceneId = state.project?.script?.scenes?.[0]?.id || null;
+  "R$400 - ADS + Direcionamento": {
+    attendanceMode: "Online",
+    meetingFrequency: "Quinzenal online",
+    summary: [
+      "Gerenciamento de anuncios",
+      "Alinhamento do organico",
+      "Orientacao online",
+      "Cliente executa a maior parte"
+    ],
+    rules: [
+      "Ads gerenciado pela ADSune",
+      "Organico alinhado pela ADSune",
+      "Cliente executa conteudo",
+      "Pode sugerir orientacao e revisao"
+    ]
+  },
+  "R$600 - Presenca Estrategica": {
+    attendanceMode: "Presencial + Online",
+    meetingFrequency: "Mensal presencial",
+    summary: [
+      "Gerenciamento de anuncios",
+      "Alinhamento organico",
+      "Reuniao presencial",
+      "Treinamento basico do time",
+      "Planejamento mensal"
+    ],
+    rules: [
+      "Pode sugerir reuniao presencial",
+      "Pode sugerir treinamento basico",
+      "Pode sugerir padronizacao de conteudo"
+    ]
+  },
+  "R$900 - Gestao Comercial": {
+    attendanceMode: "Presencial + Online",
+    meetingFrequency: "Presencial + acompanhamento online",
+    summary: [
+      "Gestao de marketing",
+      "Reuniao presencial",
+      "Treinamento do time",
+      "Inicio de automacoes",
+      "Organizacao do atendimento e leads"
+    ],
+    rules: [
+      "Pode sugerir fluxos de WhatsApp",
+      "Pode sugerir CRM simples",
+      "Pode sugerir IA aplicada ao atendimento"
+    ]
+  },
+  "R$1200 - Gestao + Estrutura": {
+    attendanceMode: "Presencial + Online",
+    meetingFrequency: "Presencial + acompanhamento online",
+    summary: [
+      "Gestao mais profunda",
+      "Automacoes avancadas",
+      "Processos internos",
+      "Integracao marketing + atendimento",
+      "Solucao dos gargalos que continuam no plano R$900"
+    ],
+    rules: [
+      "Pode sugerir melhorias profundas de processo",
+      "Pode sugerir automacoes avancadas",
+      "Pode sugerir integracao marketing + atendimento"
+    ]
+  },
+  "Personalizado": {
+    attendanceMode: "Online",
+    meetingFrequency: "Personalizado",
+    summary: ["Escopo definido manualmente"],
+    rules: ["Consultar observacoes estrategicas antes de sugerir entregas"]
   }
+};
+
+const CLIENT_OPTIONS = {
+  plans: Object.keys(PLAN_RULES),
+  attendanceModes: ["Online", "Presencial + Online"],
+  meetingFrequencies: [
+    "Sob demanda",
+    "Quinzenal online",
+    "Mensal online",
+    "Mensal presencial",
+    "Presencial + acompanhamento online",
+    "Personalizado"
+  ],
+  channels: [
+    "Instagram",
+    "Facebook",
+    "WhatsApp",
+    "TikTok",
+    "YouTube",
+    "Site",
+    "Google Meu Negocio",
+    "Meta Ads",
+    "Google Ads",
+    "LinkedIn",
+    "Outro"
+  ],
+  commercialGoals: [
+    "Gerar leads qualificados",
+    "Aumentar directs",
+    "Agendar visitas",
+    "Vender produtos",
+    "Aumentar reconhecimento",
+    "Melhorar autoridade",
+    "Educar o publico",
+    "Reativar clientes antigos",
+    "Aumentar WhatsApp",
+    "Atrair orcamento",
+    "Divulgar lancamento",
+    "Fortalecer marca",
+    "Outro"
+  ],
+  priorities: [
+    "Leads",
+    "Conversao",
+    "Reconhecimento",
+    "Autoridade",
+    "Engajamento",
+    "Educacao do publico",
+    "Relacionamento",
+    "Trafego",
+    "Reativacao",
+    "Venda direta"
+  ],
+  dependentProducts: [
+    "Imoveis",
+    "Lotes",
+    "Veiculos",
+    "Promocoes",
+    "Estoque",
+    "Antes e depois",
+    "Obras em andamento",
+    "Eventos",
+    "Novos produtos",
+    "Servicos com orcamento variavel",
+    "Outro"
+  ],
+  requiredOfferFields: [
+    "Fotos",
+    "Videos",
+    "Localizacao",
+    "Bairro",
+    "Valor",
+    "Condicoes de pagamento",
+    "Beneficios",
+    "Diferenciais",
+    "Prazo",
+    "Disponibilidade",
+    "Contato responsavel",
+    "Link",
+    "Outro"
+  ],
+  tones: [
+    "Consultivo",
+    "Claro",
+    "Direto",
+    "Tecnico",
+    "Humanizado",
+    "Premium",
+    "Popular",
+    "Emocional",
+    "Educativo",
+    "Descontraido",
+    "Institucional",
+    "Orientado a conversao",
+    "Urgente",
+    "Sofisticado",
+    "Outro"
+  ],
+  forbiddenClaims: [
+    "Garantido",
+    "Financiamento aprovado",
+    "Valorizacao certa",
+    "Sem risco",
+    "Ultima chance, se nao for verdade",
+    "Melhor da cidade, sem comprovacao",
+    "Resultado garantido",
+    "Outro"
+  ],
+  marketingObjectives: [
+    ...MARKETING_OPTIONS.objectives,
+    "Reativacao",
+    "Lancamento",
+    "Retencao"
+  ],
+  campaignStatuses: ["Ativa", "Pausada", "Planejada", "Finalizada"],
+  campaignTypes: ["Meta Ads", "Google Ads", "Organico", "WhatsApp", "Lancamento", "Captacao", "Reativacao", "Institucional"],
+  campaignObjectives: ["Leads", "Direct", "WhatsApp", "Visitas", "Orcamento", "Alcance", "Conversao", "Cadastro"]
+};
+
+const DEFAULT_CLIENT = {
+  name: "Cliente exemplo",
+  logo: "",
+  segment: "Imobiliaria",
+  niche: "Loteamentos",
+  subniche: "Minha casa minha vida",
+  plan: "R$900 - Gestao Comercial",
+  attendanceMode: "Presencial + Online",
+  meetingFrequency: "Presencial + acompanhamento online",
+  socialNetworks: "Instagram, Facebook, Meta Ads",
+  channels: ["Instagram", "Facebook", "WhatsApp", "Meta Ads"],
+  links: {
+    instagram: "",
+    facebook: "",
+    whatsapp: "",
+    site: "",
+    bio: "",
+    googleBusiness: ""
+  },
+  tone: "Consultivo, claro e orientado a conversao",
+  toneOfVoice: ["Consultivo", "Claro", "Orientado a conversao"],
+  audience: "Familias e investidores buscando oportunidade segura de compra.",
+  products: "Loteamentos, casas novas e usadas, apartamentos",
+  mainProducts: "Loteamentos, casas novas e usadas, apartamentos",
+  externalProducts: "Imoveis, lotes e ofertas que dependem de fotos, bairro, valor e condicoes.",
+  externalInfoDependentProducts: ["Imoveis", "Lotes"],
+  requiredOfferFields: ["Fotos", "Bairro", "Valor", "Localizacao", "Condicoes de pagamento"],
+  languageRestrictions: "Evitar promessas absolutas de valorizacao ou financiamento aprovado.",
+  forbiddenClaims: ["Garantido", "Financiamento aprovado", "Valorizacao certa", "Resultado garantido"],
+  brandRules: "Sempre usar linguagem consultiva, evitar exageros e priorizar WhatsApp.",
+  commercialGoals: "Gerar leads qualificados, direct e visitas agendadas.",
+  recurringCommercialGoals: ["Gerar leads qualificados", "Agendar visitas", "Aumentar WhatsApp"],
+  currentPriority: "Leads",
+  marketing: {
+    objectives: ["Geracao de leads", "Autoridade", "Educacao"],
+    funnelStages: ["Topo", "Meio", "Fundo"],
+    preferredCtas: ["Entrar em contato pelo WhatsApp", "Chamar no direct", "Agendar visita"],
+    formats: ["Carrossel", "Reel", "Imagem unica", "Anuncio estatico"],
+    platforms: ["Instagram Feed", "Instagram Reels", "Meta Ads", "WhatsApp"]
+  },
+  planningHistory: "",
+  activeCampaigns: "Campanha de captacao de leads para loteamentos.",
+  campaigns: [
+    {
+      id: "campaign_default",
+      name: "Captacao de leads para loteamentos",
+      status: "Ativa",
+      type: "Meta Ads",
+      objective: "WhatsApp",
+      notes: "Priorizar CTA direto para atendimento.",
+      startDate: "",
+      endDate: ""
+    }
+  ],
+  strategicNotes: "Priorizar conteudo educativo e anuncios com CTA para WhatsApp.",
+  history: [],
+  internalOptions: {
+    objectives: CLIENT_OPTIONS.marketingObjectives,
+    funnel: MARKETING_OPTIONS.funnel,
+    ctas: [...MARKETING_OPTIONS.ctas, "Falar com consultor", "Ver disponibilidade", "Receber mais informacoes", "Simular agora", "Agendar avaliacao"],
+    formats: [...MARKETING_OPTIONS.formats, "Depoimento", "Bastidores", "Antes e depois", "Tutorial", "Oferta", "Conteudo educativo"],
+    platforms: [...MARKETING_OPTIONS.platforms, "WhatsApp", "Google Meu Negocio"],
+    tones: CLIENT_OPTIONS.tones,
+    segments: CLIENT_SEGMENTS,
+    campaignTypes: CLIENT_OPTIONS.campaignTypes
+  },
+  brand: {
+    colors: [],
+    fonts: [],
+    logos: []
+  }
+};
+
+const state = loadState();
+state.clientDirty = false;
+state.aiStatus = {
+  mode: "idle",
+  text: "IA em repouso",
+  percent: null,
+  timer: null
+};
+
+const els = {
+  topClientName: document.getElementById("topClientName"),
+  topMonth: document.getElementById("topMonth"),
+  topPlanStatus: document.getElementById("topPlanStatus"),
+  aiStatusStrip: document.getElementById("aiStatusStrip"),
+  aiStatusText: document.getElementById("aiStatusText"),
+  aiProgressFill: document.getElementById("aiProgressFill"),
+  newPlannerButton: document.getElementById("newPlannerButton"),
+  saveButton: document.getElementById("saveButton"),
+  exportPdfButton: document.getElementById("exportPdfButton"),
+  generateCardsButton: document.getElementById("generateCardsButton"),
+  generateKiaButton: document.getElementById("generateKiaButton"),
+  studioTabs: document.getElementById("studioTabs"),
+  tabPanel: document.getElementById("tabPanel"),
+  chatContextLabel: document.getElementById("chatContextLabel"),
+  chatMessageList: document.getElementById("chatMessageList"),
+  chatForm: document.getElementById("chatForm"),
+  chatInput: document.getElementById("chatInput"),
+  chatPlannerButton: document.getElementById("chatPlannerButton"),
+  chatCaptionButton: document.getElementById("chatCaptionButton")
+};
+
+function currentMonthValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function uniqueList(value = []) {
+  return [...new Set((Array.isArray(value) ? value : splitLines(value)).map((item) => String(item || "").trim()).filter(Boolean))];
+}
+
+function normalizeCampaign(campaign = {}, index = 0) {
+  return {
+    id: campaign.id || uid("campaign"),
+    name: campaign.name || `Campanha ${index + 1}`,
+    status: campaign.status || "Planejada",
+    type: campaign.type || "Meta Ads",
+    objective: campaign.objective || "Leads",
+    notes: campaign.notes || "",
+    startDate: campaign.startDate || "",
+    endDate: campaign.endDate || ""
+  };
+}
+
+function normalizeHistoryItem(item = {}, index = 0) {
+  return {
+    id: item.id || uid("history"),
+    month: item.month || currentMonthValue(),
+    summary: item.summary || "",
+    whatWorked: item.whatWorked || "",
+    whatToAvoid: item.whatToAvoid || "",
+    nextNotes: item.nextNotes || ""
+  };
+}
+
+function normalizeClient(raw = {}) {
+  const client = { ...DEFAULT_CLIENT, ...(raw || {}) };
+  const internalOptions = {
+    ...DEFAULT_CLIENT.internalOptions,
+    ...(client.internalOptions || {})
+  };
+  const marketing = {
+    ...DEFAULT_CLIENT.marketing,
+    ...(client.marketing || {})
+  };
+
+  const channels = uniqueList(client.channels?.length ? client.channels : client.socialNetworks);
+  const recurringCommercialGoals = uniqueList(client.recurringCommercialGoals?.length ? client.recurringCommercialGoals : client.commercialGoals);
+  const toneOfVoice = uniqueList(client.toneOfVoice?.length ? client.toneOfVoice : client.tone);
+  const externalInfoDependentProducts = uniqueList(client.externalInfoDependentProducts?.length ? client.externalInfoDependentProducts : client.externalProducts);
+
+  return {
+    ...client,
+    plan: client.plan && PLAN_RULES[client.plan] ? client.plan : DEFAULT_CLIENT.plan,
+    attendanceMode: client.attendanceMode || PLAN_RULES[client.plan]?.attendanceMode || DEFAULT_CLIENT.attendanceMode,
+    meetingFrequency: client.meetingFrequency || PLAN_RULES[client.plan]?.meetingFrequency || DEFAULT_CLIENT.meetingFrequency,
+    links: { ...DEFAULT_CLIENT.links, ...(client.links || {}) },
+    channels,
+    socialNetworks: channels.join(", "),
+    recurringCommercialGoals,
+    commercialGoals: recurringCommercialGoals.join(", "),
+    toneOfVoice,
+    tone: toneOfVoice.join(", "),
+    mainProducts: client.mainProducts || client.products || "",
+    products: client.products || client.mainProducts || "",
+    externalInfoDependentProducts,
+    externalProducts: externalInfoDependentProducts.join(", "),
+    requiredOfferFields: uniqueList(client.requiredOfferFields),
+    forbiddenClaims: uniqueList(client.forbiddenClaims),
+    marketing: {
+      objectives: uniqueList(marketing.objectives),
+      funnelStages: uniqueList(marketing.funnelStages),
+      preferredCtas: uniqueList(marketing.preferredCtas),
+      formats: uniqueList(marketing.formats),
+      platforms: uniqueList(marketing.platforms)
+    },
+    campaigns: (Array.isArray(client.campaigns) && client.campaigns.length
+      ? client.campaigns
+      : splitLines(client.activeCampaigns).map((name) => ({ name, status: "Ativa", type: "Meta Ads", objective: "Leads" }))
+    ).map(normalizeCampaign),
+    history: (Array.isArray(client.history) ? client.history : []).map(normalizeHistoryItem),
+    internalOptions: {
+      objectives: uniqueList(internalOptions.objectives),
+      funnel: uniqueList(internalOptions.funnel),
+      ctas: uniqueList(internalOptions.ctas),
+      formats: uniqueList(internalOptions.formats),
+      platforms: uniqueList(internalOptions.platforms),
+      tones: uniqueList(internalOptions.tones),
+      segments: uniqueList(internalOptions.segments),
+      campaignTypes: uniqueList(internalOptions.campaignTypes)
+    },
+    brand: {
+      colors: client.brand?.colors || [],
+      fonts: client.brand?.fonts || [],
+      logos: client.brand?.logos || []
+    }
+  };
+}
+
+function loadState() {
+  let stored = null;
+  try {
+    stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+  } catch {
+    stored = null;
+  }
+
+  return {
+    activeTab: stored?.activeTab || "client",
+    selectedItemId: stored?.selectedItemId || null,
+    clientKitPath: stored?.clientKitPath || "",
+    client: normalizeClient(stored?.client || DEFAULT_CLIENT),
+    selectedMonth: stored?.selectedMonth || currentMonthValue(),
+    planners: stored?.planners && typeof stored.planners === "object" ? stored.planners : {},
+    messages: Array.isArray(stored?.messages) && stored.messages.length
+      ? stored.messages
+      : [
+        {
+          role: "assistant",
+          text: "Studio Planner pronto. Eu vou atuar como estrategista de marketing: cliente, mes, planner, cards e roteiro ficam no contexto antes de qualquer automacao."
+        }
+      ],
+    marketingOptions: {
+      objectives: mergeOptions(MARKETING_OPTIONS.objectives, stored?.marketingOptions?.objectives),
+      funnel: mergeOptions(MARKETING_OPTIONS.funnel, stored?.marketingOptions?.funnel),
+      ctas: mergeOptions(MARKETING_OPTIONS.ctas, stored?.marketingOptions?.ctas),
+      formats: mergeOptions(MARKETING_OPTIONS.formats, stored?.marketingOptions?.formats),
+      platforms: mergeOptions(MARKETING_OPTIONS.platforms, stored?.marketingOptions?.platforms)
+    }
+  };
+}
+
+function mergeOptions(defaults, saved) {
+  return [...new Set([...(defaults || []), ...(Array.isArray(saved) ? saved : [])])];
+}
+
+function persist() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    activeTab: state.activeTab,
+    selectedItemId: state.selectedItemId,
+    clientKitPath: state.clientKitPath,
+    client: state.client,
+    selectedMonth: state.selectedMonth,
+    planners: state.planners,
+    messages: state.messages.slice(-40),
+    marketingOptions: state.marketingOptions
+  }));
+}
+
+function plannerKey() {
+  return `${normalizeId(state.client.name)}__${state.selectedMonth}`;
+}
+
+function getPlanner() {
+  return state.planners[plannerKey()] || null;
+}
+
+function setPlanner(planner) {
+  state.planners[plannerKey()] = planner;
+}
+
+function normalizeId(value = "") {
+  return String(value || "cliente")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "cliente";
 }
 
 function escapeHtml(value = "") {
@@ -179,2262 +560,1739 @@ function escapeHtml(value = "") {
     .replace(/'/g, "&#39;");
 }
 
-function formatElapsed(seconds = 0) {
-  const safeSeconds = Math.max(0, Number(seconds) || 0);
-  const minutes = String(Math.floor(safeSeconds / 60)).padStart(2, "0");
-  const remainingSeconds = String(safeSeconds % 60).padStart(2, "0");
-  return `${minutes}:${remainingSeconds}`;
+function monthLabel(monthValue = state.selectedMonth) {
+  const [year, month] = String(monthValue || currentMonthValue()).split("-").map(Number);
+  return MONTH_FORMATTER.format(new Date(year, month - 1, 2));
 }
 
-function getTabLabel(tabId) {
-  return state.tabs.find((tab) => tab.id === tabId)?.label || "Briefing";
+function uid(prefix) {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function getStageTitle(tabId) {
-  return tabId === "script"
-    ? "Roteiro base com cenas já organizadas"
-    : "Briefing em formato de documento corrido";
+function render() {
+  syncMarketingOptionsFromClient();
+  const planner = getPlanner();
+  els.topClientName.value = state.client.name;
+  els.topMonth.value = state.selectedMonth;
+  els.topPlanStatus.textContent = planner?.status || "Sem planner";
+  els.chatContextLabel.textContent = `${state.client.name} / ${monthLabel()} / aba ${getTabLabel(state.activeTab)}`;
+  renderAiStatus();
+  renderTabs();
+  renderActiveTab();
+  renderChat();
+  persist();
 }
 
-function getSelectedScene() {
-  const scenes = state.project?.script?.scenes || [];
-  if (!scenes.length) {
-    return null;
-  }
-
-  const selected = scenes.find((scene) => scene.id === state.selectedSceneId);
-  return selected || scenes[0];
-}
-
-function getSceneById(sceneId) {
-  return (state.project?.script?.scenes || []).find((scene) => scene.id === sceneId) || null;
-}
-
-function getAllScenes() {
-  return state.project?.script?.scenes || [];
-}
-
-function getDefaultSceneTechSettings(scene = {}) {
-  return {
-    preset: "standard",
-    model: "",
-    quality: "standard",
-    mode: "auto",
-    duration: Number(scene.duration || 5),
-    fps: 12,
-    ratio: String(state.project?.briefing?.ratio || "").trim(),
-    width: 0,
-    height: 0,
-    seed: "",
-    lora: "",
-    steps: 24,
-    cfg: 7,
-    sampler: "",
-    scheduler: "",
-    denoise: 0.55,
-    startImage: "",
-    endImage: "",
-    interpolationReady: false,
-    useProjectPersona: false
+function syncMarketingOptionsFromClient() {
+  if (!state.client?.internalOptions) return;
+  state.marketingOptions = {
+    objectives: uniqueList(state.client.internalOptions.objectives),
+    funnel: uniqueList(state.client.internalOptions.funnel),
+    ctas: uniqueList(state.client.internalOptions.ctas),
+    formats: uniqueList(state.client.internalOptions.formats),
+    platforms: uniqueList(state.client.internalOptions.platforms)
   };
 }
 
-function getSceneTechSettings(scene = {}) {
-  return {
-    ...getDefaultSceneTechSettings(scene),
-    ...(scene.generationSettings || {})
+function setAiStatus(mode = "idle", text = "", percent = null) {
+  window.clearTimeout(state.aiStatus.timer);
+  const safePercent = mode === "idle"
+    ? null
+    : (Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : null);
+  state.aiStatus = {
+    mode,
+    text: text || (mode === "idle" ? "IA em repouso" : "Processando conteudo..."),
+    percent: safePercent,
+    timer: null
   };
-}
+  renderAiStatus();
 
-function formatResolution(width = 0, height = 0) {
-  const safeWidth = Number(width || 0);
-  const safeHeight = Number(height || 0);
-  return safeWidth > 0 && safeHeight > 0 ? `${safeWidth}x${safeHeight}` : "";
-}
-
-function parseResolution(value = "") {
-  const match = String(value || "").trim().match(/^(\d{2,5})\s*[xX]\s*(\d{2,5})$/);
-  return match
-    ? { width: Number(match[1] || 0), height: Number(match[2] || 0) }
-    : { width: 0, height: 0 };
-}
-
-function getProjectPersonaSummary() {
-  const briefing = state.project?.briefing || {};
-  return [
-    state.project?.clientName ? `Cliente: ${state.project.clientName}` : "",
-    briefing.theme ? `Tema: ${briefing.theme}` : "",
-    briefing.purpose ? `Objetivo: ${briefing.purpose}` : "",
-    briefing.audience ? `Publico: ${briefing.audience}` : ""
-  ].filter(Boolean).join(" | ");
-}
-
-function resolveSceneReferenceImage(scene = {}) {
-  const visualReferences = getVisualReferences(scene);
-  return String(visualReferences[0]?.path || visualReferences[0]?.filePath || "").trim();
-}
-
-function resolveSceneStartImage(scene = {}) {
-  const settings = getSceneTechSettings(scene);
-  return String(settings.startImage || "").trim()
-    || (/\.(png|jpg|jpeg|webp|gif|bmp)$/i.test(getSceneMediaPath(scene)) ? getSceneMediaPath(scene) : "")
-    || resolveSceneReferenceImage(scene);
-}
-
-function buildSceneGenerationPayload(scene = {}) {
-  const settings = getSceneTechSettings(scene);
-  const personaSummary = settings.useProjectPersona ? getProjectPersonaSummary() : "";
-  const basePrompt = scene.visualPrompt || scene.visualDescription || scene.title || "";
-  const prompt = personaSummary ? `${basePrompt}\n\n${personaSummary}`.trim() : basePrompt;
-  const startImage = resolveSceneStartImage(scene);
-
-  return {
-    projectId: state.project?.id || "",
-    sceneId: scene.id,
-    preset: settings.preset || "standard",
-    model: settings.model || "",
-    quality: settings.quality || "standard",
-    mode: settings.mode || "auto",
-    duration: Number(settings.duration || scene.duration || 5),
-    fps: Number(settings.fps || 12),
-    ratio: String(settings.ratio || state.project?.briefing?.ratio || "").trim(),
-    width: Number(settings.width || 0),
-    height: Number(settings.height || 0),
-    resolution: formatResolution(settings.width, settings.height),
-    seed: settings.seed || "",
-    lora: settings.lora || "",
-    steps: Number(settings.steps || 24),
-    cfg: Number(settings.cfg || 7),
-    sampler: settings.sampler || "",
-    scheduler: settings.scheduler || "",
-    denoise: Number(settings.denoise || 0.55),
-    startImage,
-    endImage: String(settings.endImage || "").trim(),
-    interpolationReady: Boolean(settings.interpolationReady),
-    prompt,
-    negativePrompt: scene.negativePrompt || "",
-    motionPrompt: scene.motionPrompt || "",
-    references: Array.isArray(scene.references) ? scene.references : []
-  };
-}
-
-function buildImageGenerationPayload(scene = {}) {
-  const payload = buildSceneGenerationPayload(scene);
-  return {
-    ...payload,
-    mode: payload.mode === "i2v"
-      ? "img2img"
-      : payload.mode === "t2v"
-        ? "txt2img"
-        : (getVisualReferences(scene).length || payload.startImage ? "img2img" : "txt2img")
-  };
-}
-
-function areAllScenesApproved() {
-  const scenes = getAllScenes();
-  return scenes.length > 0 && scenes.every((scene) => Boolean(scene.approved));
-}
-
-function isProductionRunning() {
-  return state.project?.production?.status === "running";
-}
-
-function getSceneMedia(scene = {}) {
-  return scene.generatedMedia || scene.mediaAsset || null;
-}
-
-function getSceneMediaPath(scene = {}) {
-  const media = getSceneMedia(scene);
-  return media?.path || media?.filePath || "";
-}
-
-function formatReferences(references = []) {
-  if (!Array.isArray(references) || !references.length) {
-    return "";
+  if (mode === "success" || mode === "error") {
+    state.aiStatus.timer = window.setTimeout(() => {
+      state.aiStatus.mode = "idle";
+      state.aiStatus.text = "IA em repouso";
+      state.aiStatus.percent = null;
+      renderAiStatus();
+    }, 1400);
   }
-
-  return references
-    .map((reference) => {
-      if (typeof reference === "string") {
-        return reference;
-      }
-      return reference.label || reference.name || reference.fileName || reference.path || "";
-    })
-    .filter(Boolean)
-    .join("\n");
 }
 
-function parseReferenceLines(value = "") {
-  return String(value || "")
-    .split(/\r?\n/)
-    .map((line, index) => {
-      const text = line.trim();
-      if (!text) {
-        return null;
-      }
-      return {
-        id: `ref_${index + 1}`,
-        label: text,
-        type: "text",
-        path: "",
-        role: "scene-reference"
-      };
-    })
-    .filter(Boolean);
+function renderAiStatus() {
+  if (!els.aiStatusStrip || !els.aiStatusText || !els.aiProgressFill) return;
+  const mode = state.aiStatus?.mode || "idle";
+  els.aiStatusStrip.className = `ai-status is-${mode}`;
+  els.aiStatusText.textContent = state.aiStatus?.text || "IA em repouso";
+  els.aiProgressFill.style.width = Number.isFinite(state.aiStatus?.percent)
+    ? `${state.aiStatus.percent}%`
+    : "";
 }
 
-function getReferenceLibraryTabs() {
-  return [
-    { id: "client-media", label: "Midia do cliente" },
-    { id: "ai-media", label: "Midia de IA" },
-    { id: "project-attachments", label: "Arquivos enviados" }
-  ];
-}
-
-function getLibraryFieldBySource(source = "") {
-  if (source === "client-media") {
-    return "clientMediaRefs";
+async function withAiStatus(text, task, { successText = "Finalizado.", errorText = "Falha no processamento.", minDuration = 420 } = {}) {
+  const startedAt = Date.now();
+  setAiStatus("running", text || "Processando conteudo...");
+  try {
+    const result = await task();
+    const remaining = Math.max(0, minDuration - (Date.now() - startedAt));
+    if (remaining) {
+      await new Promise((resolve) => window.setTimeout(resolve, remaining));
+    }
+    setAiStatus("success", successText, 100);
+    return result;
+  } catch (err) {
+    setAiStatus("error", errorText, 100);
+    throw err;
   }
-  if (source === "ai-media") {
-    return "aiMediaRefs";
-  }
-  return "uploadedRefs";
-}
-
-function normalizeReferenceItem(item = {}, source = "project-attachments") {
-  return {
-    id: String(item.id || `${source}:${item.path || item.label || Date.now()}`),
-    label: String(item.label || item.name || item.fileName || item.path || "Referencia").trim(),
-    fileName: String(item.fileName || "").trim(),
-    path: String(item.path || item.filePath || "").trim(),
-    type: String(item.type || item.kind || "reference").trim(),
-    kind: String(item.kind || item.type || "file").trim(),
-    role: String(item.role || "scene-reference").trim(),
-    source: String(item.source || source).trim()
-  };
-}
-
-function getVisualReferences(scene = {}) {
-  return (Array.isArray(scene?.references) ? scene.references : [])
-    .filter((reference) => /\.(png|jpg|jpeg|webp|gif|bmp)$/i.test(String(reference?.path || reference?.filePath || "")));
-}
-
-function shouldUseVideoGeneration(scene = {}) {
-  const mediaType = String(scene?.mediaType || "").toLowerCase();
-  const generationMode = String(scene?.generationMode || "").toLowerCase();
-  return mediaType === "video" || generationMode === "t2v" || generationMode === "i2v";
-}
-
-function areReferencesEqual(left = {}, right = {}) {
-  return String(left.path || left.label || left.id) === String(right.path || right.label || right.id);
-}
-
-function isReferenceSelected(scene = {}, item = {}) {
-  const normalizedItem = normalizeReferenceItem(item, item.source);
-  const field = getLibraryFieldBySource(normalizedItem.source);
-  const sourceList = Array.isArray(scene?.[field]) ? scene[field] : [];
-  return sourceList.some((reference) => areReferencesEqual(reference, normalizedItem));
-}
-
-function renderReferencePreview(item = {}) {
-  const safePath = escapeHtml(item.path || "");
-  if (item.kind === "image" && safePath) {
-    return `<img src="${safePath}" alt="${escapeHtml(item.label || "Referencia")}">`;
-  }
-
-  if (item.kind === "video" && safePath) {
-    return `<video muted playsinline src="${safePath}"></video>`;
-  }
-
-  if (item.kind === "audio" && safePath) {
-    return `<audio controls src="${safePath}"></audio>`;
-  }
-
-  return `
-    <div class="reference-item-fallback">
-      <strong>${escapeHtml((item.kind || "arquivo").toUpperCase())}</strong>
-    </div>
-  `;
-}
-
-function getSceneStatus(scene = {}) {
-  if (scene.productionStatus) {
-    return scene.productionStatus;
-  }
-  if (scene.approved) {
-    return "aprovada";
-  }
-  return scene.status || "pendente";
-}
-
-function getCurrentChatScene() {
-  return state.currentTab === "script" ? getSelectedScene() : null;
-}
-
-function normalizeMessage(message = {}) {
-  return {
-    id: String(message.id || `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`),
-    role: String(message.role || "system"),
-    text: String(message.text || "").trim(),
-    timestamp: message.timestamp || new Date().toISOString(),
-    sceneId: message.sceneId || null,
-    type: String(message.type || message.role || "note")
-  };
-}
-
-function setProjectMessages(messages = []) {
-  state.messages = (Array.isArray(messages) ? messages : [])
-    .map(normalizeMessage)
-    .filter((message) => message.text)
-    .slice(-MAX_PROJECT_MESSAGES);
-}
-
-function getMessageTitle(message = {}) {
-  if (message.role === "user") {
-    return message.type === "command" ? "Comando" : "Voce";
-  }
-
-  if (message.role === "assistant") {
-    return "KIT";
-  }
-
-  return "Sistema";
-}
-
-function formatMessageMeta(message = {}) {
-  const timestamp = new Date(message.timestamp);
-  const timeLabel = Number.isNaN(timestamp.getTime())
-    ? "--:--"
-    : timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  const scene = message.sceneId ? getSceneById(message.sceneId) : null;
-  return [message.type || message.role, scene ? `Cena ${scene.index}` : "", timeLabel]
-    .filter(Boolean)
-    .join(" - ");
-}
-
-function renderTopbar() {
-  elements.clientNameLabel.textContent = state.clientName;
-  elements.projectNameLabel.textContent = state.projectName;
-  elements.flowTypeLabel.textContent = state.flowType;
-  elements.resourceVram.textContent = state.resources.vram;
-  elements.resourceRam.textContent = state.resources.ram;
-  elements.resourceGpu.textContent = state.resources.gpu;
-  elements.resourceCpu.textContent = state.resources.cpu;
-  elements.resourceDisk.textContent = state.resources.disk;
-}
-
-function renderStatus() {
-  elements.currentTaskLabel.textContent = state.currentTask;
-  elements.progressBarFill.style.width = `${Math.max(0, Math.min(100, state.progress.percent))}%`;
-  elements.stepCountLabel.textContent = `${state.progress.completedSteps} / ${state.progress.totalSteps} etapas`;
-  elements.elapsedLabel.textContent = formatElapsed(state.progress.elapsedSeconds);
-  elements.tabStateLabel.textContent = `Aba ativa: ${getTabLabel(state.currentTab)}`;
-  elements.tabAvailabilityLabel.textContent = `${state.tabs.length} abas prontas`;
-  elements.stageTitle.textContent = getStageTitle(state.currentTab);
 }
 
 function renderTabs() {
-  elements.studioTabs.innerHTML = state.tabs
-    .map((tab) => {
-      const isActive = state.currentTab === tab.id;
-      return `
-        <button
-          type="button"
-          class="tab-button${isActive ? " is-active" : ""}"
-          data-tab-id="${tab.id}"
-          aria-pressed="${isActive ? "true" : "false"}"
-        >
-          <img src="${escapeHtml(tab.icon)}" alt="">
-          <span>${escapeHtml(tab.label)}</span>
-        </button>
-      `;
-    })
-    .join("");
+  const tabs = [
+    ["client", "Cliente"],
+    ["planner", "Planner"],
+    ["cards", "Cards"],
+    ["script", "Roteiro do Item"]
+  ];
+  els.studioTabs.innerHTML = tabs.map(([id, label]) => `
+    <button class="tab-button ${state.activeTab === id ? "is-active" : ""}" type="button" data-tab="${id}">
+      ${escapeHtml(label)}
+    </button>
+  `).join("");
 }
 
-function renderSelect(field, options = []) {
-  const currentValue = state.project.briefing[field] || "";
-  return `
-    <select class="doc-select" data-briefing-field="${field}">
-      ${options
-        .map((option) => `<option value="${escapeHtml(option)}" ${option === currentValue ? "selected" : ""}>${escapeHtml(option)}</option>`)
-        .join("")}
-    </select>
-  `;
+function getTabLabel(tabId) {
+  return {
+    client: "Cliente",
+    planner: "Planner",
+    cards: "Cards",
+    script: "Roteiro do Item"
+  }[tabId] || "Studio";
 }
 
-function normalizeLines(value) {
-  return Array.isArray(value) ? value.join("\n") : String(value || "");
+function renderActiveTab() {
+  if (state.activeTab === "client") renderClientTab();
+  if (state.activeTab === "planner") renderPlannerTab();
+  if (state.activeTab === "cards") renderCardsTab();
+  if (state.activeTab === "script") renderScriptTab();
 }
 
-function getBriefingFieldValue(field) {
-  if (field === "postCaption") {
-    return state.project.postCaption || state.project.briefing?.postCaption || "";
-  }
+function renderClientTab() {
+  const client = state.client;
+  const validation = validateClientKit();
+  const plan = PLAN_RULES[client.plan] || PLAN_RULES[DEFAULT_CLIENT.plan];
+  const logoHtml = client.logo
+    ? `<img src="${escapeHtml(client.logo)}" alt="Logo do cliente">`
+    : `<span>${escapeHtml(getInitials(client.name))}</span>`;
 
-  return state.project.briefing[field] || "";
-}
-
-function renderBriefingInput(label, field, placeholder = "") {
-  const value = getBriefingFieldValue(field);
-  return `
-    <label class="briefing-field">
-      <span>${escapeHtml(label)}</span>
-      <input class="briefing-input" data-briefing-field="${field}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}">
-    </label>
-  `;
-}
-
-function renderBriefingTextarea(label, field, placeholder = "") {
-  const value = normalizeLines(getBriefingFieldValue(field));
-  return `
-    <label class="briefing-field is-wide">
-      <span>${escapeHtml(label)}</span>
-      <textarea class="briefing-textarea" data-briefing-field="${field}" rows="4" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value)}</textarea>
-    </label>
-  `;
-}
-
-function renderBriefingSelectField(label, field, options = []) {
-  return `
-    <label class="briefing-field">
-      <span>${escapeHtml(label)}</span>
-      ${renderSelect(field, options)}
-    </label>
-  `;
-}
-
-function renderBriefingPanel() {
-  const briefing = state.project.briefing;
-  return `
-    <article class="briefing-paper">
-      <header class="paper-header">
-        <span class="paper-kicker">Documento de briefing</span>
-        <h2 class="paper-title">${escapeHtml(state.projectName)}</h2>
-        <div class="paper-subtitle">
-          Projeto criado para <strong>${escapeHtml(state.clientName)}</strong>. Todos os campos abaixo sao editaveis antes da aprovacao.
+  els.tabPanel.innerHTML = `
+    <article class="document client-document">
+      <header class="client-hero">
+        <div class="client-logo">${logoHtml}</div>
+        <div class="client-hero-copy">
+          <span class="eyebrow">Central estrategica do cliente</span>
+          <h1>${escapeHtml(client.name || "Cliente sem nome")}</h1>
+          <p>${escapeHtml(client.segment || "Segmento nao definido")} &bull; ${escapeHtml(client.niche || "Nicho nao definido")} &bull; ${escapeHtml(client.subniche || "Subnicho nao definido")}</p>
+          <div class="badge-row">
+            <span class="badge">${escapeHtml(client.plan || "Plano nao definido")}</span>
+            <span class="badge ${state.clientDirty ? "is-warn" : "is-ok"}">${state.clientDirty ? "Alteracoes pendentes" : ".KIT salvo"}</span>
+            <span class="badge">Atualizado: ${escapeHtml(client.updatedAt ? formatDateTime(client.updatedAt) : "local")}</span>
+          </div>
+        </div>
+        <div class="client-hero-actions">
+          <button class="ghost-button" type="button" data-action="open-kit" title="Abrir .kit">Abrir .kit</button>
+          <button class="ghost-button" type="button" data-action="select-logo" title="Selecionar logo">Logo</button>
+          <button class="ghost-button" type="button" data-action="duplicate-client" title="Duplicar cliente">Duplicar</button>
+          <button class="primary-button" type="button" data-action="save-kit" title="Salvar .kit">Salvar .kit</button>
         </div>
       </header>
 
-      <div class="paper-body">
-        <section class="paper-section">
-          <h2>Resumo editorial</h2>
-          <div class="briefing-form-grid">
-            ${renderBriefingTextarea("Tema", "theme", "Tema central da campanha")}
-            ${renderBriefingTextarea("Objetivo", "purpose", "Objetivo de comunicacao")}
-            ${renderBriefingTextarea("Publico", "audience", "Quem deve ser impactado")}
-          </div>
-        </section>
+      ${validation.errors.length ? `<div class="client-alert">Campos minimos pendentes: ${escapeHtml(validation.errors.join(", "))}</div>` : ""}
 
-        <section class="paper-section">
-          <h2>Parâmetros principais</h2>
-          <div class="briefing-form-grid is-compact">
-            ${renderBriefingSelectField("Material visual", "visualMaterial", ["aigc", "user", "user + aigc"])}
-            ${renderBriefingSelectField("Duracao", "duration", ["", "15", "30", "45", "60"])}
-            ${renderBriefingSelectField("Tipo de midia", "mediaType", ["clip", "imagem", "carrossel", "stories"])}
-            ${renderBriefingSelectField("Proporcao", "ratio", ["9:16", "3:4", "1:1", "16:9"])}
-            ${renderBriefingSelectField("Plataforma", "platform", ["Instagram", "Reels", "Stories", "TikTok", "YouTube Shorts", "Facebook", "LinkedIn"])}
-            ${renderBriefingInput("Musica", "bgmStyle", "Ex: trilha leve e emocional")}
-          </div>
-        </section>
+      ${clientBlock("Identidade e Segmentacao", "Essas informacoes orientam o posicionamento, linguagem, campanhas e conteudos do cliente.", `
+        <div class="doc-grid is-three">
+          ${textField("name", "Nome do cliente", client.name, "Nome da empresa")}
+          ${selectClientField("segment", "Segmento", client.segment, client.internalOptions.segments, "Selecione o segmento")}
+          ${textField("niche", "Nicho especifico", client.niche, "Ex: loteamentos, casas populares, energia fotovoltaica residencial...")}
+          ${textField("subniche", "Subnicho", client.subniche, "Ex: Minha Casa Minha Vida, alto padrao, empresas, familias...")}
+          ${textField("logo", "Logo", client.logo, "Caminho do arquivo de logo", "is-wide")}
+          ${client.segment === "Outro" ? textField("customSegment", "Segmento manual", client.customSegment || "", "Digite o segmento do cliente") : ""}
+        </div>
+      `)}
 
-        <section class="paper-section">
-          <h2>Conteudo e narrativa</h2>
-          <div class="briefing-form-grid">
-            ${renderBriefingTextarea("Conteudo", "videoContent", "Direcao do conteudo")}
-            ${renderBriefingTextarea("Narracao", "videoNarration", "Texto ou guia de narracao")}
-            ${renderBriefingTextarea("Legenda de postagem", "postCaption", "Legenda que sera usada no post")}
+      ${clientBlock("Plano e Atendimento", "Define o nivel de acompanhamento, presenca, treinamento e gestao da ADSune para este cliente.", `
+        <div class="doc-grid">
+          ${selectClientField("plan", "Plano contratado", client.plan, CLIENT_OPTIONS.plans, "Selecione o plano")}
+          ${selectClientField("attendanceMode", "Modalidade de atendimento", client.attendanceMode, CLIENT_OPTIONS.attendanceModes)}
+          ${selectClientField("meetingFrequency", "Frequencia de reuniao", client.meetingFrequency, CLIENT_OPTIONS.meetingFrequencies)}
+          <div class="plan-summary">
+            <strong>Resumo automatico do plano</strong>
+            <ul>${plan.summary.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
           </div>
-        </section>
+          <div class="plan-summary">
+            <strong>Regras para a KIT</strong>
+            <ul>${plan.rules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+          </div>
+        </div>
+      `)}
 
-        <section class="paper-section">
-          <h2>Direcao visual</h2>
-          <div class="briefing-form-grid">
-            ${renderBriefingTextarea("Personagens", "characters", "Um item por linha")}
-            ${renderBriefingTextarea("Estilo visual", "styleList", "Um item por linha")}
-            ${renderBriefingTextarea("Referencias", "materialReferences", "Um item por linha")}
-          </div>
-        </section>
+      ${clientBlock("Presenca Digital", "Canais onde a empresa aparece, anuncia ou recebe clientes.", `
+        ${chipGroup("channels", client.channels, CLIENT_OPTIONS.channels, { addLabel: "Adicionar canal" })}
+        <div class="doc-grid is-three">
+          ${textField("links.instagram", "Instagram URL", client.links.instagram, "https://instagram.com/...")}
+          ${textField("links.facebook", "Facebook URL", client.links.facebook, "https://facebook.com/...")}
+          ${textField("links.whatsapp", "WhatsApp", client.links.whatsapp, "55 00 00000-0000")}
+          ${textField("links.site", "Site", client.links.site, "https://...")}
+          ${textField("links.bio", "Link da bio", client.links.bio, "https://...")}
+          ${textField("links.googleBusiness", "Google Meu Negocio", client.links.googleBusiness, "https://...")}
+        </div>
+      `)}
 
-        <section class="paper-section">
-          <h2>Legenda e aprovacao</h2>
-          <div class="briefing-form-grid">
-            ${renderBriefingTextarea("Legenda operacional", "subtitleInfo", "Como as legendas devem aparecer no video")}
-            <div class="briefing-actions is-wide">
-              <button type="button" class="ghost-button" data-briefing-action="save">Salvar briefing</button>
-              <button type="button" class="primary-button" data-briefing-action="approve">Aprovar briefing</button>
-              <span>${briefing.approved || state.project.briefingApproved ? "Briefing aprovado" : "Aguardando aprovacao"}</span>
-            </div>
-          </div>
-        </section>
-      </div>
+      ${clientBlock("Perfil Estrategico", "Define quem o cliente quer atingir e o que a ADSune deve priorizar.", `
+        <div class="doc-grid">
+          ${textareaField("audience", "Publico-alvo", client.audience, "Ex: Familias procurando primeiro imovel, investidores buscando oportunidade segura...")}
+          ${selectClientField("currentPriority", "Prioridade atual", client.currentPriority, CLIENT_OPTIONS.priorities)}
+        </div>
+        ${chipGroup("recurringCommercialGoals", client.recurringCommercialGoals, CLIENT_OPTIONS.commercialGoals, { addLabel: "Adicionar objetivo" })}
+      `)}
+
+      ${clientBlock("Produtos, Servicos e Dependencias", "Ajuda a KIT a saber o que pode ser planejado livremente e o que depende de informacao externa.", `
+        ${textareaField("mainProducts", "Produtos/servicos principais", client.mainProducts, "Ex: loteamentos, casas novas, energia solar residencial...")}
+        <h3>Produtos que dependem de informacao externa</h3>
+        ${chipGroup("externalInfoDependentProducts", client.externalInfoDependentProducts, CLIENT_OPTIONS.dependentProducts, { addLabel: "Adicionar dependencia" })}
+        <h3>Informacoes obrigatorias para produto/oferta</h3>
+        ${chipGroup("requiredOfferFields", client.requiredOfferFields, CLIENT_OPTIONS.requiredOfferFields, { addLabel: "Adicionar campo" })}
+        <div class="client-note">Quando um conteudo depender desses dados, a KIT deve sinalizar a pendencia antes de gerar post ou anuncio definitivo.</div>
+      `)}
+
+      ${clientBlock("Comunicacao e Restricoes", "Define como a marca fala e o que a KIT deve evitar.", `
+        <h3>Tom de comunicacao</h3>
+        ${chipGroup("toneOfVoice", client.toneOfVoice, client.internalOptions.tones, { addLabel: "Adicionar tom" })}
+        <div class="doc-grid">
+          ${textareaField("languageRestrictions", "Restricoes de linguagem", client.languageRestrictions, "Ex: evitar promessas absolutas, nao garantir financiamento aprovado...")}
+          ${textareaField("brandRules", "Regras importantes da marca", client.brandRules, "Ex: sempre usar linguagem consultiva, priorizar WhatsApp...")}
+        </div>
+        <h3>Palavras ou promessas proibidas</h3>
+        ${chipGroup("forbiddenClaims", client.forbiddenClaims, CLIENT_OPTIONS.forbiddenClaims, { addLabel: "Adicionar promessa proibida" })}
+      `)}
+
+      ${clientBlock("Marketing, Funil e Conteudo", "Preferencias e opcoes padrao usadas nos planners, posts, roteiros e anuncios.", `
+        <h3>Objetivos de marketing</h3>
+        ${chipGroup("marketing.objectives", client.marketing.objectives, client.internalOptions.objectives, { addLabel: "Adicionar objetivo" })}
+        <h3>Funil</h3>
+        ${chipGroup("marketing.funnelStages", client.marketing.funnelStages, client.internalOptions.funnel, { addLabel: "Adicionar etapa" })}
+        <h3>CTAs preferenciais</h3>
+        ${chipGroup("marketing.preferredCtas", client.marketing.preferredCtas, client.internalOptions.ctas, { addLabel: "Adicionar CTA" })}
+        <h3>Formatos usados</h3>
+        ${chipGroup("marketing.formats", client.marketing.formats, client.internalOptions.formats, { addLabel: "Adicionar formato" })}
+        <h3>Plataformas usadas</h3>
+        ${chipGroup("marketing.platforms", client.marketing.platforms, client.internalOptions.platforms, { addLabel: "Adicionar plataforma" })}
+      `)}
+
+      ${clientBlock("Campanhas Ativas", "Campanhas que estao rodando ou que devem ser consideradas no planejamento.", `
+        <div class="client-list-actions"><button class="ghost-button" type="button" data-action="add-campaign">Adicionar campanha</button></div>
+        <div class="campaign-grid">${client.campaigns.map(renderCampaignCard).join("") || `<div class="empty-state">Nenhuma campanha cadastrada.</div>`}</div>
+      `)}
+
+      ${clientBlock("Observacoes e Historico Estrategico", "Memoria estrategica do cliente para decisoes futuras.", `
+        ${textareaField("strategicNotes", "Observacoes estrategicas", client.strategicNotes, "Ex: priorizar conteudo educativo, usar CTA para WhatsApp...")}
+        <div class="client-list-actions"><button class="ghost-button" type="button" data-action="add-history">Adicionar registro mensal</button></div>
+        <div class="history-list">${client.history.length ? client.history.map(renderHistoryCard).join("") : `<div class="empty-state">Nenhum historico registrado ainda.</div>`}</div>
+      `)}
+
+      <details class="client-block client-options-block">
+        <summary>
+          <span>
+            <strong>Opcoes internas da KIT</strong>
+            <small>Listas usadas pela KIT para sugerir objetivos, formatos, CTAs, funil e plataformas.</small>
+          </span>
+        </summary>
+        <div class="internal-options-grid">
+          ${internalOptionEditor("objectives", "Objetivos")}
+          ${internalOptionEditor("funnel", "Funil")}
+          ${internalOptionEditor("ctas", "CTAs")}
+          ${internalOptionEditor("formats", "Formatos")}
+          ${internalOptionEditor("platforms", "Plataformas")}
+          ${internalOptionEditor("tones", "Tons de comunicacao")}
+          ${internalOptionEditor("segments", "Segmentos")}
+          ${internalOptionEditor("campaignTypes", "Tipos de campanha")}
+        </div>
+      </details>
+
+      ${state.clientDirty ? `
+        <div class="client-save-bar">
+          <span>Alteracoes pendentes no .kit</span>
+          <button class="primary-button" type="button" data-action="save-kit">Salvar .kit</button>
+        </div>
+      ` : ""}
     </article>
   `;
 }
 
-function renderSceneSummary(label, value, extraClass = "") {
+function clientBlock(title, description, body) {
   return `
-    <div class="scene-detail ${extraClass}">
-      <span>${escapeHtml(label)}</span>
-      <p>${escapeHtml(value || "Nao definido.")}</p>
-    </div>
+    <section class="client-block">
+      <header>
+        <h2>${escapeHtml(title)}</h2>
+        <p>${escapeHtml(description)}</p>
+      </header>
+      ${body}
+    </section>
   `;
 }
 
-function renderSceneEditor(label, field, value, disabled = false, rows = 3) {
+function textField(field, label, value, placeholder = "", extraClass = "") {
   return `
-    <label class="scene-editor-field" data-scene-editor-target="${escapeHtml(field)}">
-      <span>${escapeHtml(label)}</span>
-      <textarea
-        data-scene-field="${escapeHtml(field)}"
-        rows="${rows}"
-        ${disabled ? "disabled" : ""}
-      >${escapeHtml(value || "")}</textarea>
+    <label class="doc-field ${extraClass}">
+      <span class="field-label">${escapeHtml(label)}</span>
+      <input class="doc-input" data-client-field="${escapeHtml(field)}" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value || "")}">
     </label>
   `;
 }
 
-function renderTechActionButton(action, label, sceneId) {
-  const icon = TECH_ACTION_ICONS[action] || "";
+function textareaField(field, label, value, placeholder = "") {
   return `
-    <button type="button" class="scene-tech-action" data-scene-tech-action="${escapeHtml(action)}" data-scene-id="${escapeHtml(sceneId)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">
-      <span class="scene-tech-icon">${icon}</span>
-      <span>${escapeHtml(label)}</span>
-    </button>
+    <label class="doc-field is-wide">
+      <span class="field-label">${escapeHtml(label)}</span>
+      <textarea class="doc-textarea" data-client-field="${escapeHtml(field)}" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value || "")}</textarea>
+    </label>
   `;
 }
 
-function renderSceneTechSelect(sceneId, field, value, options = [], title = "") {
+function selectClientField(field, label, value, options, placeholder = "Selecione") {
   return `
-    <label class="scene-tech-field">
-      <span>${escapeHtml(title || field)}</span>
-      <select data-scene-tech-field="${escapeHtml(field)}" data-scene-id="${escapeHtml(sceneId)}">
-        ${options.map((option) => `
-          <option value="${escapeHtml(option)}" ${String(value) === String(option) ? "selected" : ""}>${escapeHtml(option || "auto")}</option>
-        `).join("")}
+    <label class="doc-field">
+      <span class="field-label">${escapeHtml(label)}</span>
+      <select class="doc-select" data-client-field="${escapeHtml(field)}">
+        <option value="" ${value ? "" : "selected"}>${escapeHtml(placeholder)}</option>
+        ${mergeOptions(options, [value]).map((option) => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}
       </select>
     </label>
   `;
 }
 
-function renderSceneTechInput(sceneId, field, value, title, options = {}) {
-  const type = options.type || "text";
-  const step = options.step !== undefined ? `step="${escapeHtml(options.step)}"` : "";
-  const min = options.min !== undefined ? `min="${escapeHtml(options.min)}"` : "";
-  const placeholder = options.placeholder ? `placeholder="${escapeHtml(options.placeholder)}"` : "";
-  return `
-    <label class="scene-tech-field">
-      <span>${escapeHtml(title)}</span>
-      <input type="${escapeHtml(type)}" value="${escapeHtml(value ?? "")}" data-scene-tech-field="${escapeHtml(field)}" data-scene-id="${escapeHtml(sceneId)}" ${step} ${min} ${placeholder}>
-    </label>
-  `;
-}
-
-function renderSceneTechBar(scene = null) {
-  if (!scene) {
-    return "";
-  }
-
-  const settings = getSceneTechSettings(scene);
-  return `
-    <div class="scene-tech-bar">
-      <div class="scene-tech-actions">
-        ${renderTechActionButton("add-reference", "Referencia", scene.id)}
-        ${renderTechActionButton("add-persona", settings.useProjectPersona ? "Persona on" : "Persona", scene.id)}
-        ${renderTechActionButton("generate-image", "Imagem", scene.id)}
-        ${renderTechActionButton("generate-video", "Video", scene.id)}
-        ${renderTechActionButton("set-start-frame", "Quadro inicial", scene.id)}
-        ${renderTechActionButton("set-end-frame", "Quadro final", scene.id)}
-        ${renderTechActionButton("interpolate", settings.interpolationReady ? "Interpolacao on" : "Interpolacao", scene.id)}
-        ${renderTechActionButton("regenerate-media", "Regenerar", scene.id)}
-      </div>
-      <div class="scene-tech-grid">
-        ${renderSceneTechSelect(scene.id, "preset", settings.preset || "standard", ["standard", "fast", "quality", "cinematic", "custom"], "Preset")}
-        ${renderSceneTechInput(scene.id, "model", settings.model, "Modelo")}
-        ${renderSceneTechSelect(scene.id, "quality", settings.quality || "standard", TECH_QUALITY_OPTIONS, "Qualidade")}
-        ${renderSceneTechSelect(scene.id, "mode", settings.mode || "auto", TECH_MODE_OPTIONS, "Modo")}
-        ${renderSceneTechInput(scene.id, "duration", settings.duration, "Duracao", { type: "number", min: 1, step: 1 })}
-        ${renderSceneTechInput(scene.id, "fps", settings.fps, "FPS", { type: "number", min: 1, step: 1 })}
-        ${renderSceneTechSelect(scene.id, "ratio", settings.ratio || "", TECH_RATIO_OPTIONS, "Proporcao")}
-        ${renderSceneTechInput(scene.id, "resolution", formatResolution(settings.width, settings.height), "Resolucao", { placeholder: "720x1280" })}
-        ${renderSceneTechInput(scene.id, "seed", settings.seed, "Seed")}
-        ${renderSceneTechInput(scene.id, "lora", settings.lora, "LoRA")}
-        ${renderSceneTechInput(scene.id, "steps", settings.steps, "Steps", { type: "number", min: 0, step: 1 })}
-        ${renderSceneTechInput(scene.id, "cfg", settings.cfg, "CFG", { type: "number", min: 0, step: 0.1 })}
-        ${renderSceneTechSelect(scene.id, "sampler", settings.sampler || "", TECH_SAMPLER_OPTIONS, "Sampler")}
-        ${renderSceneTechSelect(scene.id, "scheduler", settings.scheduler || "", TECH_SCHEDULER_OPTIONS, "Scheduler")}
-        ${renderSceneTechInput(scene.id, "denoise", settings.denoise, "Denoise", { type: "number", min: 0, step: 0.01 })}
-      </div>
-    </div>
-  `;
-}
-
-function renderScenePreviewMedia(scene = {}) {
-  const generatedPath = getSceneMediaPath(scene);
-  const isImage = /\.(png|jpg|jpeg|webp|gif|bmp)$/i.test(generatedPath);
-  const isVideo = /\.(mp4|webm|mov|mkv|avi)$/i.test(generatedPath);
-
-  if (generatedPath && isImage) {
-    return `<img src="${escapeHtml(generatedPath)}" alt="${escapeHtml(scene.title || "Preview da cena")}">`;
-  }
-
-  if (generatedPath && isVideo) {
-    return `<video controls src="${escapeHtml(generatedPath)}"></video>`;
-  }
-
-  return `
-    <div class="preview-empty">
-      <strong>Mídia ainda não gerada</strong>
-      <p>Quando imagem ou vídeo forem gerados, este painel será atualizado com o asset real da cena selecionada.</p>
-      <div class="prompt-box">${escapeHtml(scene.visualPrompt || scene.visualDescription || "Prompt visual ainda não definido.")}</div>
-    </div>
-  `;
-}
-
-function renderSceneMediaThumb(scene = {}) {
-  const generatedPath = getSceneMediaPath(scene);
-  const isImage = /\.(png|jpg|jpeg|webp|gif|bmp)$/i.test(generatedPath);
-  const isVideo = /\.(mp4|webm|mov|mkv|avi)$/i.test(generatedPath);
-
-  if (generatedPath && isImage) {
+function chipGroup(field, selected, options, { addLabel = "Adicionar" } = {}) {
+  const selectedSet = new Set(uniqueList(selected));
+  const optionHtml = mergeOptions(options, selected).map((option) => {
+    const isSelected = selectedSet.has(option);
     return `
-      <div class="scene-media-thumb">
-        <img src="${escapeHtml(generatedPath)}" alt="${escapeHtml(scene.title || "Midia da cena")}">
-      </div>
+      <button class="client-chip ${isSelected ? "is-selected" : ""}" type="button" data-chip-field="${escapeHtml(field)}" data-chip-value="${escapeHtml(option)}">
+        ${escapeHtml(option)}
+        ${isSelected && !options.includes(option) ? `<span data-chip-remove="true">x</span>` : ""}
+      </button>
     `;
-  }
-
-  if (generatedPath && isVideo) {
-    return `
-      <div class="scene-media-thumb is-video">
-        <video muted playsinline src="${escapeHtml(generatedPath)}"></video>
-      </div>
-    `;
-  }
+  }).join("");
 
   return `
-    <div class="scene-media-thumb is-empty">
-      <span>Sem midia</span>
+    <div class="chip-group" data-chip-group="${escapeHtml(field)}">
+      ${optionHtml}
+      <button class="client-chip is-add" type="button" data-action="add-chip" data-chip-field="${escapeHtml(field)}">${escapeHtml(addLabel)}</button>
     </div>
   `;
 }
 
-function getProductionButtonLabel() {
-  if (state.project?.production?.status === "ready") {
-    return "Producao concluida";
-  }
-
-  if (isProductionRunning()) {
-    return "Producao em andamento";
-  }
-
-  return "Gerar producao";
-}
-
-function renderReferenceLibraryPanel(selectedScene = null) {
-  if (!state.referenceLibrary?.open || !selectedScene) {
-    return "";
-  }
-
-  const activeTab = state.referenceLibrary.activeTab || "client-media";
-  const tabs = getReferenceLibraryTabs();
-  const items = Array.isArray(state.referenceLibrary.items?.[activeTab])
-    ? state.referenceLibrary.items[activeTab]
-    : [];
-
+function renderCampaignCard(campaign) {
   return `
-    <div class="reference-library-overlay" data-reference-overlay>
-      <div class="reference-library-panel" role="dialog" aria-modal="true" aria-label="Biblioteca contextual de referencias">
-        <div class="reference-library-header">
-          <div>
-            <span class="eyebrow">Biblioteca contextual</span>
-            <h3>Referencias da cena ${escapeHtml(String(selectedScene.index || 1).padStart(2, "0"))}</h3>
-            <p>${escapeHtml(selectedScene.title || "Cena selecionada")}</p>
-          </div>
-          <button type="button" class="scene-open-button" data-reference-action="close">Fechar</button>
-        </div>
-
-        <div class="reference-library-tabs">
-          ${tabs.map((tab) => `
-            <button
-              type="button"
-              class="scene-open-button${tab.id === activeTab ? " is-active" : ""}"
-              data-reference-tab="${escapeHtml(tab.id)}"
-            >
-              ${escapeHtml(tab.label)}
-            </button>
-          `).join("")}
-        </div>
-
-        ${state.referenceLibrary.error ? `<div class="reference-library-alert">${escapeHtml(state.referenceLibrary.error)}</div>` : ""}
-        ${state.referenceLibrary.loading ? `<div class="reference-library-loading">Carregando referencias...</div>` : ""}
-
-        <div class="reference-library-grid">
-          ${items.length
-            ? items.map((item) => {
-              const selected = isReferenceSelected(selectedScene, item);
-              return `
-                <article class="reference-item${selected ? " is-selected" : ""}">
-                  <div class="reference-item-preview">
-                    ${renderReferencePreview(item)}
-                  </div>
-                  <div class="reference-item-copy">
-                    <strong>${escapeHtml(item.label || item.fileName || "Referencia")}</strong>
-                    <span>${escapeHtml(item.kind || item.type || "arquivo")}</span>
-                    <p>${escapeHtml(item.path || "Sem caminho disponivel")}</p>
-                  </div>
-                  <div class="reference-item-actions">
-                    <button
-                      type="button"
-                      class="scene-open-button"
-                      data-reference-action="${selected ? "remove" : "select"}"
-                      data-reference-source="${escapeHtml(item.source || activeTab)}"
-                      data-reference-id="${escapeHtml(item.id || "")}"
-                    >
-                      ${selected ? "Remover da cena" : "Vincular a cena"}
-                    </button>
-                  </div>
-                </article>
-              `;
-            }).join("")
-            : `<div class="reference-library-empty">Nenhuma midia encontrada nesta categoria.</div>`}
-        </div>
+    <article class="campaign-card" data-campaign-id="${escapeHtml(campaign.id)}">
+      <div class="campaign-card-head">
+        <span class="badge ${campaign.status === "Ativa" ? "is-ok" : ""}">${escapeHtml(campaign.status)}</span>
+        <button class="ghost-button" type="button" data-action="archive-campaign" data-campaign-id="${escapeHtml(campaign.id)}">Arquivar</button>
       </div>
-    </div>
+      <div class="doc-grid">
+        ${campaignField(campaign.id, "name", "Nome da campanha", campaign.name)}
+        ${campaignSelect(campaign.id, "status", "Status", campaign.status, CLIENT_OPTIONS.campaignStatuses)}
+        ${campaignSelect(campaign.id, "type", "Tipo", campaign.type, state.client.internalOptions.campaignTypes)}
+        ${campaignSelect(campaign.id, "objective", "Objetivo", campaign.objective, CLIENT_OPTIONS.campaignObjectives)}
+        ${campaignField(campaign.id, "startDate", "Data de inicio", campaign.startDate, "date")}
+        ${campaignField(campaign.id, "endDate", "Data de fim", campaign.endDate, "date")}
+        <label class="doc-field is-wide">
+          <span class="field-label">Observacoes</span>
+          <textarea class="doc-textarea" data-campaign-field="notes">${escapeHtml(campaign.notes || "")}</textarea>
+        </label>
+      </div>
+    </article>
   `;
 }
 
-function renderSceneHistory(scene = null) {
-  const history = Array.isArray(scene?.history) ? scene.history.slice(-6).reverse() : [];
-  if (!history.length) {
-    return `
-      <div class="scene-history-empty">
-        Ainda nao ha historico contextual para esta cena.
-      </div>
-    `;
-  }
+function campaignField(id, field, label, value, type = "text") {
+  return `<label class="doc-field"><span class="field-label">${escapeHtml(label)}</span><input class="doc-input" type="${escapeHtml(type)}" data-campaign-field="${escapeHtml(field)}" value="${escapeHtml(value || "")}"></label>`;
+}
 
+function campaignSelect(id, field, label, value, options) {
+  return `<label class="doc-field"><span class="field-label">${escapeHtml(label)}</span><select class="doc-select" data-campaign-field="${escapeHtml(field)}">${mergeOptions(options, [value]).map((option) => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
+}
+
+function renderHistoryCard(item) {
   return `
-    <div class="scene-history-list">
-      ${history.map((entry) => `
-        <article class="scene-history-item is-${escapeHtml(entry.role || "system")}">
-          <span>${escapeHtml(entry.type || entry.role || "evento")}</span>
-          <p>${escapeHtml(entry.text || "")}</p>
-        </article>
-      `).join("")}
-    </div>
+    <article class="history-card" data-history-id="${escapeHtml(item.id)}">
+      <div class="doc-grid">
+        ${historyField("month", "Mes/Ano", item.month, "month")}
+        ${historyField("summary", "Resumo do planejamento", item.summary)}
+        ${historyText("whatWorked", "O que funcionou", item.whatWorked)}
+        ${historyText("whatToAvoid", "O que evitar", item.whatToAvoid)}
+        ${historyText("nextNotes", "Observacoes para o proximo mes", item.nextNotes)}
+      </div>
+    </article>
   `;
 }
 
-function renderScriptPanel() {
-  const selectedScene = getSelectedScene();
-  const scenes = getAllScenes();
-  const allApproved = areAllScenesApproved();
-  const productionRunning = isProductionRunning();
-  const selectedLocked = Boolean(selectedScene?.approved);
+function historyField(field, label, value, type = "text") {
+  return `<label class="doc-field"><span class="field-label">${escapeHtml(label)}</span><input class="doc-input" type="${escapeHtml(type)}" data-history-field="${escapeHtml(field)}" value="${escapeHtml(value || "")}"></label>`;
+}
 
+function historyText(field, label, value) {
+  return `<label class="doc-field is-wide"><span class="field-label">${escapeHtml(label)}</span><textarea class="doc-textarea" data-history-field="${escapeHtml(field)}">${escapeHtml(value || "")}</textarea></label>`;
+}
+
+function internalOptionEditor(key, label) {
   return `
-    <section class="script-sheet">
-      <div class="script-sheet-column is-list">
-        <header class="script-sheet-header">
-          <div>
-            <span class="eyebrow">Roteiro base</span>
-            <h2>Fichas das cenas</h2>
-          </div>
-          <div class="scene-badges">
-            <span class="metric-pill">${scenes.length} cenas</span>
-            <span class="metric-pill">${state.project.script.totalDuration || state.project.briefing.duration}s total</span>
-            <span class="metric-pill">${scenes.filter((scene) => scene.approved).length}/${scenes.length} aprovadas</span>
-          </div>
-        </header>
-
-        <div class="script-global-actions">
-          <button type="button" class="scene-open-button" data-script-action="approve-all">Aprovar roteiro completo</button>
-          <button type="button" class="primary-button" data-script-action="start-production" ${allApproved && !productionRunning ? "" : "disabled"}>${escapeHtml(getProductionButtonLabel())}</button>
-        </div>
-
-        <div class="scene-list">
-          ${scenes
-            .map(
-              (scene, index) => `
-                <article class="scene-item${scene.id === selectedScene?.id ? " is-selected" : ""}${scene.approved ? " is-approved" : ""}" data-scene-card-id="${escapeHtml(scene.id)}" tabindex="0" role="button" aria-pressed="${scene.id === selectedScene?.id ? "true" : "false"}">
-                  <div class="scene-item-header">
-                    <div class="scene-card-copy">
-                      <span class="eyebrow">Cena ${String(index + 1).padStart(2, "0")}</span>
-                      <h3>${escapeHtml(scene.title)}</h3>
-                      <p>${escapeHtml(scene.visualDescription || scene.visualPrompt || "Cena sem descricao visual ainda.")}</p>
-                    </div>
-                    <div class="scene-badges">
-                      <span class="metric-pill">${escapeHtml(`${scene.duration}s`)}</span>
-                      <span class="metric-pill is-status">${escapeHtml(getSceneStatus(scene))}</span>
-                    </div>
-                  </div>
-
-                  <div class="scene-card-details">
-                    ${renderSceneSummary("Indice", `Cena ${String(scene.index || index + 1).padStart(2, "0")}`)}
-                    ${renderSceneSummary("Duracao", `${scene.duration || 0}s`)}
-                    ${renderSceneSummary("Narracao", scene.narration)}
-                    ${renderSceneSummary("Legenda", scene.subtitle)}
-                    ${renderSceneSummary("Descricao visual", scene.visualDescription)}
-                    ${renderSceneSummary("Prompt positivo", scene.visualPrompt)}
-                    ${renderSceneSummary("Prompt negativo", scene.negativePrompt)}
-                    ${renderSceneSummary("Referencias", formatReferences(scene.references))}
-                    ${renderSceneSummary("Status", getSceneStatus(scene))}
-                    ${renderSceneSummary("Midia gerada", getSceneMediaPath(scene) || "Ainda sem midia")}
-                  </div>
-
-                  ${renderSceneMediaThumb(scene)}
-
-                  <div class="scene-card-actions">
-                    <button type="button" class="scene-open-button" data-scene-id="${escapeHtml(scene.id)}">Selecionar</button>
-                    <div class="scene-icon-actions">
-                      ${scene.approved ? `
-                        <button type="button" class="scene-open-button" data-scene-action="unlock" data-scene-id="${escapeHtml(scene.id)}">Revisar/desbloquear</button>
-                      ` : `
-                        <button type="button" class="scene-open-button" data-scene-action="approve" data-scene-id="${escapeHtml(scene.id)}">Aprovar cena</button>
-                      `}
-                      <button type="button" class="scene-open-button" data-scene-action="edit-text" data-scene-id="${escapeHtml(scene.id)}" ${scene.approved ? "disabled" : ""}>Editar texto</button>
-                      <button type="button" class="scene-open-button" data-scene-action="edit-subtitle" data-scene-id="${escapeHtml(scene.id)}" ${scene.approved ? "disabled" : ""}>Editar legenda</button>
-                      <button type="button" class="scene-open-button" data-scene-action="adjust-prompt" data-scene-id="${escapeHtml(scene.id)}" ${scene.approved ? "disabled" : ""}>Ajustar prompt</button>
-                      <button type="button" class="scene-open-button" data-scene-action="adjust-references" data-scene-id="${escapeHtml(scene.id)}" ${scene.approved ? "disabled" : ""}>Ajustar referencias</button>
-                      <button type="button" class="scene-open-button" data-scene-action="regenerate" data-scene-id="${escapeHtml(scene.id)}" ${scene.approved ? "disabled" : ""}>Regenerar texto</button>
-                      <button type="button" class="scene-open-button" data-scene-action="context" data-scene-id="${escapeHtml(scene.id)}">Chat contextual</button>
-                    </div>
-                  </div>
-                </article>
-              `
-            )
-            .join("")}
-        </div>
+    <section class="internal-option-card">
+      <div class="internal-option-head">
+        <strong>${escapeHtml(label)}</strong>
+        <button class="ghost-button" type="button" data-action="restore-options" data-options-key="${escapeHtml(key)}">Padrao</button>
       </div>
-
-      <div class="script-sheet-column is-preview">
-        <div class="script-preview">
-          <div class="script-preview-header">
-            <div>
-              <span class="eyebrow">Visualizador</span>
-              <h3>${escapeHtml(selectedScene?.title || "Nenhuma cena selecionada")}</h3>
-              <p>${escapeHtml(selectedScene ? `Prévia e edição da cena ${selectedScene.index}` : "Selecione uma ficha para ver os detalhes.")}</p>
-            </div>
-            <div class="scene-badges">
-              <span class="metric-pill">${escapeHtml(selectedScene ? `${selectedScene.duration}s` : "--")}</span>
-              <span class="metric-pill">${escapeHtml(selectedScene ? getSceneStatus(selectedScene) : "vazio")}</span>
-              ${selectedLocked ? `<span class="metric-pill">bloqueada</span>` : ""}
-            </div>
-          </div>
-
-          <div class="preview-stage">
-            ${selectedScene ? renderScenePreviewMedia(selectedScene) : ""}
-          </div>
-
-          ${selectedScene?.subtitle ? `<div class="scene-visual-caption">${escapeHtml(selectedScene.subtitle)}</div>` : ""}
-
-          <div class="preview-meta-grid">
-            <div class="preview-meta-card">
-              <span>Status</span>
-              <p>${escapeHtml(selectedScene ? getSceneStatus(selectedScene) : "Sem cena selecionada.")}</p>
-            </div>
-            <div class="preview-meta-card">
-              <span>Duracao</span>
-              <p>${escapeHtml(selectedScene ? `${selectedScene.duration}s` : "--")}</p>
-            </div>
-            <div class="preview-meta-card">
-              <span>Narracao</span>
-              <p>${escapeHtml(selectedScene?.narration || "Sem narracao definida.")}</p>
-            </div>
-            <div class="preview-meta-card">
-              <span>Geracao</span>
-              <p>${escapeHtml(`${selectedScene?.mediaType || "--"} / ${selectedScene?.generationMode || "--"} / ${selectedScene?.audioAsset?.path || "sem voz"} / ${getSceneMediaPath(selectedScene || {}) || "sem asset"}`)}</p>
-            </div>
-            <div class="preview-meta-card">
-              <span>Prompt positivo</span>
-              <p>${escapeHtml(selectedScene?.visualPrompt || "Ainda nao definido.")}</p>
-            </div>
-            <div class="preview-meta-card">
-              <span>Prompt negativo</span>
-              <p>${escapeHtml(selectedScene?.negativePrompt || "Ainda nao definido.")}</p>
-            </div>
-          </div>
-
-          ${selectedScene ? renderSceneTechBar(selectedScene) : ""}
-
-          ${selectedScene ? `
-            <div class="scene-toolbar ${selectedLocked ? "is-locked" : ""}">
-              ${selectedLocked
-                ? `<button type="button" class="scene-open-button" data-scene-action="unlock" data-scene-id="${escapeHtml(selectedScene.id)}">Revisar/desbloquear cena aprovada</button>`
-                : `
-                  <button type="button" class="scene-open-button" data-scene-action="approve" data-scene-id="${escapeHtml(selectedScene.id)}">Aprovar cena</button>
-                  <button type="button" class="scene-open-button" data-scene-action="edit-text" data-scene-id="${escapeHtml(selectedScene.id)}">Editar texto</button>
-                  <button type="button" class="scene-open-button" data-scene-action="edit-subtitle" data-scene-id="${escapeHtml(selectedScene.id)}">Editar legenda</button>
-                  <button type="button" class="scene-open-button" data-scene-action="adjust-prompt" data-scene-id="${escapeHtml(selectedScene.id)}">Ajustar prompt</button>
-                  <button type="button" class="scene-open-button" data-scene-action="adjust-references" data-scene-id="${escapeHtml(selectedScene.id)}">Ajustar referencias</button>
-                  ${shouldUseVideoGeneration(selectedScene)
-                    ? `<button type="button" class="scene-open-button" data-scene-action="generate-video" data-scene-id="${escapeHtml(selectedScene.id)}">Gerar video</button>`
-                    : ""}
-                  <button type="button" class="scene-open-button" data-scene-action="generate-image" data-scene-id="${escapeHtml(selectedScene.id)}">Gerar imagem</button>
-                  <button type="button" class="scene-open-button" data-scene-action="regenerate" data-scene-id="${escapeHtml(selectedScene.id)}">Regenerar texto da cena</button>
-                `}
-              <button type="button" class="scene-open-button" data-scene-action="context" data-scene-id="${escapeHtml(selectedScene.id)}">Abrir chat contextual</button>
-            </div>
-
-            <div class="scene-editor-grid ${selectedLocked ? "is-locked" : ""}">
-              ${renderSceneEditor("Texto/narracao da cena", "narration", selectedScene.narration, selectedLocked)}
-              ${renderSceneEditor("Legenda visual da cena", "subtitle", selectedScene.subtitle, selectedLocked)}
-              ${renderSceneEditor("Descricao visual", "visualDescription", selectedScene.visualDescription, selectedLocked)}
-              ${renderSceneEditor("Prompt positivo", "visualPrompt", selectedScene.visualPrompt, selectedLocked, 4)}
-              ${renderSceneEditor("Prompt negativo", "negativePrompt", selectedScene.negativePrompt, selectedLocked, 3)}
-              ${renderSceneEditor("Referencias", "references", formatReferences(selectedScene.references), selectedLocked, 3)}
-            </div>
-
-            <div class="scene-history-panel">
-              <div class="scene-history-header">
-                <span class="eyebrow">Historico contextual</span>
-                <strong>Ultimos ajustes da cena</strong>
-              </div>
-              ${renderSceneHistory(selectedScene)}
-            </div>
-          ` : ""}
-        </div>
-      </div>
-      ${renderReferenceLibraryPanel(selectedScene)}
+      ${chipGroup(`internalOptions.${key}`, state.client.internalOptions[key] || [], state.client.internalOptions[key] || [], { addLabel: "Adicionar opcao" })}
     </section>
   `;
 }
 
-function renderActivePanel() {
-  elements.studioTabPanel.innerHTML = state.currentTab === "script"
-    ? renderScriptPanel()
-    : renderBriefingPanel();
-}
-
-function renderMessages() {
-  elements.messageCountLabel.textContent = `${state.messages.length} mensagens`;
-  const contextScene = getCurrentChatScene();
-  if (elements.chatContextLabel) {
-    elements.chatContextLabel.textContent = contextScene
-      ? `Contexto: Cena ${contextScene.index} - ${contextScene.title}`
-      : "Contexto: projeto atual";
-  }
-  elements.chatMessageList.innerHTML = state.messages
-    .map((message) => {
-      return `
-        <article class="chat-message is-${escapeHtml(message.role)}${message.sceneId ? " has-scene" : ""}">
-          <span class="message-meta">${escapeHtml(formatMessageMeta(message))}</span>
-          <strong>${escapeHtml(getMessageTitle(message))}</strong>
-          <p>${escapeHtml(message.text)}</p>
-        </article>
-      `;
-    })
-    .join("");
-  elements.chatMessageList.scrollTop = elements.chatMessageList.scrollHeight;
-}
-
-function renderAll() {
-  syncStateFromProject();
-  renderTopbar();
-  renderStatus();
-  renderTabs();
-  renderActivePanel();
-  renderMessages();
-}
-
-function focusSceneEditor(field) {
-  if (!field) {
+function renderPlannerTab() {
+  const planner = getPlanner();
+  if (!planner) {
+    els.tabPanel.innerHTML = `
+      <article class="document">
+        <header class="document-header">
+          <div class="document-title">
+            <span class="eyebrow">Planner mensal</span>
+            <h1>Nenhum planner para ${escapeHtml(monthLabel())}</h1>
+            <p>Cada cliente pode ter apenas um calendario por mes. Se ele ja existir, esta aba abre o planejamento salvo.</p>
+          </div>
+          <button class="primary-button" type="button" data-action="create-planner">Gerar novo planner</button>
+        </header>
+        <div class="doc-section empty-state">Use o botao acima ou peca no chat: "Gere o planejamento deste mes para este cliente".</div>
+      </article>
+    `;
     return;
   }
 
-  window.requestAnimationFrame(() => {
-    const target = document.querySelector(`[data-scene-field="${field}"]`);
-    if (!target || target.disabled) {
-      return;
-    }
+  els.tabPanel.innerHTML = `
+    <article class="document is-planner-print">
+      <header class="document-header">
+        <div class="document-title">
+          <span class="eyebrow">Planejamento mensal</span>
+          <h1>${escapeHtml(state.client.name)} - ${escapeHtml(monthLabel())}</h1>
+          <p>${escapeHtml(planner.diagnosis)}</p>
+        </div>
+        <div class="inline-actions no-print">
+          <button class="ghost-button" type="button" data-action="regenerate-planner">Regenerar</button>
+          <button class="primary-button" type="button" data-action="planner-to-cards">Atualizar cards</button>
+        </div>
+      </header>
 
-    target.focus();
-    target.setSelectionRange?.(target.value.length, target.value.length);
-  });
+      <section class="doc-section">
+        <div class="summary-grid">
+          ${summaryCard("Objetivo macro", planner.macroObjective)}
+          ${summaryCard("Campanhas", `${planner.campaigns.length} ativas`)}
+          ${summaryCard("Anuncios ADS", `${planner.ads.length} planejados`)}
+          ${summaryCard("Itens editoriais", `${planner.items.length} no mes`)}
+        </div>
+      </section>
+
+      <section class="doc-section">
+        <h2>Estrategia do mes</h2>
+        ${textareaPlannerField("diagnosis", "Diagnostico estrategico do mes", planner.diagnosis)}
+        ${textareaPlannerField("macroObjective", "Objetivo macro", planner.macroObjective)}
+        ${textareaPlannerField("secondaryObjectives", "Objetivos secundarios", planner.secondaryObjectives.join("\\n"))}
+      </section>
+
+      <section class="doc-section">
+        <h2>Funil de conteudo</h2>
+        <div class="funnel-grid">
+          ${planner.funnel.map((item) => `<div class="funnel-card"><span class="meta-label">${escapeHtml(item.stage)}</span><strong>${escapeHtml(item.focus)}</strong></div>`).join("")}
+        </div>
+      </section>
+
+      <section class="doc-section">
+        <h2>Distribuicao e campanhas</h2>
+        <div class="doc-grid">
+          ${textareaPlannerField("formatDistribution", "Distribuicao de formatos", planner.formatDistribution.join("\\n"))}
+          ${textareaPlannerField("campaigns", "Campanhas do mes", planner.campaigns.join("\\n"))}
+        </div>
+      </section>
+
+      <section class="doc-section">
+        <h2>Anuncios ADS do mes</h2>
+        <div class="ad-list">
+          ${planner.ads.map(renderAdCard).join("") || `<div class="empty-state">Nenhum anuncio planejado.</div>`}
+        </div>
+      </section>
+
+      <section class="doc-section">
+        <h2>Calendario mensal</h2>
+        <div class="planner-calendar">
+          ${WEEKDAYS.map((day) => `<div class="weekday">${day}</div>`).join("")}
+          ${renderCalendar(planner.items)}
+        </div>
+      </section>
+
+      <section class="doc-section">
+        <h2>Status e pendencias</h2>
+        <div class="status-grid">
+          ${statusCard("Aguardando produto", countByStatus("Aguardando informacao do produto"))}
+          ${statusCard("Rascunho", countByStatus("Rascunho"))}
+          ${statusCard("Em producao", countByStatus("Em producao"))}
+          ${statusCard("Concluido", countByStatus("Concluido"))}
+        </div>
+      </section>
+    </article>
+  `;
 }
 
-function selectScene(sceneId, fieldToFocus = "") {
-  if (!sceneId) {
-    return;
-  }
-
-  state.selectedSceneId = sceneId;
-  renderActivePanel();
-  renderMessages();
-  focusSceneEditor(fieldToFocus);
+function summaryCard(label, value) {
+  return `<div class="summary-card"><span class="meta-label">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
 
-function setCurrentTab(tabId) {
-  stateStore.patchProject({
-    currentTab: tabId
-  });
-  renderAll();
+function statusCard(label, value) {
+  return `<div class="status-card"><span class="meta-label">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
 
-function pushMessage(role, text, type = "note", options = {}) {
-  const nextText = String(text || "").trim();
-  if (!nextText) {
-    return;
-  }
-
-  const nextMessage = normalizeMessage({
-    id: options.id || `msg-${Date.now()}`,
-    role,
-    sceneId: options.sceneId || null,
-    type,
-    timestamp: options.timestamp || new Date().toISOString(),
-    text: nextText
-  });
-  setProjectMessages([...state.messages, nextMessage]);
-  renderMessages();
+function textareaPlannerField(field, label, value) {
+  return `
+    <label class="doc-field is-wide">
+      <span class="field-label">${escapeHtml(label)}</span>
+      <textarea class="doc-textarea" data-planner-field="${escapeHtml(field)}">${escapeHtml(value || "")}</textarea>
+    </label>
+  `;
 }
 
-function patchScene(sceneId, patch = {}) {
-  const scenes = getAllScenes().map((scene) => {
-    if (scene.id !== sceneId) {
-      return scene;
-    }
-
-    return {
-      ...scene,
-      ...patch
-    };
-  });
-  const scriptApproved = scenes.length > 0 && scenes.every((scene) => scene.approved);
-
-  stateStore.patchProject({
-    script: {
-      ...state.project.script,
-      approved: scriptApproved,
-      scenes
-    },
-    progress: {
-      ...state.project.progress,
-      currentTask: scriptApproved ? "Roteiro aprovado" : state.project.progress.currentTask,
-      elapsedMs: state.progress.elapsedSeconds * 1000
-    }
-  });
+function renderAdCard(ad) {
+  return `
+    <div class="ad-card" data-ad-id="${escapeHtml(ad.id)}">
+      <label class="doc-field">
+        <span class="field-label">Nome da campanha</span>
+        <input class="doc-input" data-ad-field="name" value="${escapeHtml(ad.name)}">
+      </label>
+      ${selectField("objective", "Objetivo", ad.objective, state.marketingOptions.objectives, "data-ad-field")}
+      ${selectField("platform", "Plataforma", ad.platform, state.marketingOptions.platforms, "data-ad-field")}
+      <label class="doc-field">
+        <span class="field-label">Duracao</span>
+        <input class="doc-input" data-ad-field="duration" value="${escapeHtml(ad.duration)}">
+      </label>
+      <label class="doc-field">
+        <span class="field-label">Inicio</span>
+        <input class="doc-input" type="date" data-ad-field="startDate" value="${escapeHtml(ad.startDate)}">
+      </label>
+      <label class="doc-field">
+        <span class="field-label">Fim</span>
+        <input class="doc-input" type="date" data-ad-field="endDate" value="${escapeHtml(ad.endDate)}">
+      </label>
+      ${selectField("cta", "CTA", ad.cta, state.marketingOptions.ctas, "data-ad-field")}
+      <label class="doc-field">
+        <span class="field-label">Status</span>
+        <input class="doc-input" data-ad-field="status" value="${escapeHtml(ad.status)}">
+      </label>
+      <label class="doc-field is-full">
+        <span class="field-label">Publico, oferta, criativo e observacoes</span>
+        <textarea class="doc-textarea" data-ad-field="notes">${escapeHtml(ad.notes)}</textarea>
+      </label>
+    </div>
+  `;
 }
 
-function patchSceneTechSettings(sceneId, settingsPatch = {}, options = {}) {
-  const scene = getSceneById(sceneId);
-  if (!scene) {
-    return;
+function renderCalendar(items) {
+  const [year, month] = state.selectedMonth.split("-").map(Number);
+  const firstDate = new Date(year, month - 1, 1);
+  const totalDays = new Date(year, month, 0).getDate();
+  const leading = (firstDate.getDay() + 6) % 7;
+  const cells = [];
+
+  for (let i = 0; i < leading; i += 1) {
+    cells.push(`<div class="calendar-day is-muted"></div>`);
   }
 
-  const currentSettings = getSceneTechSettings(scene);
-  const nextSettings = {
-    ...currentSettings,
-    ...settingsPatch
-  };
-
-  if (options.markCustom !== false && !Object.prototype.hasOwnProperty.call(settingsPatch, "preset")) {
-    nextSettings.preset = "custom";
+  for (let day = 1; day <= totalDays; day += 1) {
+    const date = `${state.selectedMonth}-${String(day).padStart(2, "0")}`;
+    const dayItems = items.filter((item) => item.date === date);
+    cells.push(`
+      <button class="calendar-day" type="button" data-day="${escapeHtml(date)}">
+        <span class="day-number">${day}</span>
+        ${dayItems.map((item) => `
+          <span class="calendar-item ${item.kind === "ad" ? "is-ad" : ""}" data-item-id="${escapeHtml(item.id)}">
+            <strong>${escapeHtml(item.type)}</strong>
+            <span>${escapeHtml(item.objective)}</span>
+            <span>${escapeHtml(item.funnel)} / ${escapeHtml(item.platform)}</span>
+            <span>${escapeHtml(item.productionStatus)}</span>
+          </span>
+        `).join("")}
+      </button>
+    `);
   }
-
-  const scenePatch = {
-    generationSettings: nextSettings,
-    status: options.keepStatus ? scene.status : "edited"
-  };
-
-  if (Object.prototype.hasOwnProperty.call(settingsPatch, "duration")) {
-    scenePatch.duration = Number(nextSettings.duration || scene.duration || 5);
-  }
-
-  patchScene(sceneId, scenePatch);
-  syncStateFromProject();
-  renderActivePanel();
-  renderMessages();
+  return cells.join("");
 }
 
-function applySceneTechPreset(sceneId, presetId = "standard") {
-  const scene = getSceneById(sceneId);
-  if (!scene) {
-    return;
-  }
-
-  const preset = SCENE_TECH_PRESETS[presetId] || SCENE_TECH_PRESETS.standard;
-  const current = getSceneTechSettings(scene);
-  patchSceneTechSettings(sceneId, {
-    ...current,
-    ...preset,
-    duration: current.duration || scene.duration || 5,
-    ratio: current.ratio || state.project?.briefing?.ratio || ""
-  }, {
-    markCustom: false
-  });
+function renderCardsTab() {
+  const planner = ensurePlannerForEditing();
+  if (!planner) return;
+  els.tabPanel.innerHTML = `
+    <article class="document">
+      <header class="document-header">
+        <div class="document-title">
+          <span class="eyebrow">Refino editorial</span>
+          <h1>Cards do mes</h1>
+          <p>Cada card separa status de producao e status de publicacao. Itens de produto podem ficar bloqueados ate receberem informacoes minimas.</p>
+        </div>
+        <div class="inline-actions">
+          <button class="ghost-button" type="button" data-action="add-item">Adicionar item</button>
+          <button class="ghost-button" type="button" data-action="generate-draft-captions">Legendas em rascunho</button>
+        </div>
+      </header>
+      <section class="doc-section cards-grid">
+        ${planner.items.map(renderContentCard).join("")}
+      </section>
+    </article>
+  `;
 }
 
-function updateSceneTechField(sceneId, field, rawValue) {
-  const scene = getSceneById(sceneId);
-  if (!scene) {
-    return;
-  }
-
-  if (field === "preset") {
-    applySceneTechPreset(sceneId, rawValue || "standard");
-    return;
-  }
-
-  if (field === "resolution") {
-    const resolution = parseResolution(rawValue);
-    patchSceneTechSettings(sceneId, resolution);
-    return;
-  }
-
-  const numericFields = new Set(["duration", "fps", "steps", "cfg", "denoise"]);
-  const nextValue = numericFields.has(field)
-    ? Number(rawValue || 0)
-    : rawValue;
-  patchSceneTechSettings(sceneId, {
-    [field]: nextValue
-  });
-}
-
-function setSceneTechFrame(sceneId, frameField) {
-  const scene = getSceneById(sceneId);
-  if (!scene) {
-    return;
-  }
-
-  const referenceImage = resolveSceneReferenceImage(scene);
-  const mediaPath = /\.(png|jpg|jpeg|webp|gif|bmp)$/i.test(getSceneMediaPath(scene)) ? getSceneMediaPath(scene) : "";
-  const nextImage = mediaPath || referenceImage;
-  if (!nextImage) {
-    pushMessage("system", "Nao encontrei uma imagem valida para usar como quadro da cena.", "warning", {
-      sceneId
-    });
-    return;
-  }
-
-  patchSceneTechSettings(sceneId, {
-    [frameField]: nextImage
-  });
-  void saveStudioProjectSilently();
-  pushMessage("assistant", `${frameField === "startImage" ? "Quadro inicial" : "Quadro final"} definido para a cena ${scene.index}.`, "media-generation", {
-    sceneId
-  });
-}
-
-function handleSceneTechAction(sceneId, action) {
-  const scene = getSceneById(sceneId);
-  if (!scene) {
-    return;
-  }
-
-  if (action === "add-reference") {
-    selectScene(sceneId, "references");
-    void loadReferenceLibrary("client-media");
-    return;
-  }
-
-  if (action === "add-persona") {
-    const settings = getSceneTechSettings(scene);
-    patchSceneTechSettings(sceneId, {
-      useProjectPersona: !settings.useProjectPersona
-    });
-    void saveStudioProjectSilently();
-    return;
-  }
-
-  if (action === "generate-image") {
-    void generateSelectedSceneImage(sceneId);
-    return;
-  }
-
-  if (action === "generate-video") {
-    void generateSelectedSceneVideo(sceneId);
-    return;
-  }
-
-  if (action === "set-start-frame") {
-    setSceneTechFrame(sceneId, "startImage");
-    return;
-  }
-
-  if (action === "set-end-frame") {
-    setSceneTechFrame(sceneId, "endImage");
-    return;
-  }
-
-  if (action === "interpolate") {
-    const settings = getSceneTechSettings(scene);
-    patchSceneTechSettings(sceneId, {
-      interpolationReady: !settings.interpolationReady
-    });
-    void saveStudioProjectSilently();
-    pushMessage("assistant", `Interpolacao futura ${!settings.interpolationReady ? "preparada" : "desativada"} na cena ${scene.index}.`, "media-generation", {
-      sceneId
-    });
-    return;
-  }
-
-  if (action === "regenerate-media") {
-    if (shouldUseVideoGeneration(scene)) {
-      void generateSelectedSceneVideo(sceneId);
-    } else {
-      void generateSelectedSceneImage(sceneId);
-    }
-  }
-}
-
-async function applySceneInstruction(instruction) {
-  const scene = getCurrentChatScene();
-  if (!scene) {
-    return false;
-  }
-
-  if (scene.approved) {
-    pushMessage("system", `Cena ${scene.index} está aprovada. Clique em revisar/desbloquear antes de editar.`, "locked", {
-      sceneId: scene.id
-    });
-    return false;
-  }
-
-  if (!window.kitAPI?.applyStudioSceneInstruction) {
-    pushMessage("system", "Ajuste contextual indisponivel nesta janela.", "warning", {
-      sceneId: scene.id
-    });
-    return false;
-  }
-
-  try {
-    stateStore.patchProject({
-      progress: {
-        ...state.project.progress,
-        currentTask: `Aplicando ajuste contextual na cena ${scene.index}`,
-        elapsedMs: state.progress.elapsedSeconds * 1000
-      }
-    });
-    syncStateFromProject();
-    renderStatus();
-
-    const result = await window.kitAPI.applyStudioSceneInstruction({
-      projectId: state.project?.id || "",
-      sceneId: scene.id,
-      instruction,
-      scene,
-      briefing: state.project?.briefing || {}
-    });
-
-    if (!result?.updatedScene) {
-      pushMessage("system", "Nao houve retorno valido para ajustar a cena.", "warning", {
-        sceneId: scene.id
-      });
-      return false;
-    }
-
-    patchScene(scene.id, {
-      ...result.updatedScene,
-      approved: false
-    });
-    stateStore.patchProject({
-      progress: {
-        ...state.project.progress,
-        currentTask: `Ajuste contextual aplicado na cena ${scene.index}`,
-        elapsedMs: state.progress.elapsedSeconds * 1000
-      }
-    });
-    syncStateFromProject();
-    renderAll();
-    await saveStudioProjectSilently();
-    pushMessage("assistant", result.assistantMessage || `Ajuste aplicado na cena ${scene.index}.`, "scene-context", {
-      sceneId: scene.id
-    });
-    return true;
-  } catch (err) {
-    pushMessage("system", `Nao consegui ajustar a cena agora: ${err.message || err}`, "warning", {
-      sceneId: scene.id
-    });
-    return false;
-  }
-}
-
-async function generateSelectedSceneImage(sceneId = "") {
-  const scene = sceneId ? getSceneById(sceneId) : getSelectedScene();
-  if (!scene) {
-    return false;
-  }
-
-  if (scene.approved) {
-    pushMessage("system", `Cena ${scene.index} está aprovada. Clique em revisar/desbloquear antes de gerar nova imagem.`, "locked", {
-      sceneId: scene.id
-    });
-    return false;
-  }
-
-  if (!window.kitAPI?.generateStudioSceneImage) {
-    pushMessage("system", "Geracao de imagem do Studio indisponivel nesta janela.", "warning", {
-      sceneId: scene.id
-    });
-    return false;
-  }
-
-  const generationPayload = buildImageGenerationPayload(scene);
-
-  try {
-    stateStore.patchProject({
-      progress: {
-        ...state.project.progress,
-        currentTask: `Gerando imagem da cena ${scene.index}`,
-        elapsedMs: state.progress.elapsedSeconds * 1000
-      }
-    });
-    patchScene(scene.id, {
-      status: "gerando mídia",
-      productionStatus: "gerando mídia"
-    });
-    syncStateFromProject();
-    renderAll();
-
-    const result = await window.kitAPI.generateStudioSceneImage({
-      ...generationPayload
-    });
-
-    const generatedMedia = {
-      id: result.mediaId,
-      mediaId: result.mediaId,
-      type: result.type || "image",
-      kind: result.type || "image",
-      path: result.path,
-      filePath: result.path,
-      thumbnailPath: result.thumbnailPath || result.path,
-      source: "ai-media",
-      metadata: result.metadata || {}
-    };
-
-    patchScene(scene.id, {
-      generatedMedia,
-      status: "media-ready",
-      productionStatus: "pronto"
-    });
-    stateStore.patchProject({
-      progress: {
-        ...state.project.progress,
-        currentTask: `Imagem gerada para a cena ${scene.index}`,
-        elapsedMs: state.progress.elapsedSeconds * 1000
-      }
-    });
-    syncStateFromProject();
-    renderAll();
-    await saveStudioProjectSilently();
-    pushMessage("assistant", `Imagem da cena ${scene.index} gerada com sucesso e vinculada ao projeto.`, "media-generation", {
-      sceneId: scene.id
-    });
-    return true;
-  } catch (err) {
-    patchScene(scene.id, {
-      status: "erro",
-      productionStatus: "erro"
-    });
-    syncStateFromProject();
-    renderAll();
-    pushMessage("system", `Nao consegui gerar a imagem da cena ${scene.index}: ${err.message || err}`, "warning", {
-      sceneId: scene.id
-    });
-    return false;
-  }
-}
-
-async function waitForVideoJob(jobId = "", timeoutMs = 180000) {
-  const startedAt = Date.now();
-  while ((Date.now() - startedAt) < timeoutMs) {
-    const response = await window.kitAPI.getStudioVideoJobStatus({
-      jobId
-    });
-    const job = response?.job || null;
-    if (!job) {
-      throw new Error("Job de video nao encontrado durante o acompanhamento.");
-    }
-
-    if (job.status === "completed" || job.status === "failed") {
-      return job;
-    }
-
-    await new Promise((resolve) => window.setTimeout(resolve, 900));
-  }
-
-  throw new Error("Tempo limite aguardando geracao de video.");
-}
-
-async function generateSelectedSceneVideo(sceneId = "") {
-  const scene = sceneId ? getSceneById(sceneId) : getSelectedScene();
-  if (!scene) {
-    return false;
-  }
-
-  if (scene.approved) {
-    pushMessage("system", `Cena ${scene.index} está aprovada. Clique em revisar/desbloquear antes de gerar novo vídeo.`, "locked", {
-      sceneId: scene.id
-    });
-    return false;
-  }
-
-  if (!window.kitAPI?.generateStudioSceneVideo || !window.kitAPI?.getStudioVideoJobStatus) {
-    pushMessage("system", "Geracao de video do Studio indisponivel nesta janela.", "warning", {
-      sceneId: scene.id
-    });
-    return false;
-  }
-
-  const generationPayload = buildSceneGenerationPayload(scene);
-
-  try {
-    stateStore.patchProject({
-      progress: {
-        ...state.project.progress,
-        currentTask: `Gerando video da cena ${scene.index}`,
-        elapsedMs: state.progress.elapsedSeconds * 1000
-      }
-    });
-    patchScene(scene.id, {
-      status: "gerando mídia",
-      productionStatus: "gerando mídia"
-    });
-    syncStateFromProject();
-    renderAll();
-
-    const created = await window.kitAPI.generateStudioSceneVideo({
-      ...generationPayload
-    });
-
-    const finalJob = await waitForVideoJob(created?.job?.id || "");
-    if (finalJob.status !== "completed" || !finalJob.output?.path) {
-      throw new Error(finalJob.error || "Job de video terminou sem arquivo final.");
-    }
-
-    const generatedMedia = {
-      id: finalJob.output.mediaId || finalJob.id,
-      mediaId: finalJob.output.mediaId || finalJob.id,
-      type: finalJob.output.type || "video",
-      kind: finalJob.output.type || "video",
-      path: finalJob.output.path,
-      filePath: finalJob.output.path,
-      thumbnailPath: finalJob.output.thumbnailPath || "",
-      source: "ai-media",
-      metadata: finalJob.output.metadata || {}
-    };
-
-    patchScene(scene.id, {
-      generatedMedia,
-      generationMode: finalJob.output?.metadata?.mode || scene.generationMode,
-      status: "media-ready",
-      productionStatus: "pronto"
-    });
-    stateStore.patchProject({
-      progress: {
-        ...state.project.progress,
-        currentTask: `Video gerado para a cena ${scene.index}`,
-        elapsedMs: state.progress.elapsedSeconds * 1000
-      }
-    });
-    syncStateFromProject();
-    renderAll();
-    await saveStudioProjectSilently();
-    pushMessage("assistant", `Vídeo da cena ${scene.index} gerado com sucesso em ${finalJob.output.metadata?.mode || "auto"}.`, "media-generation", {
-      sceneId: scene.id
-    });
-    return true;
-  } catch (err) {
-    patchScene(scene.id, {
-      status: "erro",
-      productionStatus: "erro"
-    });
-    syncStateFromProject();
-    renderAll();
-    pushMessage("system", `Nao consegui gerar o vídeo da cena ${scene.index}: ${err.message || err}`, "warning", {
-      sceneId: scene.id
-    });
-    return false;
-  }
-}
-
-function approveScene(sceneId) {
-  const scene = getSceneById(sceneId);
-  if (!scene) {
-    return;
-  }
-
-  patchScene(sceneId, {
-    approved: true,
-    status: "approved"
-  });
-  pushMessage("assistant", `Cena ${scene.index} aprovada e bloqueada para edição direta.`, "approval", {
-    sceneId
-  });
-  renderAll();
-}
-
-function unlockScene(sceneId) {
-  const scene = getSceneById(sceneId);
-  if (!scene) {
-    return;
-  }
-
-  patchScene(sceneId, {
-    approved: false,
-    status: "review"
-  });
-  pushMessage("assistant", `Cena ${scene.index} desbloqueada para revisão.`, "review", {
-    sceneId
-  });
-  renderAll();
-}
-
-function regenerateSceneText(sceneId) {
-  const scene = getSceneById(sceneId);
-  if (!scene || scene.approved) {
-    return;
-  }
-
-  patchScene(sceneId, {
-    narration: scene.narration || `Cena ${scene.index}: ${state.project.briefing.theme || state.projectName}.`,
-    subtitle: scene.subtitle || scene.title || `Cena ${scene.index}`,
-    status: "text-ready"
-  });
-  pushMessage("assistant", `Texto base regenerado para a cena ${scene.index}.`, "scene-text", {
-    sceneId
-  });
-  renderAll();
-}
-
-function approveAllScenes() {
-  const scenes = getAllScenes();
-  if (!scenes.length) {
-    pushMessage("system", "Ainda nao ha cenas para aprovar.", "warning");
-    return;
-  }
-
-  stateStore.patchProject({
-    script: {
-      ...state.project.script,
-      approved: true,
-      scenes: scenes.map((scene) => ({
-        ...scene,
-        approved: true,
-        status: "approved"
-      }))
-    },
-    progress: {
-      ...state.project.progress,
-      currentTask: "Roteiro completo aprovado",
-      percent: Math.max(state.progress.percent, 74),
-      elapsedMs: state.progress.elapsedSeconds * 1000
-    }
-  });
-  pushMessage("assistant", "Roteiro completo aprovado. O botão Gerar produção foi liberado.", "approval");
-  renderAll();
-}
-
-function updateSelectedSceneField(field, value) {
-  const scene = getSelectedScene();
-  if (!scene || scene.approved) {
-    return;
-  }
-
-  const patch = field === "references"
-    ? {
-      references: parseReferenceLines(value),
-      clientMediaRefs: [],
-      aiMediaRefs: [],
-      uploadedRefs: []
-    }
-    : { [field]: value };
-  patchScene(scene.id, {
-    ...patch,
-    status: "edited"
-  });
-  syncStateFromProject();
-  renderActivePanel();
-  renderMessages();
-  if (field === "references") {
-    void saveStudioProjectSilently();
-  }
-}
-
-function clearProductionTimers() {
-  while (productionTimers.length) {
-    window.clearTimeout(productionTimers.pop());
-  }
-}
-
-function setSceneProductionStatus(sceneId, productionStatus, generatedMedia = null) {
-  const patch = {
-    productionStatus,
-    status: productionStatus
-  };
-
-  if (generatedMedia) {
-    patch.generatedMedia = generatedMedia;
-  }
-
-  patchScene(sceneId, patch);
-  stateStore.patchProject({
-    production: {
-      ...state.project.production,
-      jobs: (state.project.production?.jobs || []).map((job) => (
-        job.sceneId === sceneId
-          ? { ...job, status: productionStatus }
-          : job
-      ))
-    }
-  });
-  syncStateFromProject();
-  renderActivePanel();
-  renderStatus();
-}
-
-function startProduction() {
-  if (!areAllScenesApproved()) {
-    pushMessage("system", "A produção só pode começar quando todas as cenas estiverem aprovadas.", "warning");
-    return;
-  }
-
-  clearProductionTimers();
-  const scenes = getAllScenes();
-  stateStore.patchProject({
-    currentStep: "production",
-    currentTab: "script",
-    production: {
-      ...state.project.production,
-      status: "running",
-      jobs: scenes.map((scene) => ({
-        sceneId: scene.id,
-        status: "aguardando"
-      })),
-      errors: []
-    },
-    progress: {
-      ...state.project.progress,
-      currentTask: "Produção em andamento",
-      percent: Math.max(state.progress.percent, 78),
-      elapsedMs: state.progress.elapsedSeconds * 1000
-    }
-  });
-
-  scenes.forEach((scene, sceneIndex) => {
-    PRODUCTION_STATUS_STEPS.forEach((status, stepIndex) => {
-      const timer = window.setTimeout(() => {
-        const isReady = status === "pronto";
-        setSceneProductionStatus(scene.id, status, isReady ? {
-          type: scene.mediaType || "video",
-          path: getSceneMediaPath(scene) || "",
-          status: getSceneMediaPath(scene) ? "ready" : "placeholder-ready",
-          note: getSceneMediaPath(scene) ? "Asset real conectado." : "Asset real sera conectado nas proximas etapas."
-        } : null);
-
-        if (sceneIndex === scenes.length - 1 && stepIndex === PRODUCTION_STATUS_STEPS.length - 1) {
-          stateStore.patchProject({
-            production: {
-              ...state.project.production,
-              status: "ready"
-            },
-            progress: {
-              ...state.project.progress,
-              currentTask: "Produção concluída. Projeto pronto para exportar/salvar no Canvas.",
-              percent: 100,
-              elapsedMs: state.progress.elapsedSeconds * 1000
-            }
-          });
-          pushMessage("assistant", "Produção concluída. Os status das fichas foram atualizados e o projeto está pronto para a próxima etapa de exportação.", "production");
-          renderAll();
-        }
-      }, (sceneIndex * 1400) + (stepIndex * 700));
-      productionTimers.push(timer);
-    });
-  });
-
-  pushMessage("assistant", "Produção iniciada dentro da aba Roteiro. Vou atualizar cada ficha conforme avança.", "production");
-  renderAll();
-}
-
-async function generateScriptFromBriefing() {
-  if (!window.kitAPI?.generateStudioScript) {
-    pushMessage("system", "Gerador de roteiro indisponivel nesta janela.", "warning");
+function ensurePlannerForEditing() {
+  const planner = getPlanner();
+  if (!planner) {
+    els.tabPanel.innerHTML = `
+      <article class="document">
+        <div class="empty-state">Crie o planner mensal antes de refinar cards ou roteiro.</div>
+      </article>
+    `;
     return null;
   }
-
-  try {
-    const result = await window.kitAPI.generateStudioScript({
-      projectId: state.project.id,
-      briefing: state.project.briefing,
-      clientKit: state.project.briefing?.defaultsFromClientKit || null
-    });
-
-    if (!Array.isArray(result?.scenes) || !result.scenes.length) {
-      pushMessage("system", "Gerador retornou sem cenas. Mantive o roteiro atual.", "warning");
-      return null;
-    }
-
-    return result;
-  } catch (err) {
-    pushMessage("system", `Nao consegui gerar roteiro completo agora: ${err.message || err}`, "warning");
-    return null;
-  }
+  return planner;
 }
 
-async function approveBriefing() {
-  const caption = state.project.postCaption || buildProjectCaption();
-  state.currentTask = "Briefing aprovado. Roteiro pronto para refinamento.";
-  state.progress.percent = 58;
-  state.progress.completedSteps = 2;
-  pushMessage("assistant", "Briefing aprovado. Vou gerar o roteiro completo em fichas independentes.", "approval");
-  const generatedScript = await generateScriptFromBriefing();
-  stateStore.patchProject({
-    briefingApproved: true,
-    currentStep: "script",
-    currentTab: "script",
-    unlockedTabs: Array.from(new Set([...(state.project.unlockedTabs || []), "script"])),
-    postCaption: generatedScript?.postCaption || caption,
-    briefing: {
-      ...state.project.briefing,
-      approved: true,
-      postCaption: generatedScript?.postCaption || caption
-    },
-    ...(generatedScript ? {
-      script: {
-        approved: false,
-        totalDuration: generatedScript.totalDuration,
-        scenes: generatedScript.scenes
-      }
-    } : {}),
-    progress: {
-      currentTask: generatedScript ? "Roteiro completo gerado" : state.currentTask,
-      percent: generatedScript ? 68 : state.progress.percent,
-      completedSteps: state.progress.completedSteps,
-      totalSteps: state.progress.totalSteps,
-      elapsedMs: state.progress.elapsedSeconds * 1000
-    }
-  });
-  pushMessage(
-    "assistant",
-    generatedScript
-      ? `Roteiro completo gerado com ${generatedScript.scenes.length} cenas. A aba Roteiro esta pronta para aprovacao individual.`
-      : `Briefing aprovado. Gerei a legenda de postagem e liberei a aba Roteiro.\n\n${caption}`,
-    generatedScript ? "script" : "approval"
-  );
-  renderAll();
+function renderContentCard(item) {
+  const needsProduct = Boolean(item.dependsOnProduct);
+  const kiaReady = Boolean(item.kiaPath);
+  return `
+    <article class="content-card" data-item-id="${escapeHtml(item.id)}">
+      <header class="content-card-header">
+        <div>
+          <span class="eyebrow">${escapeHtml(item.date)}</span>
+          <h3>${escapeHtml(item.theme || "Item sem tema")}</h3>
+        </div>
+        <div class="badge-row">
+          <span class="badge ${needsProduct ? "is-warn" : ""}">${needsProduct ? "Produto" : "Editorial"}</span>
+          <span class="badge ${kiaReady ? "is-ok" : ""}">${kiaReady ? ".kia gerado" : "sem .kia"}</span>
+        </div>
+      </header>
+
+      <div class="mini-grid">
+        <label class="doc-field"><span class="field-label">Data</span><input class="doc-input" type="date" data-item-field="date" value="${escapeHtml(item.date)}"></label>
+        ${selectField("type", "Tipo de conteudo", item.type, MARKETING_OPTIONS.contentTypes, "data-item-field")}
+        ${selectField("platform", "Plataforma", item.platform, state.marketingOptions.platforms, "data-item-field")}
+        ${selectField("objective", "Objetivo", item.objective, state.marketingOptions.objectives, "data-item-field")}
+        ${selectField("funnel", "Funil", item.funnel, state.marketingOptions.funnel, "data-item-field")}
+        ${selectField("cta", "CTA", item.cta, state.marketingOptions.ctas, "data-item-field")}
+        ${selectField("format", "Formato", item.format, state.marketingOptions.formats, "data-item-field")}
+        ${selectField("productionStatus", "Status de producao", item.productionStatus, MARKETING_OPTIONS.productionStatus, "data-item-field")}
+        ${selectField("publicationStatus", "Status de publicacao", item.publicationStatus, MARKETING_OPTIONS.publicationStatus, "data-item-field")}
+        <label class="doc-field"><span class="field-label">Depende de produto</span><select class="doc-select" data-item-field="dependsOnProduct"><option value="false" ${!needsProduct ? "selected" : ""}>Nao</option><option value="true" ${needsProduct ? "selected" : ""}>Sim</option></select></label>
+      </div>
+
+      <label class="doc-field">
+        <span class="field-label">Tema</span>
+        <input class="doc-input" data-item-field="theme" value="${escapeHtml(item.theme)}">
+      </label>
+      <label class="doc-field">
+        <span class="field-label">Legenda inicial</span>
+        <textarea class="doc-textarea" data-item-field="caption">${escapeHtml(item.caption)}</textarea>
+      </label>
+      <label class="doc-field">
+        <span class="field-label">Informacoes minimas do produto</span>
+        <textarea class="doc-textarea" data-item-field="productInfo">${escapeHtml(item.productInfo || "")}</textarea>
+      </label>
+      <div class="inline-actions">
+        <button class="ghost-button" type="button" data-action="select-item" data-item-id="${escapeHtml(item.id)}">Abrir roteiro</button>
+        <button class="ghost-button" type="button" data-action="regenerate-item" data-item-id="${escapeHtml(item.id)}">Regenerar com IA</button>
+        <button class="primary-button" type="button" data-action="generate-one-kia" data-item-id="${escapeHtml(item.id)}" ${isKiaEligible(item) ? "" : "disabled"}>Gerar .kia</button>
+      </div>
+    </article>
+  `;
 }
 
-function approveScript() {
-  approveAllScenes();
+function selectField(field, label, value, options, attrName) {
+  return `
+    <label class="doc-field">
+      <span class="field-label">${escapeHtml(label)}</span>
+      <select class="doc-select" ${attrName}="${escapeHtml(field)}">
+        ${mergeOptions(options, [value]).map((option) => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}
+      </select>
+    </label>
+  `;
 }
 
-function buildProjectCaption() {
-  const briefing = state.project?.briefing || {};
-  if (state.project.postCaption || briefing.postCaption) {
-    return state.project.postCaption || briefing.postCaption;
-  }
-
-  const target = briefing.theme || state.projectName;
-  const purpose = briefing.purpose || "conteudo visual";
-  const platform = briefing.platform || "redes sociais";
-  const callToAction = state.project?.clientName && state.project.clientName !== "Cliente nao definido"
-    ? `Fale com ${state.project.clientName} e saiba mais.`
-    : "Chame agora e saiba mais.";
-
-  return `${target}\n\n${purpose}\n\nFormato pensado para ${platform}, com visual claro, direto e facil de entender.\n\n${callToAction}`;
-}
-
-function applyBriefingField(field, value) {
-  const listFields = new Set(["characters", "styleList", "materialReferences"]);
-  const nextValue = listFields.has(field)
-    ? String(value || "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
-    : value;
-
-  if (field === "postCaption") {
-    stateStore.patchProject({
-      postCaption: String(nextValue || ""),
-      briefing: {
-        ...state.project.briefing,
-        postCaption: String(nextValue || "")
-      }
-    });
+function renderScriptTab() {
+  const planner = ensurePlannerForEditing();
+  if (!planner) return;
+  const selected = getSelectedItem(planner) || planner.items[0];
+  if (!selected) {
+    els.tabPanel.innerHTML = `<article class="document"><div class="empty-state">Nenhum item disponivel para roteiro.</div></article>`;
     return;
   }
+  state.selectedItemId = selected.id;
+  els.tabPanel.innerHTML = `
+    <article class="document">
+      <header class="document-header">
+        <div class="document-title">
+          <span class="eyebrow">Documento editavel do item</span>
+          <h1>Roteiro do Item</h1>
+          <p>${escapeHtml(selected.theme)}</p>
+        </div>
+        <div class="inline-actions">
+          <button class="ghost-button" type="button" data-action="transform-carousel">Virar carrossel</button>
+          <button class="ghost-button" type="button" data-action="create-reel-script">Criar roteiro de reel</button>
+        </div>
+      </header>
 
-  stateStore.updateBriefing(field, nextValue);
+      <section class="doc-section route-layout">
+        <div class="item-list">
+          ${planner.items.map((item) => `
+            <button type="button" data-action="select-item" data-item-id="${escapeHtml(item.id)}" class="${item.id === selected.id ? "is-active" : ""}">
+              <strong>${escapeHtml(item.date)} - ${escapeHtml(item.type)}</strong><br>
+              ${escapeHtml(item.theme)}
+            </button>
+          `).join("")}
+        </div>
+        <div class="route-doc">
+          ${routeField(selected, "internalTitle", "Titulo interno")}
+          ${routeField(selected, "theme", "Tema")}
+          ${routeSelect(selected, "objective", "Objetivo", state.marketingOptions.objectives)}
+          ${routeSelect(selected, "funnel", "Funil", state.marketingOptions.funnel)}
+          ${routeSelect(selected, "cta", "CTA", state.marketingOptions.ctas)}
+          ${routeSelect(selected, "platform", "Plataforma", state.marketingOptions.platforms)}
+          ${routeSelect(selected, "format", "Formato", state.marketingOptions.formats)}
+          ${routeText(selected, "briefing", "Briefing")}
+          ${routeText(selected, "caption", "Legenda do post")}
+          ${routeText(selected, "hashtags", "Hashtags")}
+          ${routeText(selected, "visualDirection", "Direcao visual")}
+          ${routeText(selected, "references", "Referencias")}
+          ${routeText(selected, "videoScript", "Roteiro de video")}
+          ${routeText(selected, "narration", "Narracao")}
+          ${routeText(selected, "screenText", "Texto na tela")}
+          ${routeText(selected, "scenes", "Cenas/slides")}
+          ${routeText(selected, "positivePrompt", "Prompt positivo")}
+          ${routeText(selected, "negativePrompt", "Prompt negativo")}
+          ${routeText(selected, "productionNotes", "Observacoes de producao")}
+          ${routeField(selected, "template", "Template sugerido")}
+          ${routeSelect(selected, "productionStatus", "Status", MARKETING_OPTIONS.productionStatus)}
+        </div>
+      </section>
+    </article>
+  `;
 }
 
-function generatePostCaption() {
-  const caption = buildProjectCaption();
-  stateStore.patchProject({
-    postCaption: caption,
-    progress: {
-      ...state.project.progress,
-      currentTask: "Legenda de postagem gerada",
-      percent: Math.max(state.progress.percent, 62),
-      elapsedMs: state.progress.elapsedSeconds * 1000
-    }
-  });
-  pushMessage("assistant", `Legenda gerada para o projeto:\n\n${caption}`, "caption");
-  renderAll();
+function routeField(item, field, label) {
+  return routeBlock(label, `<input class="doc-input" data-route-field="${escapeHtml(field)}" value="${escapeHtml(item[field] || "")}">`);
 }
 
-async function saveBriefing() {
-  syncStateFromProject();
-  try {
-    if (window.kitAPI?.saveStudioProject) {
-      const saved = await window.kitAPI.saveStudioProject({
-        project: state.project,
-        filePath: state.filePath || ""
-      });
-      if (saved?.filePath) {
-        state.filePath = saved.filePath;
-      }
-    }
+function routeSelect(item, field, label, options) {
+  return routeBlock(label, `<select class="doc-select" data-route-field="${escapeHtml(field)}">${mergeOptions(options, [item[field]]).map((option) => `<option value="${escapeHtml(option)}" ${option === item[field] ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select>`);
+}
 
-    pushMessage("assistant", "Briefing salvo no projeto atual.", "save");
-  } catch {
-    pushMessage("system", "Nao consegui salvar em arquivo agora, mas as edicoes ficaram aplicadas no projeto aberto.", "warning");
+function routeText(item, field, label) {
+  return routeBlock(label, `<textarea class="doc-textarea" data-route-field="${escapeHtml(field)}">${escapeHtml(item[field] || "")}</textarea>`);
+}
+
+function routeBlock(label, controlHtml) {
+  const actions = ["Regenerar", "Melhorar", "Encurtar", "Expandir", "Mais tecnico", "Mais emocional", "Tom da marca"];
+  return `
+    <section class="route-block">
+      <div class="route-block-header">
+        <h3>${escapeHtml(label)}</h3>
+        <div class="block-tools">
+          ${actions.map((action) => `<button type="button" data-action="route-ai" data-ai-action="${escapeHtml(action)}" data-label="${escapeHtml(label)}">${escapeHtml(action)}</button>`).join("")}
+        </div>
+      </div>
+      ${controlHtml}
+    </section>
+  `;
+}
+
+function getSelectedItem(planner = getPlanner()) {
+  return (planner?.items || []).find((item) => item.id === state.selectedItemId) || null;
+}
+
+function createPlanner({ force = false } = {}) {
+  if (getPlanner() && !force) {
+    pushMessage("assistant", `Ja existe um planner para ${state.client.name} em ${monthLabel()}. Abri o planejamento existente para evitar duplicidade.`);
+    state.activeTab = "planner";
+    render();
+    return getPlanner();
   }
-}
 
-async function saveStudioProjectSilently() {
-  syncStateFromProject();
-  try {
-    if (!window.kitAPI?.saveStudioProject) {
-      return;
-    }
+  const [year, month] = state.selectedMonth.split("-").map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const segmentFocus = `${state.client.segment} / ${state.client.niche} / ${state.client.subniche}`.replace(/\s+\/\s+\/\s*$/, "");
+  const isRealEstateProduct = /imob|lote|apart|casa|imovel/i.test(`${state.client.segment} ${state.client.niche} ${state.client.products}`);
+  const postDays = [2, 5, 8, 12, 15, 19, 22, 26, Math.min(29, daysInMonth)].filter((day, index, arr) => day <= daysInMonth && arr.indexOf(day) === index);
+  const types = ["Carrossel", "Reel", "Post", "Story", "Carrossel", "Reel", "Post", "Story", "Post"];
+  const objectives = ["Educacao", "Geracao de leads", "Autoridade", "Relacionamento", "Prova social", "Conversao", "Reconhecimento de marca", "Captacao de direct", "Venda direta"];
+  const funnels = ["Topo", "Meio", "Topo", "Pos-venda", "Meio", "Fundo", "Topo", "Reativacao", "Fundo"];
 
-    const saved = await window.kitAPI.saveStudioProject({
-      project: state.project,
-      filePath: state.filePath || ""
+  const items = postDays.map((day, index) => {
+    const dependsOnProduct = isRealEstateProduct && [2, 5].includes(index);
+    const item = createPlannerItem({
+      date: `${state.selectedMonth}-${String(day).padStart(2, "0")}`,
+      type: types[index] || "Post",
+      objective: objectives[index] || "Relacionamento",
+      funnel: funnels[index] || "Topo",
+      theme: buildTheme(index, dependsOnProduct),
+      dependsOnProduct
     });
+    return item;
+  });
 
-    if (saved?.filePath) {
-      state.filePath = saved.filePath;
-    }
-  } catch {}
-}
-
-async function loadReferenceLibrary(tabId = state.referenceLibrary.activeTab || "client-media") {
-  const selectedScene = getSelectedScene();
-  if (!selectedScene) {
-    return;
-  }
-
-  state.referenceLibrary.open = true;
-  state.referenceLibrary.loading = true;
-  state.referenceLibrary.error = "";
-  state.referenceLibrary.activeTab = tabId;
-  renderActivePanel();
-
-  const query = {
-    clientId: state.project?.clientId || "",
-    clientName: state.project?.clientName || "",
-    projectId: state.project?.id || ""
+  const adStart = `${state.selectedMonth}-${String(Math.min(3, daysInMonth)).padStart(2, "0")}`;
+  const adEndDay = Math.min(17, daysInMonth);
+  const planner = {
+    id: uid("planner"),
+    clientName: state.client.name,
+    month: state.selectedMonth,
+    status: "Rascunho estrategico",
+    diagnosis: `O mes pede uma comunicacao especifica para ${segmentFocus}. A estrategia deve evitar conteudos genericos e transformar as dores do publico em educacao, prova e convite comercial claro.`,
+    macroObjective: `Gerar demanda qualificada para ${state.client.niche || state.client.segment}, mantendo autoridade e consistencia editorial.`,
+    secondaryObjectives: [
+      "Aumentar reconhecimento de marca com conteudos de topo de funil.",
+      "Converter interesse em conversas no WhatsApp ou direct.",
+      "Apoiar campanhas ativas com criativos e argumentos editoriais."
+    ],
+    funnel: [
+      { stage: "Topo", focus: "Educacao, descoberta de problema e reconhecimento." },
+      { stage: "Meio", focus: "Prova, comparativos e criterios de decisao." },
+      { stage: "Fundo", focus: "Oferta, CTA forte e objecoes finais." },
+      { stage: "Reativacao", focus: "Retomar leads mornos e conversas antigas." }
+    ],
+    formatDistribution: ["3 Reels", "3 Carrosseis", "2 Stories", "1 Post institucional", "1 campanha ADS"],
+    campaigns: splitLines(state.client.activeCampaigns || "Campanha institucional do mes"),
+    ads: [
+      {
+        id: uid("ad"),
+        name: `ADS - Leads ${state.client.niche || state.client.segment}`,
+        objective: "Geracao de leads",
+        platform: /google/i.test(state.client.socialNetworks) ? "Google Ads" : "Meta Ads",
+        duration: "15 dias",
+        startDate: adStart,
+        endDate: `${state.selectedMonth}-${String(adEndDay).padStart(2, "0")}`,
+        audience: state.client.audience,
+        cta: "Entrar em contato pelo WhatsApp",
+        offer: state.client.commercialGoals,
+        status: "Rascunho",
+        creativeId: "",
+        notes: "Criativo vinculado aos melhores argumentos dos posts de meio e fundo de funil."
+      }
+    ],
+    items,
+    waitingProductInfo: items.filter((item) => item.dependsOnProduct).map((item) => item.id),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 
-  try {
-    let response = { items: [] };
-    if (tabId === "client-media") {
-      response = await window.kitAPI?.getStudioClientMedia?.(query);
-    } else if (tabId === "ai-media") {
-      response = await window.kitAPI?.getStudioAiMedia?.(query);
-    } else {
-      response = await window.kitAPI?.getStudioProjectAttachments?.({
-        projectId: state.project?.id || ""
-      });
+  setPlanner(planner);
+  state.selectedItemId = planner.items[0]?.id || null;
+  pushMessage("assistant", "Planejamento mensal criado por etapas: analisei o .kit, considerei historico/campanhas, montei estrategia macro, calendario, cards e pontos que aguardam informacao de produto.");
+  return planner;
+}
+
+function createPlannerItem(overrides = {}) {
+  const dependsOnProduct = Boolean(overrides.dependsOnProduct);
+  const base = {
+    id: uid("item"),
+    kind: "post",
+    date: `${state.selectedMonth}-02`,
+    type: "Post",
+    platform: "Instagram Feed",
+    objective: "Autoridade",
+    funnel: "Topo",
+    cta: "Chamar no direct",
+    theme: "Tema editorial",
+    caption: "",
+    format: "Imagem unica",
+    productionStatus: dependsOnProduct ? "Aguardando informacao do produto" : "Em branco",
+    publicationStatus: "Nao agendado",
+    dependsOnProduct,
+    hasScript: false,
+    kiaPath: "",
+    productInfo: "",
+    internalTitle: "",
+    briefing: "",
+    hashtags: "",
+    visualDirection: "",
+    references: "",
+    videoScript: "",
+    narration: "",
+    screenText: "",
+    scenes: "",
+    positivePrompt: "",
+    negativePrompt: "",
+    productionNotes: "",
+    template: "Template editorial limpo"
+  };
+  const item = { ...base, ...overrides };
+  enrichItemDraft(item);
+  return item;
+}
+
+function buildTheme(index, dependsOnProduct) {
+  const niche = state.client.niche || state.client.segment || "marca";
+  const themes = [
+    `Guia rapido para escolher ${niche}`,
+    dependsOnProduct ? `Produto em destaque: ${niche} com dados pendentes` : `Erro comum antes de contratar ${niche}`,
+    `Bastidores e criterios tecnicos em ${niche}`,
+    `Pergunta frequente do publico sobre ${niche}`,
+    `Prova social aplicada a ${niche}`,
+    `Oferta do mes para ${niche}`,
+    `Mitos e verdades sobre ${niche}`,
+    `Retomada de leads interessados em ${niche}`,
+    `Convite direto para falar com a equipe`
+  ];
+  return themes[index] || themes[0];
+}
+
+function enrichItemDraft(item) {
+  item.internalTitle = item.internalTitle || `${item.type} - ${item.theme}`;
+  item.briefing = item.briefing || `Criar ${item.type.toLowerCase()} para ${state.client.name}, conectando ${item.theme} ao objetivo ${item.objective}. Considerar tom: ${state.client.tone}.`;
+  item.caption = item.caption || `Se voce esta avaliando ${state.client.niche || state.client.segment}, este conteudo ajuda a decidir com mais seguranca. ${item.cta}.`;
+  item.hashtags = item.hashtags || `#${normalizeId(state.client.segment).replace(/-/g, "")} #marketinglocal #conteudoestrategico`;
+  item.visualDirection = item.visualDirection || "Visual limpo, com hierarquia forte, destaque para promessa central e CTA claro.";
+  item.references = item.references || "Usar identidade do .kit, campanhas ativas e exemplos do historico do cliente.";
+  item.videoScript = item.videoScript || (/(reel|video|story)/i.test(`${item.type} ${item.format}`) ? "Gancho inicial, desenvolvimento em 2 argumentos e CTA final." : "");
+  item.narration = item.narration || (item.videoScript ? `Voce sabia que ${item.theme.toLowerCase()} pode mudar sua decisao?` : "");
+  item.screenText = item.screenText || "Gancho / Beneficio / Prova / CTA";
+  item.scenes = item.scenes || "Cena 1: gancho. Cena 2: contexto. Cena 3: prova. Cena 4: CTA.";
+  item.positivePrompt = item.positivePrompt || `Design profissional para ${state.client.segment}, tema ${item.theme}, identidade visual consistente.`;
+  item.negativePrompt = item.negativePrompt || "Texto pequeno, excesso de elementos, promessa enganosa, baixa legibilidade.";
+  item.productionNotes = item.productionNotes || (item.dependsOnProduct ? "Preencher dados minimos do produto antes de gerar .kia final." : "Pronto para refinamento e producao.");
+}
+
+function splitLines(value = "") {
+  return String(value || "")
+    .split(/\r?\n|;/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function countByStatus(status) {
+  return (getPlanner()?.items || []).filter((item) => item.productionStatus === status).length;
+}
+
+function getInitials(name = "") {
+  return String(name || "CL")
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+function formatDateTime(value = "") {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "local" : date.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function getClientPath(path = "") {
+  return String(path).split(".").reduce((acc, key) => acc?.[key], state.client);
+}
+
+function setClientPath(path = "", value) {
+  const parts = String(path).split(".");
+  let target = state.client;
+  while (parts.length > 1) {
+    const key = parts.shift();
+    target[key] = target[key] && typeof target[key] === "object" ? target[key] : {};
+    target = target[key];
+  }
+  target[parts[0]] = value;
+}
+
+function markClientDirty() {
+  state.clientDirty = true;
+  state.client.updatedAt = new Date().toISOString();
+}
+
+function validateClientKit() {
+  const errors = [];
+  if (!String(state.client.name || "").trim()) errors.push("nome do cliente");
+  if (!String(state.client.segment || "").trim()) errors.push("segmento");
+  if (!String(state.client.plan || "").trim()) errors.push("plano contratado");
+  if (!state.client.channels?.length) errors.push("pelo menos uma rede social");
+  if (!String(state.client.audience || "").trim()) errors.push("publico-alvo");
+  if (!String(state.client.currentPriority || "").trim() && !state.client.marketing?.objectives?.length) errors.push("objetivo principal");
+  return { valid: errors.length === 0, errors };
+}
+
+function updateClientField(field, value) {
+  if (field.startsWith("options.")) {
+    const key = field.replace("options.", "");
+    state.marketingOptions[key] = splitLines(value);
+    return;
+  }
+  setClientPath(field, value);
+  if (field === "plan") {
+    const plan = PLAN_RULES[value];
+    if (plan) {
+      state.client.attendanceMode = plan.attendanceMode;
+      state.client.meetingFrequency = plan.meetingFrequency;
     }
-
-    state.referenceLibrary.items[tabId] = Array.isArray(response?.items)
-      ? response.items.map((item) => normalizeReferenceItem(item, tabId))
-      : [];
-  } catch (err) {
-    state.referenceLibrary.error = err?.message || "Nao consegui carregar esta biblioteca agora.";
-  } finally {
-    state.referenceLibrary.loading = false;
-    renderActivePanel();
   }
+  if (field === "name") {
+    els.topClientName.value = value;
+  }
+  if (field === "mainProducts") {
+    state.client.products = value;
+  }
+  state.client = normalizeClient(state.client);
+  markClientDirty();
 }
 
-function closeReferenceLibrary() {
-  state.referenceLibrary.open = false;
-  state.referenceLibrary.loading = false;
-  state.referenceLibrary.error = "";
-  renderActivePanel();
+function toggleClientChip(field, value) {
+  const current = uniqueList(getClientPath(field));
+  const next = current.includes(value)
+    ? current.filter((item) => item !== value)
+    : [...current, value];
+  setClientPath(field, next);
+  state.client = normalizeClient(state.client);
+  markClientDirty();
 }
 
-async function toggleSceneReference(source = "", referenceId = "") {
-  const selectedScene = getSelectedScene();
-  if (!selectedScene || selectedScene.approved) {
-    pushMessage("system", "Desbloqueie a cena antes de alterar referencias.", "locked", {
-      sceneId: selectedScene?.id || null
-    });
-    return;
-  }
+function addClientChip(field) {
+  const value = window.prompt("Adicionar opcao");
+  if (!value?.trim()) return;
+  const current = uniqueList(getClientPath(field));
+  setClientPath(field, mergeOptions(current, [value.trim()]));
+  state.client = normalizeClient(state.client);
+  markClientDirty();
+}
 
-  const sourceItems = Array.isArray(state.referenceLibrary.items?.[source]) ? state.referenceLibrary.items[source] : [];
-  const chosen = sourceItems.find((item) => String(item.id) === String(referenceId));
-  if (!chosen) {
-    return;
-  }
+function restoreInternalOptions(key) {
+  const defaults = {
+    objectives: DEFAULT_CLIENT.internalOptions.objectives,
+    funnel: DEFAULT_CLIENT.internalOptions.funnel,
+    ctas: DEFAULT_CLIENT.internalOptions.ctas,
+    formats: DEFAULT_CLIENT.internalOptions.formats,
+    platforms: DEFAULT_CLIENT.internalOptions.platforms,
+    tones: DEFAULT_CLIENT.internalOptions.tones,
+    segments: DEFAULT_CLIENT.internalOptions.segments,
+    campaignTypes: DEFAULT_CLIENT.internalOptions.campaignTypes
+  };
+  state.client.internalOptions[key] = uniqueList(defaults[key] || []);
+  markClientDirty();
+}
 
-  const field = getLibraryFieldBySource(source);
-  const normalized = normalizeReferenceItem(chosen, source);
-  const currentSpecific = Array.isArray(selectedScene[field]) ? selectedScene[field] : [];
-  const currentAll = Array.isArray(selectedScene.references) ? selectedScene.references : [];
-  const alreadySelected = currentSpecific.some((item) => areReferencesEqual(item, normalized));
+function updateCampaign(campaignId, field, value) {
+  const campaign = state.client.campaigns.find((item) => item.id === campaignId);
+  if (!campaign) return;
+  campaign[field] = value;
+  markClientDirty();
+}
 
-  const nextSpecific = alreadySelected
-    ? currentSpecific.filter((item) => !areReferencesEqual(item, normalized))
-    : [...currentSpecific, normalized];
+function addCampaign() {
+  state.client.campaigns.push(normalizeCampaign({
+    name: "Nova campanha",
+    status: "Planejada",
+    type: "Meta Ads",
+    objective: "Leads"
+  }, state.client.campaigns.length));
+  markClientDirty();
+}
 
-  const nextAll = alreadySelected
-    ? currentAll.filter((item) => !areReferencesEqual(item, normalized))
-    : [...currentAll, normalized];
+function archiveCampaign(campaignId) {
+  const campaign = state.client.campaigns.find((item) => item.id === campaignId);
+  if (!campaign) return;
+  campaign.status = "Finalizada";
+  markClientDirty();
+}
 
-  patchScene(selectedScene.id, {
-    [field]: nextSpecific,
-    references: nextAll,
-    status: "references-updated"
+function updateHistory(historyId, field, value) {
+  const item = state.client.history.find((entry) => entry.id === historyId);
+  if (!item) return;
+  item[field] = value;
+  markClientDirty();
+}
+
+function addHistory() {
+  state.client.history.unshift(normalizeHistoryItem({ month: state.selectedMonth }, state.client.history.length));
+  markClientDirty();
+}
+
+function duplicateClient() {
+  const duplicatedName = `${state.client.name || "Cliente"} - copia`;
+  state.client = normalizeClient({
+    ...clone(state.client),
+    name: duplicatedName
   });
-  syncStateFromProject();
-  renderActivePanel();
-  await saveStudioProjectSilently();
+  state.clientKitPath = "";
+  markClientDirty();
+  pushMessage("assistant", `Cliente duplicado como "${duplicatedName}". Salve para criar um novo .kit.`);
 }
 
-async function registerManualChatMessage() {
-  const value = elements.chatInput.value.trim();
-  if (!value) {
-    return;
-  }
-
-  const scene = getCurrentChatScene();
-  pushMessage("user", value, scene ? "scene-adjustment" : "manual", {
-    sceneId: scene?.id || null
-  });
-
-  if (scene) {
-    await applySceneInstruction(value);
+function updatePlannerField(field, value) {
+  const planner = getPlanner();
+  if (!planner) return;
+  if (["secondaryObjectives", "formatDistribution", "campaigns"].includes(field)) {
+    planner[field] = splitLines(value);
   } else {
-    pushMessage("assistant", "Mensagem registrada no contexto do projeto atual.", "status");
+    planner[field] = value;
   }
-
-  elements.chatInput.value = "";
-  renderMessages();
+  planner.updatedAt = new Date().toISOString();
 }
 
-function applyIncomingState(nextState = {}) {
-  if (!nextState || typeof nextState !== "object") {
+function updateAd(adId, field, value) {
+  const ad = getPlanner()?.ads.find((item) => item.id === adId);
+  if (!ad) return;
+  ad[field] = value;
+}
+
+function updateItem(itemId, field, value) {
+  const item = getPlanner()?.items.find((entry) => entry.id === itemId);
+  if (!item) return;
+  item[field] = field === "dependsOnProduct" ? value === "true" : value;
+  if (field === "dependsOnProduct" && item.dependsOnProduct && !item.productInfo.trim()) {
+    item.productionStatus = "Aguardando informacao do produto";
+  }
+  if (field === "productInfo" && hasMinimumProductInfo(item)) {
+    item.productionStatus = item.productionStatus === "Aguardando informacao do produto" ? "Rascunho" : item.productionStatus;
+  }
+}
+
+function updateSelectedRoute(field, value) {
+  const item = getSelectedItem();
+  if (!item) return;
+  item[field] = value;
+  item.hasScript = true;
+  if (item.productionStatus === "Em branco") item.productionStatus = "Rascunho";
+}
+
+function hasMinimumProductInfo(item) {
+  if (!item.dependsOnProduct) return true;
+  const text = String(item.productInfo || "").toLowerCase();
+  const minimumSignals = ["bairro", "valor", "foto", "caracter", "codigo", "condicao", "nome"];
+  return minimumSignals.filter((signal) => text.includes(signal)).length >= 3;
+}
+
+function isKiaEligible(item) {
+  const finalReadyStatuses = ["Aguardando aprovacao", "Concluido"];
+  return item
+    && finalReadyStatuses.includes(item.productionStatus)
+    && item.productionStatus !== "Aguardando informacao do produto"
+    && hasMinimumProductInfo(item);
+}
+
+function generateCards() {
+  const planner = createPlanner();
+  planner.items.forEach((item) => {
+    enrichItemDraft(item);
+    if (item.productionStatus === "Em branco") item.productionStatus = "Rascunho";
+  });
+  pushMessage("assistant", "Cards do mes refinados com briefing, legenda inicial, CTA, funil e campos de roteiro. Itens que dependem de produto continuam bloqueados para .kia ate receberem dados minimos.");
+}
+
+function generateDraftCaptions() {
+  const planner = getPlanner();
+  if (!planner) return;
+  planner.items
+    .filter((item) => item.productionStatus === "Rascunho" || !item.caption)
+    .forEach((item) => {
+      item.caption = `O tema de hoje e ${item.theme}. Para ${state.client.audience}, a decisao fica mais facil quando existe clareza, prova e orientacao. ${item.cta}.`;
+    });
+  pushMessage("assistant", "Legendas iniciais geradas para os posts em rascunho.");
+}
+
+function regenerateItem(itemId) {
+  const item = getPlanner()?.items.find((entry) => entry.id === itemId);
+  if (!item) return;
+  item.objective = item.objective === "Geracao de leads" ? "Autoridade" : "Geracao de leads";
+  item.cta = item.objective === "Geracao de leads" ? "Entrar em contato pelo WhatsApp" : "Salvar o post";
+  item.briefing = `Nova versao focada em ${item.objective}, com recorte para ${state.client.niche || state.client.segment}.`;
+  item.caption = `Vamos direto ao ponto: ${item.theme}. ${item.cta}.`;
+  item.productionStatus = item.productionStatus === "Em branco" ? "Rascunho" : item.productionStatus;
+  pushMessage("assistant", `Regerei o card "${item.theme}" com foco em ${item.objective}.`);
+}
+
+async function openKit() {
+  if (!window.kitAPI?.openBrandKit) {
+    pushMessage("assistant", "A abertura de .kit nao esta disponivel nesta janela.");
+    return;
+  }
+  const result = await window.kitAPI.openBrandKit();
+  if (!result?.brandKit) return;
+  const kit = result.brandKit;
+  const structuredKit = kit.metadata?.clientKit || null;
+  const plannerData = kit.metadata?.studioPlanner || {};
+  state.clientKitPath = result.filePath || "";
+  state.client = normalizeClient({
+    ...state.client,
+    ...(structuredKit ? clientKitToClient(structuredKit) : plannerData),
+    name: structuredKit?.client?.name || plannerData.name || kit.metadata?.clientName || kit.name || state.client.name,
+    tone: structuredKit?.strategy?.toneOfVoice?.join(", ") || plannerData.tone || kit.identity?.voice || state.client.tone,
+    strategicNotes: structuredKit?.strategy?.strategicNotes || plannerData.strategicNotes || kit.identity?.description || state.client.strategicNotes,
+    brand: {
+      colors: kit.colors || [],
+      fonts: kit.fonts || [],
+      logos: kit.logos || []
+    }
+  });
+  state.clientDirty = false;
+  pushMessage("assistant", `Carreguei o .kit de ${state.client.name}. Vou usar esses dados para diferenciar nicho, tom, campanhas e restricoes.`);
+  render();
+}
+
+function clientKitToClient(clientKit = {}) {
+  return {
+    ...(clientKit.client || {}),
+    name: clientKit.client?.name || "",
+    logo: clientKit.client?.logo || "",
+    segment: clientKit.client?.segment || "",
+    niche: clientKit.client?.niche || "",
+    subniche: clientKit.client?.subniche || "",
+    plan: clientKit.client?.plan || DEFAULT_CLIENT.plan,
+    attendanceMode: clientKit.client?.attendanceMode || "",
+    meetingFrequency: clientKit.client?.meetingFrequency || "",
+    channels: clientKit.digitalPresence?.channels || [],
+    links: clientKit.digitalPresence?.links || {},
+    audience: clientKit.strategy?.targetAudience || "",
+    recurringCommercialGoals: clientKit.strategy?.recurringCommercialGoals || [],
+    currentPriority: clientKit.strategy?.currentPriority || "",
+    toneOfVoice: clientKit.strategy?.toneOfVoice || [],
+    languageRestrictions: clientKit.strategy?.restrictions || "",
+    forbiddenClaims: clientKit.strategy?.forbiddenClaims || [],
+    brandRules: clientKit.strategy?.brandRules || "",
+    strategicNotes: clientKit.strategy?.strategicNotes || "",
+    mainProducts: clientKit.products?.mainProducts || "",
+    externalInfoDependentProducts: clientKit.products?.externalInfoDependentProducts || [],
+    requiredOfferFields: clientKit.products?.requiredOfferFields || [],
+    marketing: {
+      objectives: clientKit.marketing?.objectives || [],
+      funnelStages: clientKit.marketing?.funnelStages || [],
+      preferredCtas: clientKit.marketing?.preferredCtas || [],
+      formats: clientKit.marketing?.formats || [],
+      platforms: clientKit.marketing?.platforms || []
+    },
+    campaigns: clientKit.campaigns || [],
+    history: clientKit.history || [],
+    internalOptions: clientKit.internalOptions || {}
+  };
+}
+
+function buildStructuredClientKit() {
+  const client = normalizeClient(state.client);
+  const planRule = PLAN_RULES[client.plan] || PLAN_RULES[DEFAULT_CLIENT.plan];
+  return {
+    client: {
+      name: client.name,
+      logo: client.logo,
+      segment: client.segment === "Outro" && client.customSegment ? client.customSegment : client.segment,
+      niche: client.niche,
+      subniche: client.subniche,
+      plan: client.plan,
+      attendanceMode: client.attendanceMode,
+      meetingFrequency: client.meetingFrequency,
+      planRules: planRule.rules,
+      planSummary: planRule.summary
+    },
+    digitalPresence: {
+      channels: client.channels,
+      links: client.links
+    },
+    strategy: {
+      targetAudience: client.audience,
+      recurringCommercialGoals: client.recurringCommercialGoals,
+      currentPriority: client.currentPriority,
+      toneOfVoice: client.toneOfVoice,
+      restrictions: client.languageRestrictions,
+      forbiddenClaims: client.forbiddenClaims,
+      brandRules: client.brandRules,
+      strategicNotes: client.strategicNotes
+    },
+    products: {
+      mainProducts: client.mainProducts,
+      externalInfoDependentProducts: client.externalInfoDependentProducts,
+      requiredOfferFields: client.requiredOfferFields
+    },
+    marketing: {
+      objectives: client.marketing.objectives,
+      funnelStages: client.marketing.funnelStages,
+      preferredCtas: client.marketing.preferredCtas,
+      formats: client.marketing.formats,
+      platforms: client.marketing.platforms
+    },
+    campaigns: client.campaigns.map(({ id, ...campaign }) => campaign),
+    history: client.history.map(({ id, ...item }) => item),
+    internalOptions: client.internalOptions,
+    meta: {
+      createdAt: client.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      version: "kit.studio.client.v1"
+    }
+  };
+}
+
+async function saveKit() {
+  const validation = validateClientKit();
+  if (!validation.valid) {
+    pushMessage("assistant", `Antes de salvar o .kit, complete: ${validation.errors.join(", ")}.`);
+    render();
+    return;
+  }
+  const clientKit = buildStructuredClientKit();
+  state.client = normalizeClient({
+    ...state.client,
+    updatedAt: clientKit.meta.updatedAt,
+    createdAt: clientKit.meta.createdAt
+  });
+  const brandKit = {
+    schema: "kit.brand.v1",
+    type: "brand-kit",
+    version: 1,
+    name: state.client.name || "Cliente Studio",
+    identity: {
+      voice: state.client.tone || "",
+      description: state.client.strategicNotes || ""
+    },
+    colors: state.client.brand?.colors || [],
+    logos: state.client.logo
+      ? mergeAssetPath(state.client.brand?.logos || [], state.client.logo, "logo")
+      : (state.client.brand?.logos || []),
+    fonts: state.client.brand?.fonts || [],
+    xtts: { language: "pt", voiceModelPath: "", speakerWavPath: "", notes: "" },
+    assets: { global: [], frames: [], watermarks: [], recurring: [] },
+    metadata: {
+      clientName: state.client.name,
+      segment: state.client.segment,
+      niche: state.client.niche,
+      clientKit,
+      studioPlanner: clone(state.client)
+    }
+  };
+
+  if (!window.kitAPI?.saveBrandKit) {
+    pushMessage("assistant", "Salvar .kit nao esta disponivel nesta janela. Mantive os dados no estado local do Studio.");
+    return;
+  }
+  const saved = await window.kitAPI.saveBrandKit({ filePath: state.clientKitPath, brandKit });
+  if (saved?.filePath) {
+    state.clientKitPath = saved.filePath;
+    state.clientDirty = false;
+    pushMessage("assistant", `.kit salvo: ${saved.filePath}`);
+  }
+  render();
+}
+
+function mergeAssetPath(list, filePath, name) {
+  const exists = list.some((item) => item.path === filePath);
+  return exists ? list : [{ name, path: filePath, type: filePath.split(".").pop() || "" }, ...list];
+}
+
+async function selectLogo() {
+  if (!window.kitAPI?.selectBrandKitFiles) return;
+  const files = await window.kitAPI.selectBrandKitFiles({ kind: "logo" });
+  if (files?.[0]?.path) {
+    state.client.logo = files[0].path;
+    state.client.brand.logos = mergeAssetPath(state.client.brand.logos || [], files[0].path, files[0].name || "logo");
+    render();
+  }
+}
+
+async function saveAll() {
+  persist();
+  await saveKit();
+}
+
+async function generateOneKia(itemId) {
+  const item = getPlanner()?.items.find((entry) => entry.id === itemId);
+  if (!item || !isKiaEligible(item)) {
+    pushMessage("assistant", "Este item ainda nao esta elegivel para .kia. Marque como Aguardando aprovacao ou Concluido e, se for produto, preencha dados minimos como nome, bairro, valor, fotos, caracteristicas ou codigo.");
+    render();
     return;
   }
 
-  const incomingProject = nextState.project || nextState;
-  stateStore.replaceProject(incomingProject);
-  state.filePath = nextState.filePath || state.filePath || null;
-
-  if (Array.isArray(nextState.messages)) {
-    setProjectMessages(nextState.messages);
-  } else if (!Array.isArray(state.messages)) {
-    setProjectMessages([]);
+  if (!window.kitAPI?.saveCanvasProject) {
+    pushMessage("assistant", "Automacao .kia indisponivel nesta janela.");
+    return;
   }
 
-  renderAll();
+  const project = buildKiaProject(item);
+  const saved = await window.kitAPI.saveCanvasProject({ project });
+  if (saved?.filePath) {
+    item.kiaPath = saved.filePath;
+    item.productionStatus = "Em producao";
+    pushMessage("assistant", `.kia criado para "${item.theme}" e status atualizado para Em producao.`);
+  }
+  render();
+}
+
+async function generateEligibleKias() {
+  const eligible = (getPlanner()?.items || []).filter((item) => isKiaEligible(item) && !item.kiaPath);
+  if (!eligible.length) {
+    pushMessage("assistant", "Nenhum item elegivel para gerar .kia agora. Itens aguardando informacao de produto foram ignorados.");
+    return;
+  }
+  pushMessage("assistant", `Vou gerar .kia como etapa final somente para ${eligible.length} item(ns) elegiveis. Itens com informacao de produto pendente ficam de fora.`);
+  for (const item of eligible) {
+    await generateOneKia(item.id);
+  }
+}
+
+function buildKiaProject(item) {
+  const colors = state.client.brand?.colors?.length ? state.client.brand.colors : [
+    { name: "Principal", hex: "#1E293B" },
+    { name: "Destaque", hex: "#2563EB" },
+    { name: "Claro", hex: "#F8FAFC" }
+  ];
+  const isVideo = /(reel|video|story)/i.test(`${item.type} ${item.format}`);
+  return {
+    schema: "kit.project.v1",
+    type: "canvas-project",
+    version: 1,
+    name: `${state.client.name} - ${item.theme}`,
+    brandKitOverrides: {
+      colors,
+      logos: state.client.brand?.logos || [],
+      fonts: state.client.brand?.fonts || [],
+      assets: { global: [] }
+    },
+    artboard: {
+      width: item.platform.includes("Stories") || item.platform.includes("Reels") || isVideo ? 1080 : 1080,
+      height: item.platform.includes("Stories") || item.platform.includes("Reels") || isVideo ? 1920 : 1080,
+      preset: isVideo ? "vertical-video" : "instagram-post"
+    },
+    fabric: {
+      version: "",
+      objects: [
+        {
+          type: "textbox",
+          text: item.theme,
+          left: 96,
+          top: 120,
+          width: 880,
+          fill: colors[0]?.hex || "#1E293B",
+          fontSize: 58,
+          fontWeight: "700"
+        },
+        {
+          type: "textbox",
+          text: item.cta,
+          left: 96,
+          top: isVideo ? 1620 : 850,
+          width: 820,
+          fill: colors[1]?.hex || "#2563EB",
+          fontSize: 38,
+          fontWeight: "700"
+        }
+      ]
+    },
+    metadata: {
+      app: "KIT IA",
+      module: "Studio Planner",
+      client: state.client,
+      studioItem: item,
+      caption: item.caption,
+      briefing: item.briefing,
+      template: item.template
+    },
+    ai: {
+      prompts: [
+        { type: "positive", text: item.positivePrompt },
+        { type: "negative", text: item.negativePrompt }
+      ],
+      generations: [],
+      inpaints: [],
+      outpaints: [],
+      masks: []
+    },
+    timeline: {
+      slides: splitLines(item.scenes).map((scene, index) => ({ id: `slide_${index + 1}`, title: scene, duration: 4 })),
+      activeSlideId: "slide_1",
+      audio: item.narration ? [{ id: "narration_1", text: item.narration, status: "draft" }] : [],
+      video: isVideo ? [{ id: "video_plan_1", script: item.videoScript, status: "draft" }] : []
+    },
+    history: [{ action: "created-from-studio-planner", at: new Date().toISOString() }]
+  };
+}
+
+function pushMessage(role, text) {
+  state.messages.push({ role, text, at: new Date().toISOString() });
+  state.messages = state.messages.slice(-40);
+}
+
+function renderChat() {
+  els.chatMessageList.innerHTML = state.messages.map((message) => `
+    <article class="chat-message is-${escapeHtml(message.role)}">
+      <strong>${message.role === "user" ? "Voce" : "KIT"}</strong>
+      <p>${escapeHtml(message.text)}</p>
+    </article>
+  `).join("");
+  els.chatMessageList.scrollTop = els.chatMessageList.scrollHeight;
+}
+
+async function handleChatCommand(text) {
+  const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  await withAiStatus("Aguardando resposta da IA...", async () => {
+    if (/planejamento|planner|calendario/.test(normalized)) {
+      createPlanner({ force: /refaca|regenere|novo/.test(normalized) });
+    } else if (/carrossel/.test(normalized) && getSelectedItem()) {
+      const item = getSelectedItem();
+      item.type = "Carrossel";
+      item.format = "Carrossel";
+      item.scenes = "Slide 1: gancho\nSlide 2: contexto\nSlide 3: prova\nSlide 4: CTA";
+      pushMessage("assistant", "Transformei o item selecionado em carrossel com estrutura de slides.");
+    } else if (/reel|roteiro/.test(normalized) && getSelectedItem()) {
+      const item = getSelectedItem();
+      item.type = "Reel";
+      item.format = "Reel";
+      item.videoScript = "0-3s: gancho forte. 4-12s: dor e contexto. 13-24s: solucao e prova. 25-30s: CTA.";
+      item.narration = `Se ${state.client.audience}, este ponto sobre ${item.theme} pode evitar uma decisao errada.`;
+      pushMessage("assistant", "Criei um roteiro de Reel para o item selecionado.");
+    } else if (/legenda/.test(normalized)) {
+      generateDraftCaptions();
+    } else if (/cta/.test(normalized)) {
+      (getPlanner()?.items || []).forEach((item) => {
+        item.cta = item.funnel === "Fundo" ? "Entrar em contato pelo WhatsApp" : "Chamar no direct";
+      });
+      pushMessage("assistant", "Fortaleci os CTAs conforme o funil de cada item.");
+    } else if (/kia|canvas/.test(normalized)) {
+      await generateEligibleKias();
+    } else {
+      pushMessage("assistant", "Analisei o contexto atual. Posso ajustar foco de leads, transformar formatos, criar anuncios, gerar legendas ou preparar .kia quando os itens forem aprovados.");
+    }
+  }, { successText: "Resposta aplicada." });
+  render();
+}
+
+function addItem() {
+  const planner = getPlanner();
+  if (!planner) return;
+  const [year, month] = state.selectedMonth.split("-").map(Number);
+  const day = Math.min(28, new Date(year, month, 0).getDate());
+  const item = createPlannerItem({
+    date: `${state.selectedMonth}-${String(day).padStart(2, "0")}`,
+    theme: "Novo item editorial",
+    productionStatus: "Em branco"
+  });
+  planner.items.push(item);
+  state.selectedItemId = item.id;
+  pushMessage("assistant", "Novo item editorial adicionado ao mes.");
+}
+
+function exportPlannerPdf() {
+  state.activeTab = "planner";
+  render();
+  requestAnimationFrame(() => window.print());
 }
 
 function bindEvents() {
-  elements.studioTabs.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-tab-id]");
-    if (!button) {
-      return;
-    }
-
-    setCurrentTab(button.dataset.tabId);
+  els.studioTabs.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-tab]");
+    if (!button) return;
+    state.activeTab = button.dataset.tab;
+    render();
   });
 
-  elements.studioTabPanel.addEventListener("click", (event) => {
-    const sceneTechActionButton = event.target.closest("[data-scene-tech-action]");
-    if (sceneTechActionButton) {
-      handleSceneTechAction(sceneTechActionButton.dataset.sceneId, sceneTechActionButton.dataset.sceneTechAction);
-      return;
+  els.topClientName.addEventListener("change", () => {
+    state.client.name = els.topClientName.value.trim() || "Cliente sem nome";
+    markClientDirty();
+    render();
+  });
+
+  els.topMonth.addEventListener("change", () => {
+    state.selectedMonth = els.topMonth.value || currentMonthValue();
+    render();
+  });
+
+  els.tabPanel.addEventListener("input", (event) => {
+    const target = event.target;
+    if (target.matches("[data-client-field]")) updateClientField(target.dataset.clientField, target.value);
+    if (target.matches("[data-campaign-field]")) updateCampaign(target.closest("[data-campaign-id]")?.dataset.campaignId, target.dataset.campaignField, target.value);
+    if (target.matches("[data-history-field]")) updateHistory(target.closest("[data-history-id]")?.dataset.historyId, target.dataset.historyField, target.value);
+    if (target.matches("[data-planner-field]")) updatePlannerField(target.dataset.plannerField, target.value);
+    if (target.matches("[data-ad-field]")) updateAd(target.closest("[data-ad-id]")?.dataset.adId, target.dataset.adField, target.value);
+    if (target.matches("[data-item-field]")) updateItem(target.closest("[data-item-id]")?.dataset.itemId, target.dataset.itemField, target.value);
+    if (target.matches("[data-route-field]")) updateSelectedRoute(target.dataset.routeField, target.value);
+    persist();
+  });
+
+  els.tabPanel.addEventListener("change", (event) => {
+    const target = event.target;
+    if (target.matches("[data-client-field]")) {
+      updateClientField(target.dataset.clientField, target.value);
+      render();
     }
-
-    const sceneActionButton = event.target.closest("[data-scene-action]");
-    if (sceneActionButton) {
-      const scene = getSceneById(sceneActionButton.dataset.sceneId);
-      if (!scene) {
-        return;
-      }
-
-      state.selectedSceneId = scene.id;
-      const action = sceneActionButton.dataset.sceneAction;
-
-      if (action === "approve") {
-        approveScene(scene.id);
-        return;
-      }
-
-      if (action === "unlock") {
-        unlockScene(scene.id);
-        return;
-      }
-
-      if (action === "edit-text") {
-        selectScene(scene.id, "narration");
-        elements.chatInput.placeholder = `Editar texto da cena ${scene.index}`;
-      } else if (action === "edit-subtitle") {
-        selectScene(scene.id, "subtitle");
-        elements.chatInput.placeholder = `Editar legenda da cena ${scene.index}`;
-      } else if (action === "adjust" || action === "adjust-prompt") {
-        selectScene(scene.id, "visualPrompt");
-        elements.chatInput.placeholder = `Ajustar prompt da cena ${scene.index}`;
-      } else if (action === "adjust-references") {
-        selectScene(scene.id, "references");
-        elements.chatInput.placeholder = `Ajustar referencias da cena ${scene.index}`;
-        void loadReferenceLibrary("client-media");
-      } else if (action === "generate-video") {
-        void generateSelectedSceneVideo(scene.id);
-        return;
-      } else if (action === "generate-image") {
-        void generateSelectedSceneImage(scene.id);
-        return;
-      } else if (action === "context") {
-        selectScene(scene.id);
-        elements.chatInput.placeholder = `Chat contextual da cena ${scene.index}: ${scene.title}`;
-      } else if (action === "regenerate") {
-        regenerateSceneText(scene.id);
-        return;
-      }
-
-      if (action === "context") {
-        elements.chatInput.focus();
-      }
-      return;
+    if (target.matches("[data-campaign-field]")) {
+      updateCampaign(target.closest("[data-campaign-id]")?.dataset.campaignId, target.dataset.campaignField, target.value);
+      render();
     }
-
-    const referenceActionButton = event.target.closest("[data-reference-action]");
-    if (referenceActionButton) {
-      const action = referenceActionButton.dataset.referenceAction;
-      if (action === "close") {
-        closeReferenceLibrary();
-        return;
-      }
-
-      const source = referenceActionButton.dataset.referenceSource || state.referenceLibrary.activeTab;
-      const referenceId = referenceActionButton.dataset.referenceId || "";
-      void toggleSceneReference(source, referenceId);
-      return;
+    if (target.matches("[data-history-field]")) {
+      updateHistory(target.closest("[data-history-id]")?.dataset.historyId, target.dataset.historyField, target.value);
+      render();
     }
-
-    const referenceTabButton = event.target.closest("[data-reference-tab]");
-    if (referenceTabButton) {
-      void loadReferenceLibrary(referenceTabButton.dataset.referenceTab);
-      return;
+    if (target.matches("[data-item-field]")) {
+      updateItem(target.closest("[data-item-id]")?.dataset.itemId, target.dataset.itemField, target.value);
+      render();
     }
-
-    if (event.target.matches("[data-reference-overlay]")) {
-      closeReferenceLibrary();
-      return;
-    }
-
-    const sceneCard = event.target.closest("[data-scene-card-id]");
-    if (sceneCard) {
-      selectScene(sceneCard.dataset.sceneCardId);
-      return;
-    }
-
-    const sceneButton = event.target.closest("[data-scene-id]");
-    if (sceneButton) {
-      selectScene(sceneButton.dataset.sceneId);
-      return;
+    if (target.matches("[data-route-field]")) {
+      updateSelectedRoute(target.dataset.routeField, target.value);
+      render();
     }
   });
 
-  elements.studioTabPanel.addEventListener("click", (event) => {
-    const scriptActionButton = event.target.closest("[data-script-action]");
-    if (!scriptActionButton) {
+  els.tabPanel.addEventListener("click", async (event) => {
+    const actionEl = event.target.closest("[data-action]");
+    const calendarItem = event.target.closest("[data-item-id]");
+    if (calendarItem && !actionEl && calendarItem.dataset.itemId) {
+      state.selectedItemId = calendarItem.dataset.itemId;
+      state.activeTab = "script";
+      render();
       return;
     }
-
-    if (scriptActionButton.dataset.scriptAction === "approve-all") {
-      approveAllScenes();
-      return;
+    if (!actionEl) return;
+    const action = actionEl.dataset.action;
+    const itemId = actionEl.dataset.itemId;
+    if (action === "add-chip") addClientChip(actionEl.dataset.chipField);
+    if (action === "add-campaign") addCampaign();
+    if (action === "archive-campaign") archiveCampaign(actionEl.dataset.campaignId);
+    if (action === "add-history") addHistory();
+    if (action === "restore-options") restoreInternalOptions(actionEl.dataset.optionsKey);
+    if (action === "duplicate-client") duplicateClient();
+    if (action === "create-planner") {
+      await withAiStatus("Gerando planejamento...", async () => createPlanner(), { successText: "Planejamento gerado." });
     }
-
-    if (scriptActionButton.dataset.scriptAction === "start-production") {
-      startProduction();
+    if (action === "regenerate-planner") {
+      await withAiStatus("Gerando planejamento...", async () => createPlanner({ force: true }), { successText: "Planejamento atualizado." });
     }
+    if (action === "planner-to-cards") {
+      await withAiStatus("Processando conteudo...", async () => generateCards(), { successText: "Cards atualizados." });
+    }
+    if (action === "open-kit") await withAiStatus("Abrindo .kit...", openKit, { successText: ".kit carregado." });
+    if (action === "save-kit") await withAiStatus("Salvando .kit...", saveKit, { successText: ".kit salvo." });
+    if (action === "select-logo") await selectLogo();
+    if (action === "add-item") addItem();
+    if (action === "generate-draft-captions") {
+      await withAiStatus("Gerando legendas...", async () => generateDraftCaptions(), { successText: "Legendas geradas." });
+    }
+    if (action === "select-item") {
+      state.selectedItemId = itemId;
+      state.activeTab = "script";
+    }
+    if (action === "regenerate-item") {
+      await withAiStatus("Processando conteudo...", async () => regenerateItem(itemId), { successText: "Card regenerado." });
+    }
+    if (action === "generate-one-kia") await withAiStatus("Finalizando .kia...", async () => generateOneKia(itemId), { successText: ".kia finalizado." });
+    if (action === "transform-carousel") await handleChatCommand("Transforme esse post em carrossel");
+    if (action === "create-reel-script") await handleChatCommand("Crie roteiro para esse reel");
+    if (action === "route-ai") {
+      await withAiStatus("Processando conteudo...", async () => {
+        const item = getSelectedItem();
+        if (item) {
+          item.productionNotes = `${item.productionNotes}\n${actionEl.dataset.aiAction}: aplicado ao bloco ${actionEl.dataset.label}.`.trim();
+          pushMessage("assistant", `${actionEl.dataset.aiAction} aplicado no bloco ${actionEl.dataset.label} do item selecionado.`);
+        }
+      }, { successText: "Bloco atualizado." });
+    }
+    render();
   });
 
-  elements.studioTabPanel.addEventListener("change", (event) => {
-    const sceneTechField = event.target.closest("[data-scene-tech-field]");
-    if (sceneTechField) {
-      updateSceneTechField(sceneTechField.dataset.sceneId, sceneTechField.dataset.sceneTechField, sceneTechField.value);
-      void saveStudioProjectSilently();
-      return;
-    }
-
-    const sceneField = event.target.closest("[data-scene-field]");
-    if (sceneField) {
-      updateSelectedSceneField(sceneField.dataset.sceneField, sceneField.value);
-      return;
-    }
-
-    const select = event.target.closest("[data-briefing-field]");
-    if (!select) {
-      return;
-    }
-
-    applyBriefingField(select.dataset.briefingField, select.value);
-    if (select.dataset.briefingField === "mediaType") {
-      state.flowType = select.value === "clip" ? "Clip vertical" : select.value;
-    }
-    renderAll();
+  els.tabPanel.addEventListener("click", (event) => {
+    const chip = event.target.closest("[data-chip-field][data-chip-value]");
+    if (!chip || event.target.closest("[data-action]")) return;
+    toggleClientChip(chip.dataset.chipField, chip.dataset.chipValue);
+    render();
   });
 
-  elements.studioTabPanel.addEventListener("input", (event) => {
-    const field = event.target.closest(".briefing-input, .briefing-textarea");
-    if (!field || !field.dataset.briefingField) {
-      return;
-    }
-
-    applyBriefingField(field.dataset.briefingField, field.value);
+  els.newPlannerButton.addEventListener("click", async () => {
+    await withAiStatus("Gerando planejamento...", async () => createPlanner(), { successText: "Planejamento pronto." });
+    state.activeTab = "planner";
+    render();
   });
-
-  elements.studioTabPanel.addEventListener("keydown", (event) => {
-    const sceneCard = event.target.closest("[data-scene-card-id]");
-    if (!sceneCard) {
-      return;
-    }
-
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      selectScene(sceneCard.dataset.sceneCardId);
-    }
+  els.saveButton.addEventListener("click", () => void withAiStatus("Salvando...", saveAll, { successText: "Salvo." }));
+  els.exportPdfButton.addEventListener("click", exportPlannerPdf);
+  els.generateCardsButton.addEventListener("click", async () => {
+    await withAiStatus("Processando conteudo...", async () => generateCards(), { successText: "Cards prontos." });
+    state.activeTab = "cards";
+    render();
   });
-
-  elements.studioTabPanel.addEventListener("click", (event) => {
-    const actionButton = event.target.closest("[data-briefing-action]");
-    if (!actionButton) {
-      return;
-    }
-
-    if (actionButton.dataset.briefingAction === "save") {
-      void saveBriefing();
-      return;
-    }
-
-    if (actionButton.dataset.briefingAction === "approve") {
-      approveBriefing();
-    }
+  els.generateKiaButton.addEventListener("click", () => void withAiStatus("Finalizando...", generateEligibleKias, { successText: "Arquivos .kia processados." }));
+  els.chatPlannerButton.addEventListener("click", async () => {
+    await withAiStatus("Gerando planejamento...", async () => createPlanner(), { successText: "Planejamento pronto." });
+    state.activeTab = "planner";
+    render();
   });
-
-  elements.sendChatButton.addEventListener("click", registerManualChatMessage);
-
-  elements.chatInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      elements.sendChatButton.click();
-    }
+  els.chatCaptionButton.addEventListener("click", async () => {
+    await withAiStatus("Gerando legendas...", async () => generateDraftCaptions(), { successText: "Legendas prontas." });
+    render();
   });
-
-  elements.approveBriefingButton.addEventListener("click", approveBriefing);
-  elements.approveScriptButton.addEventListener("click", approveScript);
-  elements.generateCaptionButton.addEventListener("click", generatePostCaption);
-
-  elements.minimizeStudioButton.addEventListener("click", () => {
-    window.kitAPI?.minimizeStudioWindow?.();
-  });
-
-  elements.maximizeStudioButton.addEventListener("click", () => {
-    window.kitAPI?.toggleStudioMaximize?.();
-  });
-
-  elements.closeStudioButton.addEventListener("click", () => {
-    if (window.kitAPI?.closeStudio) {
-      window.kitAPI.closeStudio();
-      return;
-    }
-
-    window.close();
+  els.chatForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const text = els.chatInput.value.trim();
+    if (!text) return;
+    els.chatInput.value = "";
+    pushMessage("user", text);
+    void handleChatCommand(text);
   });
 }
 
-function startElapsedClock() {
-  window.setInterval(() => {
-    state.progress.elapsedSeconds = Math.max(0, Number(state.progress.elapsedSeconds || 0) + 1);
-    stateStore.patchProject({
-      progress: {
-        ...state.project.progress,
-        elapsedMs: state.progress.elapsedSeconds * 1000
-      }
-    });
-    elements.elapsedLabel.textContent = formatElapsed(state.progress.elapsedSeconds);
-  }, 1000);
-}
+function applyIncomingStudioState(payload = {}) {
+  const incomingProject = payload?.project || payload;
+  if (!incomingProject || typeof incomingProject !== "object") return;
 
-async function refreshSystemStats() {
-  if (!window.kitAPI?.getStudioSystemStats) {
-    return;
+  const briefing = incomingProject.briefing || {};
+  state.client = {
+    ...state.client,
+    name: incomingProject.clientName || state.client.name,
+    segment: incomingProject.productName || state.client.segment,
+    tone: briefing.defaultsFromClientKit?.identity?.voice || state.client.tone,
+    audience: briefing.audience || state.client.audience,
+    products: briefing.theme || state.client.products,
+    strategicNotes: [
+      state.client.strategicNotes,
+      incomingProject.inputCommand ? `Comando de origem: ${incomingProject.inputCommand}` : "",
+      briefing.purpose ? `Objetivo importado: ${briefing.purpose}` : ""
+    ].filter(Boolean).join("\n")
+  };
+
+  if (incomingProject.clientKit?.filePath) {
+    state.clientKitPath = incomingProject.clientKit.filePath;
   }
 
-  try {
-    const stats = await window.kitAPI.getStudioSystemStats();
-    if (!stats || typeof stats !== "object") {
-      return;
-    }
+  pushMessage("assistant", "Importei o contexto que abriu o Studio e adaptei para o Planner. A partir daqui o chat lateral atua como estrategista de marketing e producao editorial.");
+}
 
-    stateStore.patchProject({
-      resourceUsage: {
-        ...state.project.resourceUsage,
-        ...stats
+async function bootstrap() {
+  bindEvents();
+
+  if (window.kitAPI?.onProcessStatus) {
+    window.kitAPI.onProcessStatus((payload = {}) => {
+      const source = String(payload.source || payload.module || "").toLowerCase();
+      if (source && !source.includes("studio") && !source.includes("ai")) return;
+      const status = String(payload.status || payload.state || "").toLowerCase();
+      const message = payload.message || payload.label || "";
+      if (["running", "processing", "busy", "started"].includes(status)) {
+        setAiStatus("running", message || "Processando conteudo...", payload.percent);
+      } else if (["success", "done", "completed", "idle"].includes(status)) {
+        setAiStatus(status === "idle" ? "idle" : "success", message || "Finalizado.", payload.percent ?? 100);
+      } else if (["error", "failed"].includes(status)) {
+        setAiStatus("error", message || "Falha no processamento.", 100);
       }
     });
-    syncStateFromProject();
-    renderTopbar();
-  } catch {}
-}
+  }
 
-function startSystemStatsPolling() {
-  void refreshSystemStats();
-  window.setInterval(() => {
-    void refreshSystemStats();
-  }, 5000);
-}
+  if (window.kitAPI?.onStudioInitState) {
+    window.kitAPI.onStudioInitState((payload) => {
+      applyIncomingStudioState(payload);
+      render();
+    });
+  }
 
-async function bootstrapProject() {
   if (window.kitAPI?.getStudioInitialState) {
     try {
       const initialState = await window.kitAPI.getStudioInitialState();
-      if (initialState) {
-        applyIncomingState(initialState);
-        bindEvents();
-        startElapsedClock();
-        startSystemStatsPolling();
-        return;
-      }
+      if (initialState) applyIncomingStudioState(initialState);
     } catch {}
   }
 
-  if (!window.kitAPI?.createStudioProject) {
-    renderAll();
-    bindEvents();
-    startElapsedClock();
-    startSystemStatsPolling();
-    return;
-  }
-
-  try {
-    const created = await window.kitAPI.createStudioProject(FALLBACK_PROJECT);
-    if (created?.project) {
-      stateStore.replaceProject(created.project);
-      state.filePath = created.filePath || null;
-    }
-  } catch {}
-
-  renderAll();
-  bindEvents();
-  startElapsedClock();
-  startSystemStatsPolling();
+  render();
 }
 
-if (window.kitAPI?.onStudioInitState) {
-  window.kitAPI.onStudioInitState((payload) => {
-    applyIncomingState(payload);
-  });
-}
-
-bootstrapProject();
+void bootstrap();

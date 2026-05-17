@@ -825,7 +825,7 @@ export default function createChatRoutes(context) {
 
       const globalVideoIntent = detectGlobalVideoIntent(text, media, session, resolveStudioSource(req.body?.sessionId || activeSessionId));
       if (text.trim() && globalVideoIntent) {
-        const job = await enqueueVideoJob(globalVideoIntent);
+        const job = await enqueueVideoJob(globalVideoIntent, context);
         const responseText = job?.mode === "i2v"
           ? "Iniciei um job de video a partir da imagem atual. Vou usar o motor global da KIT."
           : "Iniciei um job global de video com esse prompt.";

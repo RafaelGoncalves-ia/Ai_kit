@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "pythonExe": "F:/AI/forge-webui/venv/Scripts/python.exe",
+  "venv": "F:/AI/forge-webui/venv",
+  "autoStart": false,
+  "idleStopMs": 600000
+}

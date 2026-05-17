@@ -309,7 +309,7 @@
               </label>
               <label>
                 Dureza
-                <input id="brushHardness" type="range" min="1" max="100" step="1" value="85">
+                <input id="brushHardness" type="range" min="0" max="100" step="1" value="85">
                 <output id="brushHardnessValue">85%</output>
               </label>
               <div id="brushStatus" class="brush-status">Pincel pronto</div>
@@ -352,29 +352,24 @@
           </div>
         </section>
 
-        <section class="inspector-accordion" data-inspector-section="sd">
-          <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="sd" aria-expanded="false">
-            <span>Gerador IA</span>
+        <section class="inspector-accordion" data-inspector-section="ai-image">
+          <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="ai-image" aria-expanded="false">
+            <span>Gerar Imagem</span>
           </button>
           <div class="inspector-accordion-body">
             <div class="ai-engine-row">
-              <button id="aiEngineToggleButton" type="button" class="ai-engine-toggle" data-ai-action="activate-engine">
+              <button id="aiImageEngineToggleButton" type="button" class="ai-engine-toggle" data-ai-image-action="activate-engine">
                 Ativar motor IA
               </button>
-              <button type="button" class="icon-button" data-sd-action="refresh-models" title="Atualizar modelos">
+              <button type="button" class="icon-button" data-ai-image-action="refresh-models" title="Atualizar modelos">
                 <img src="../assets/icones/config.svg" alt="">
                 <span class="sr-only">Atualizar modelos</span>
               </button>
             </div>
-            <div id="sdStatus" class="sd-status">Worker ainda nao consultado</div>
-            <div class="ai-tab-row" role="tablist" aria-label="Tipo de geracao">
-              <button id="aiGeneratorTabImage" type="button" class="ai-tab-button is-active" data-ai-tab="image" role="tab" aria-selected="true">
-                Imagem
-              </button>
-              <button id="aiGeneratorTabVideo" type="button" class="ai-tab-button" data-ai-tab="video" role="tab" aria-selected="false">
-                Video
-              </button>
-            </div>
+            <div class="ai-engine-label">Motor: Forge / Stable Diffusion</div>
+            <div id="sdStatus" class="sd-status">Status: offline</div>
+            <div id="aiImageSection" class="ai-generator-section">
+              <div class="ai-section-title">Opcoes basicas</div>
             <label>
               Prompt positivo
               <textarea id="sdPrompt" rows="3" placeholder="Descreva o que deseja gerar"></textarea>
@@ -383,24 +378,8 @@
               Prompt negativo
               <textarea id="sdNegativePrompt" rows="3" placeholder="Itens a evitar"></textarea>
             </label>
-            <div class="ai-common-grid">
               <label>
-                Estilo visual
-                <input id="aiStyle" type="text" placeholder="Ex.: cinematografico, clean, editorial">
-              </label>
-              <label>
-                Preset rapido
-                <select id="aiPreset">
-                  <option value="standard">Standard</option>
-                  <option value="rapid">Rapid</option>
-                  <option value="quality">Quality</option>
-                </select>
-              </label>
-            </div>
-
-            <div id="aiImageSection" class="ai-generator-section">
-              <label>
-                Checkpoint
+                Modelo/checkpoint
                 <select id="sdCheckpoint"></select>
               </label>
               <div class="ai-preview-card" id="aiImageModelPreviewCard" hidden>
@@ -422,35 +401,64 @@
                 <img id="aiImageLoraPreview" alt="Preview da LoRA de imagem">
               </div>
               <label>
-                Modo principal
+                Width
+                <input id="sdWidth" type="number" min="64" max="2048" step="8" placeholder="auto">
+              </label>
+              <label>
+                Height
+                <input id="sdHeight" type="number" min="64" max="2048" step="8" placeholder="auto">
+              </label>
+              <label>
+                Seed
+                <input id="sdSeed" type="number" step="1" value="-1">
+              </label>
+              <label>
+                Modo
                 <select id="sdMode">
-                  <option value="txt2img">T2I / txt2img</option>
-                  <option value="i2i">I2I / img2img</option>
+                  <option value="txt2img">txt2img</option>
+                  <option value="img2img">img2img</option>
+                  <option value="inpaint">inpaint</option>
                 </select>
               </label>
               <div id="sdI2IControls">
+                <div id="sdSourceStatus" class="inspector-note">Selecione uma camada de imagem para usar img2img.</div>
                 <label>
-                  Subtipo I2I
+                  Referencia I2I
                   <select id="sdI2IMode">
-                    <option value="img2img">img2img</option>
-                    <option value="sketch">Sketch</option>
-                    <option value="inpaint">Inpaint</option>
-                    <option value="inpaint-sketch">Inpaint Sketch</option>
+                    <option value="selected-layer">Usar camada selecionada</option>
+                    <option value="visible-selection">Usar selecao visivel do canvas</option>
+                    <option value="full-slide">Usar slide inteiro como referencia</option>
                   </select>
                 </label>
-                <div id="sdSourceStatus" class="inspector-note">Selecione uma camada de imagem para usar img2img.</div>
+                <label>
+                  Tamanho da referencia
+                  <select id="sdI2ISizeMode">
+                    <option value="layer">Manter tamanho real da camada</option>
+                    <option value="canvas">Usar tamanho do canvas</option>
+                    <option value="sd-1024">Preset SD 1024 x 1024</option>
+                    <option value="sd-832x1216">Preset SD 832 x 1216</option>
+                    <option value="sd-1216x832">Preset SD 1216 x 832</option>
+                  </select>
+                </label>
                 <div id="sdInpaintMaskContext" class="inspector-note">Quando o modo for inpaint, o SD usara a mascara de inpaint do canvas. Essa mascara e separada da mascara de layer.</div>
               </div>
               <details class="ai-advanced-details">
-                <summary>Configuracao Avancada</summary>
+                <summary>Opcoes avancadas</summary>
                 <label>
-                  Sampling method
+                  Sampler
+                  <select id="sdSampler">
+                    <option value="">Auto</option>
+                    <option value="DPM++ 2M SDE">DPM++ 2M SDE</option>
+                    <option value="DPM++ 3M SDE">DPM++ 3M SDE</option>
+                    <option value="UniPC">UniPC</option>
+                  </select>
+                </label>
+                <label>
+                  Scheduler
                   <select id="sdScheduler">
-                    <option value="DPMSolverMultistepScheduler">DPMSolverMultistepScheduler</option>
-                    <option value="EulerDiscreteScheduler">EulerDiscreteScheduler</option>
-                    <option value="EulerAncestralDiscreteScheduler">EulerAncestralDiscreteScheduler</option>
-                    <option value="DDIMScheduler">DDIMScheduler</option>
-                    <option value="LMSDiscreteScheduler">LMSDiscreteScheduler</option>
+                    <option value="Karras">Karras</option>
+                    <option value="Exponential">Exponential</option>
+                    <option value="SGM Uniform">SGM Uniform</option>
                   </select>
                 </label>
                 <div class="sd-grid">
@@ -461,18 +469,6 @@
                   <label>
                     CFG
                     <input id="sdCfgScale" type="number" min="1" max="30" step="0.5" value="7">
-                  </label>
-                  <label>
-                    Width
-                    <input id="sdWidth" type="number" min="64" max="2048" step="8" placeholder="auto">
-                  </label>
-                  <label>
-                    Height
-                    <input id="sdHeight" type="number" min="64" max="2048" step="8" placeholder="auto">
-                  </label>
-                  <label>
-                    Seed
-                    <input id="sdSeed" type="number" step="1" value="-1">
                   </label>
                   <label>
                     Denoising
@@ -511,60 +507,105 @@
                   </label>
                 </div>
               </details>
+              <button id="sdGenerateButton" type="button" class="ai-generate-button" data-ai-image-action="generate">
+                Gerar imagem
+              </button>
             </div>
+          </div>
+        </section>
 
-            <div id="aiVideoSection" class="ai-generator-section" hidden>
-              <div class="ai-section-title">Video Wan</div>
+        <section class="inspector-accordion" data-inspector-section="ai-video">
+          <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="ai-video" aria-expanded="false">
+            <span>Gerar Video</span>
+          </button>
+          <div class="inspector-accordion-body">
+            <div class="ai-engine-row">
+              <button id="aiVideoEngineToggleButton" type="button" class="ai-engine-toggle" data-ai-video-action="activate-engine">
+                Ativar motor IA
+              </button>
+            </div>
+            <div class="ai-engine-label">Motor: ComfyUI</div>
+            <div id="aiVideoStatus" class="sd-status">Status: offline</div>
+            <div id="aiVideoSection" class="ai-generator-section">
+              <div class="ai-section-title">Opcoes basicas</div>
+              <label>
+                Workflow
+                <select id="aiVideoWorkflow"></select>
+              </label>
+              <label>
+                Prompt positivo
+                <textarea id="aiVideoPrompt" rows="3" placeholder="Descreva o video"></textarea>
+              </label>
+              <label>
+                Prompt negativo
+                <textarea id="aiVideoNegativePrompt" rows="3" placeholder="Itens a evitar"></textarea>
+              </label>
               <label>
                 Modo
                 <select id="aiVideoMode">
-                  <option value="text_to_video">Text to Video</option>
-                  <option value="image_to_video">Image to Video</option>
+                  <option value="text_to_video">t2v</option>
+                  <option value="image_to_video">i2v</option>
                 </select>
               </label>
               <div id="aiVideoSourceStatus" class="inspector-note">T2V funciona sem layer selecionada. Para I2V, selecione uma camada raster compativel.</div>
               <label>
-                Preset
-                <select id="aiVideoPreset">
-                  <option value="wan_wide_5s">Wan seguro 5s</option>
-                  <option value="wan_low_vram_3s">Wan baixo VRAM 3s</option>
-                  <option value="wan_tiny_test">Wan tiny teste</option>
-                </select>
-              </label>
-              <label>
-                Duracao
+                Segundos
                 <input id="aiVideoDuration" type="number" min="1" max="15" step="1" value="5">
               </label>
               <label>
-                Modelo Wan
-                <select id="aiVideoModel"></select>
+                FPS
+                <input id="aiVideoFps" type="number" min="1" max="60" step="1" value="16">
               </label>
-              <div class="ai-preview-card" id="aiVideoModelPreviewCard" hidden>
-                <img id="aiVideoModelPreview" alt="Preview do modelo de video">
-              </div>
-              <div class="video-lora-panel">
-                <div class="video-lora-header">
-                  <span>LoRAs Wan</span>
-                  <span>max. 3</span>
-                </div>
-                <div id="aiVideoLoraList" class="video-lora-list"></div>
-                <div id="aiVideoLoraWarning" class="inspector-note" hidden>Muitas LoRAs podem exceder VRAM.</div>
-              </div>
-              <div class="ai-preview-card" id="aiVideoLoraPreviewCard" hidden>
-                <img id="aiVideoLoraPreview" alt="Preview da LoRA de video">
-              </div>
-              <div class="video-runtime-summary">
-                <div><span>Resolucao real</span><strong id="aiVideoFinalResolution">832 x 480</strong></div>
-                <div><span>Duracao real</span><strong id="aiVideoFinalDuration">5s / 81 frames</strong></div>
-                <div><span>Estimativa</span><strong id="aiVideoEstimate">pesado</strong></div>
-              </div>
+              <label>
+                Seed
+                <input id="aiVideoSeed" type="number" step="1" value="-1">
+              </label>
+              <details class="ai-advanced-details">
+                <summary>Opcoes avancadas</summary>
+                <div id="aiVideoWorkflowFields" class="video-lora-panel"></div>
+              </details>
+              <button id="aiVideoGenerateButton" type="button" class="ai-generate-button" data-ai-video-action="generate">
+                Gerar video
+              </button>
+              <button id="aiVideoAbortButton" type="button" class="ai-abort-button" data-video-action="abort" hidden>
+                Abortar video
+              </button>
             </div>
+          </div>
+        </section>
 
-            <button id="sdGenerateButton" type="button" class="ai-generate-button" data-sd-action="generate">
-              Gerar
-            </button>
-            <button id="aiVideoAbortButton" type="button" class="ai-abort-button" data-video-action="abort" hidden>
-              Abortar video
+        <section class="inspector-accordion" data-inspector-section="ai-narration">
+          <button type="button" class="inspector-accordion-toggle" data-inspector-toggle="ai-narration" aria-expanded="false">
+            <span>Gerar Narracao</span>
+          </button>
+          <div class="inspector-accordion-body">
+            <div class="ai-engine-row">
+              <button id="aiNarrationEngineToggleButton" type="button" class="ai-engine-toggle" data-ai-narration-action="activate-engine">
+                Ativar XTTS
+              </button>
+            </div>
+            <div class="ai-engine-label">Motor: XTTS</div>
+            <div id="aiNarrationStatus" class="sd-status">Status: offline</div>
+            <label>
+              Voz
+              <select id="aiNarrationVoice"></select>
+            </label>
+            <div class="ai-engine-row">
+              <button id="aiNarrationPreviewButton" type="button" class="ai-engine-toggle" data-ai-narration-action="preview">
+                Preview
+              </button>
+              <audio id="aiNarrationPreviewPlayer" controls preload="none"></audio>
+            </div>
+            <label>
+              Texto
+              <textarea id="aiNarrationText" rows="7" placeholder="Digite a narracao"></textarea>
+            </label>
+            <label class="ai-checkbox-label">
+              <input id="aiNarrationSubtitle" type="checkbox">
+              gerar legenda
+            </label>
+            <button id="aiNarrationGenerateButton" type="button" class="ai-generate-button" data-ai-narration-action="generate">
+              Gerar narracao
             </button>
           </div>
         </section>
@@ -672,9 +713,37 @@ Escuro #20232A</textarea>
           <button class="timeline-player-button" type="button" data-timeline-action="stop" title="Parar" aria-label="Parar"><img src="../assets/icones/timeline/pare-o-circulo.svg" alt=""></button>
           <button class="timeline-player-button" type="button" data-timeline-action="next-marker" title="Proximo marcador" aria-label="Proximo marcador"><img src="../assets/icones/timeline/um-passo-a-frente.svg" alt=""></button>
         </div>
+        <div class="timeline-tools" aria-label="Ferramentas da timeline">
+          <button id="timelineSnapButton" class="timeline-player-button timeline-toggle-button" type="button" data-timeline-action="toggle-snap" title="Ima / Snap" aria-label="Ima / Snap" aria-pressed="false"><img src="../assets/icones/magnetismo.svg" alt=""></button>
+          <button id="timelineAutoKeyframeButton" class="timeline-player-button timeline-toggle-button" type="button" data-timeline-action="toggle-auto-keyframe" title="Keyframe automatico" aria-label="Keyframe automatico" aria-pressed="false"><img src="../assets/icones/timeline/relogio.svg" alt=""></button>
+          <button class="timeline-global-button" type="button" data-timeline-action="add-keyframe">Adicionar marcador</button>
+          <button class="timeline-global-button" type="button" data-timeline-action="remove-keyframe">Remover marcador</button>
+          <button class="timeline-global-button" type="button" data-timeline-action="link-items">Grudar</button>
+          <button class="timeline-global-button" type="button" data-timeline-action="unlink-items">Desgrudar</button>
+        </div>
         <button class="timeline-global-button" type="button" data-timeline-action="add-slide">Novo Slide</button>
         <button class="timeline-global-button" type="button" data-timeline-action="remove-slide">Apagar Slide</button>
         <span id="timelineStatus">1 slide</span>
+      </div>
+      <div id="timelineKeyframeEditor" class="timeline-keyframe-editor" hidden>
+        <label>Tempo <input id="keyframeTimeInput" type="number" min="0" step="0.1"></label>
+        <label>X <input id="keyframeXInput" type="number" step="1"></label>
+        <label>Y <input id="keyframeYInput" type="number" step="1"></label>
+        <label>Scale <input id="keyframeScaleInput" type="number" step="0.05" min="0.01"></label>
+        <label>Rot <input id="keyframeRotationInput" type="number" step="1"></label>
+        <label>Opacidade <input id="keyframeOpacityInput" type="number" min="0" max="1" step="0.05"></label>
+        <label id="keyframeVolumeLabel">Volume <input id="keyframeVolumeInput" type="number" min="0" max="2" step="0.05"></label>
+        <label>Easing <select id="keyframeEasingInput">
+          <option value="linear">linear</option>
+          <option value="easeIn">easeIn</option>
+          <option value="easeOut">easeOut</option>
+          <option value="easeInOut">easeInOut</option>
+          <option value="hold">hold</option>
+        </select></label>
+        <button class="timeline-global-button" type="button" data-keyframe-preset="fade-in">Fade in</button>
+        <button class="timeline-global-button" type="button" data-keyframe-preset="fade-out">Fade out</button>
+        <button class="timeline-global-button" type="button" data-keyframe-preset="mute">Mudo</button>
+        <button class="timeline-global-button" type="button" data-keyframe-preset="normal-volume">Volume normal</button>
       </div>
       <div id="timelineTrack" class="timeline-track"></div>
     </footer>

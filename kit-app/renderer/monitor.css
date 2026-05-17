@@ -36,6 +36,11 @@ body {
   background: var(--panel);
 }
 
+.log-header > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
 .log-header h1 {
   margin: 0 0 4px;
   font-size: 18px;
@@ -49,9 +54,76 @@ body {
   font-family: "Segoe UI", sans-serif;
 }
 
+.status-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+  max-width: 920px;
+}
+
+.service-block {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid #303b49;
+  border-radius: 7px;
+  background: #121820;
+  color: #8b98a8;
+  font-family: "Segoe UI", sans-serif;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  user-select: none;
+}
+
+.service-block.is-active {
+  border-color: #7c3aed;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.3), rgba(124, 58, 237, 0.28));
+  color: #eef6ff;
+  box-shadow:
+    0 0 16px rgba(124, 58, 237, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.service-block.is-offline {
+  border-color: #303846;
+  background: #10151c;
+  color: #768293;
+}
+
+.service-context-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 132px;
+  padding: 5px;
+  border: 1px solid #334155;
+  border-radius: 7px;
+  background: #10151c;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.38);
+}
+
+.service-context-menu button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 5px;
+  padding: 8px 10px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.service-context-menu button:hover {
+  background: #1f2a37;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 10px;
 }
 
@@ -95,4 +167,15 @@ button:hover {
   line-height: 1.45;
   font-size: 12px;
   background: #05070a;
+}
+
+@media (max-width: 760px) {
+  .log-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+  }
 }

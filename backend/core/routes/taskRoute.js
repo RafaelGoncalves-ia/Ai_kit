@@ -379,23 +379,25 @@ export default function createTaskRoute(context) {
       throw new Error("Resultado final da task-route bloqueado pelos filtros");
     }
 
-    const shortConclusion = await buildShortConclusion({
-      sessionId: task.sessionId,
-      finalMessage
-    });
+    if (context.config?.system?.speakLongTaskSummary === true) {
+      const shortConclusion = await buildShortConclusion({
+        sessionId: task.sessionId,
+        finalMessage
+      });
 
-    const shortQueued = context.core.responseQueue.enqueue({
-      text: shortConclusion,
-      speakText: shortConclusion,
-      speak: true,
-      priority: 2,
-      source: "task-route-summary",
-      sessionId: task.sessionId,
-      userFacing: true
-    });
+      const shortQueued = context.core.responseQueue.enqueue({
+        text: shortConclusion,
+        speakText: shortConclusion,
+        speak: true,
+        priority: 2,
+        source: "task-route-summary",
+        sessionId: task.sessionId,
+        userFacing: true
+      });
 
-    if (!shortQueued) {
-      throw new Error("Resumo final da task-route bloqueado pelos filtros");
+      if (!shortQueued) {
+        throw new Error("Resumo final da task-route bloqueado pelos filtros");
+      }
     }
   }
 

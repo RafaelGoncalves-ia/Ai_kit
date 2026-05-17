@@ -31,7 +31,7 @@ function createStudioWindow({
     height: windowHeight,
     minWidth: 1180,
     minHeight: 720,
-    frame: false,
+    frame: true,
     title: "KIT Studio",
     backgroundColor: "#10131a"
   });

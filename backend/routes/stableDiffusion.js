@@ -8,6 +8,60 @@ import sdModelScannerModule from "../services/sdModelScanner.cjs";
 const { loadStableDiffusionConfig } = stableDiffusionConfigModule;
 const { scanStableDiffusionModels } = sdModelScannerModule;
 const SD_TEMP_DIR = path.resolve(process.cwd(), "temp", "stable-diffusion");
+const I2I_TEMP_DIR = path.resolve(process.cwd(), "output", "temp", "i2i");
+const ALLOWED_IMAGE_DIRS = [
+  I2I_TEMP_DIR,
+  SD_TEMP_DIR,
+  path.resolve(process.cwd(), "output")
+];
+const ALLOWED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
+const MAX_LEGACY_DATA_URL_BYTES = 2 * 1024 * 1024;
+
+function ensureI2ITempDir() {
+  fs.mkdirSync(I2I_TEMP_DIR, { recursive: true });
+}
+
+function cleanupOldI2IFiles(maxAgeMs = 24 * 60 * 60 * 1000) {
+  try {
+    ensureI2ITempDir();
+    const now = Date.now();
+    for (const entry of fs.readdirSync(I2I_TEMP_DIR, { withFileTypes: true })) {
+      if (!entry.isFile() || !ALLOWED_IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+        continue;
+      }
+      const filePath = path.join(I2I_TEMP_DIR, entry.name);
+      const stat = fs.statSync(filePath);
+      if (now - stat.mtimeMs > maxAgeMs) {
+        fs.rmSync(filePath, { force: true });
+      }
+    }
+  } catch (err) {
+    console.warn(`[SD][I2I] Falha ao limpar temporarios antigos: ${err.message}`);
+  }
+}
+
+function isPathInside(childPath = "", parentPath = "") {
+  const relative = path.relative(parentPath, childPath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function validateImagePath(filePath = "", label = "imagem") {
+  const resolvedPath = path.resolve(String(filePath || "").trim());
+  if (!resolvedPath) {
+    return null;
+  }
+  const extension = path.extname(resolvedPath).toLowerCase();
+  if (!ALLOWED_IMAGE_EXTENSIONS.has(extension)) {
+    throw new Error(`Extensao invalida para ${label}. Use png, jpg, jpeg ou webp.`);
+  }
+  if (!ALLOWED_IMAGE_DIRS.some((allowedDir) => isPathInside(resolvedPath, allowedDir))) {
+    throw new Error(`Caminho de ${label} fora das pastas permitidas.`);
+  }
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`Arquivo de ${label} nao encontrado.`);
+  }
+  return resolvedPath;
+}
 
 function unwrapCanvasToolResult(result = {}) {
   if (result?.status !== "ok") {
@@ -40,19 +94,23 @@ function normalizeGenerationPayload(input = {}, artboard = {}) {
     lora: input.lora || null,
     architecture,
     scheduler: input.scheduler || input.schedule_type || input.scheduleType || "DPMSolverMultistepScheduler",
+    sampler: input.sampler || input.sampler_name || input.samplerName || "",
     steps: Number(input.steps || input.sampling_steps || input.samplingSteps || 24),
     cfg_scale: Number(input.cfg_scale || input.cfgScale || 7),
     seed: Number(input.seed ?? -1),
     denoising_strength: Number(input.denoising_strength || input.denoisingStrength || 0.55),
     width: size?.width,
     height: size?.height,
-    image_path: input.image_path || input.imagePath || null,
+    image_path: input.initImagePath || input.image_path || input.imagePath || null,
     mask_path: input.mask_path || input.maskPath || null,
     artboard
   };
 }
 
 function writeImageDataUrl(dataUrl = "", prefix = "sd-image") {
+  if (String(dataUrl || "").length > MAX_LEGACY_DATA_URL_BYTES) {
+    throw new Error("Imagem base64 grande demais. Rasterize para arquivo temporario e envie initImagePath.");
+  }
   const match = String(dataUrl || "").match(/^data:image\/(png|jpeg|webp);base64,(.+)$/);
   if (!match?.[1] || !match?.[2]) {
     return null;
@@ -69,11 +127,18 @@ function writeImageDataUrl(dataUrl = "", prefix = "sd-image") {
 }
 
 function prepareImageInputs(input = {}) {
-  const imagePath = input.image_path || input.imagePath || writeImageDataUrl(
+  cleanupOldI2IFiles();
+  const rawImagePath = input.initImagePath || input.image_path || input.imagePath;
+  const rawMaskPath = input.mask_path || input.maskPath;
+  const imagePath = rawImagePath
+    ? validateImagePath(rawImagePath, "imagem inicial")
+    : writeImageDataUrl(
     input.base_image_data_url || input.baseImageDataUrl || input.image_data_url || input.imageDataUrl,
     "inpaint-base"
   );
-  const maskPath = input.mask_path || input.maskPath || writeImageDataUrl(
+  const maskPath = rawMaskPath
+    ? validateImagePath(rawMaskPath, "mascara")
+    : writeImageDataUrl(
     input.mask_image_data_url || input.maskImageDataUrl || input.mask_data_url || input.maskDataUrl,
     "inpaint-mask"
   );
@@ -89,6 +154,9 @@ export default function createStableDiffusionRoutes(context) {
   const client = createStableDiffusionClient();
 
   async function handleGenerateRequest(req, res, modeOverride = null) {
+    await context.core?.cacheManager?.runBeforeHeavyTask?.("sd").catch((err) => {
+      console.warn(`[RESOURCE][SD] before cleanup failed: ${err.message}`);
+    });
     try {
       const mode = String(modeOverride || req.body?.mode || "txt2img").trim();
       const activeArtboard = await getActiveCanvasArtboard(context);
@@ -99,6 +167,16 @@ export default function createStableDiffusionRoutes(context) {
         image_path: imageInputs.imagePath || req.body?.image_path || req.body?.imagePath || null,
         mask_path: imageInputs.maskPath || req.body?.mask_path || req.body?.maskPath || null
       };
+      if (mode === "img2img" || mode === "inpaint") {
+        console.info("[SD][I2I] endpoint chamado", {
+          mode,
+          layer: req.body?.sourceLayerId || null,
+          imagePath: payload.image_path || null,
+          maskPath: payload.mask_path || null,
+          width: payload.width || null,
+          height: payload.height || null
+        });
+      }
       const resolvedSize = client.resolveGenerationSize({
         artboard,
         architecture: payload.architecture,
@@ -132,6 +210,10 @@ export default function createStableDiffusionRoutes(context) {
         success: false,
         error: err.message || "Falha ao gerar imagem com Stable Diffusion."
       });
+    } finally {
+      await context.core?.cacheManager?.runAfterHeavyTask?.("sd").catch((err) => {
+        console.warn(`[RESOURCE][SD] after cleanup failed: ${err.message}`);
+      });
     }
   }
 
@@ -147,6 +229,7 @@ export default function createStableDiffusionRoutes(context) {
         config: {
           source: config.source,
           pythonPath: config.pythonPath,
+          forgeVenv: config.forgeVenv,
           modelsRoot: config.modelsRoot,
           checkpointsPath: config.checkpointsPath,
           lorasPath: config.lorasPath,
@@ -176,6 +259,7 @@ export default function createStableDiffusionRoutes(context) {
         config: {
           source: config.source,
           pythonPath: config.pythonPath,
+          forgeVenv: config.forgeVenv,
           modelsRoot: config.modelsRoot,
           checkpointsPath: config.checkpointsPath,
           lorasPath: config.lorasPath,
@@ -226,7 +310,9 @@ export default function createStableDiffusionRoutes(context) {
           errors: config.errors,
           writable: config.writable
         },
-        schedulers: client.schedulers
+        schedulers: client.schedulers,
+        samplers: client.samplers,
+        schedulerModes: client.schedulerModes
       });
     } catch (err) {
       res.status(503).json({
@@ -239,11 +325,32 @@ export default function createStableDiffusionRoutes(context) {
     }
   });
 
+  router.get("/progress", async (req, res) => {
+    try {
+      const progress = await client.progress();
+      res.json({
+        success: true,
+        ...progress
+      });
+    } catch (err) {
+      res.status(503).json({
+        success: false,
+        error: err.message || "Falha ao consultar progresso do SD.",
+        active: false,
+        phase: "idle",
+        percent: 0
+      });
+    }
+  });
+
   router.post("/generate", async (req, res) => handleGenerateRequest(req, res));
   router.post("/txt2img", async (req, res) => handleGenerateRequest(req, res, "txt2img"));
   router.post("/img2img", async (req, res) => handleGenerateRequest(req, res, "img2img"));
 
   router.post("/inpaint", async (req, res) => {
+    await context.core?.cacheManager?.runBeforeHeavyTask?.("sd").catch((err) => {
+      console.warn(`[RESOURCE][SD] before cleanup failed: ${err.message}`);
+    });
     try {
       const activeArtboard = await getActiveCanvasArtboard(context);
       const artboard = activeArtboard || req.body?.artboard || {};
@@ -295,10 +402,17 @@ export default function createStableDiffusionRoutes(context) {
         success: false,
         error: err.message || "Falha ao executar inpaint com Stable Diffusion."
       });
+    } finally {
+      await context.core?.cacheManager?.runAfterHeavyTask?.("sd").catch((err) => {
+        console.warn(`[RESOURCE][SD] after cleanup failed: ${err.message}`);
+      });
     }
   });
 
   router.post("/outpaint", async (req, res) => {
+    await context.core?.cacheManager?.runBeforeHeavyTask?.("sd").catch((err) => {
+      console.warn(`[RESOURCE][SD] before cleanup failed: ${err.message}`);
+    });
     try {
       const activeArtboard = await getActiveCanvasArtboard(context);
       const artboard = req.body?.artboard || activeArtboard || {};
@@ -351,6 +465,10 @@ export default function createStableDiffusionRoutes(context) {
       res.status(500).json({
         success: false,
         error: err.message || "Falha ao executar outpaint com Stable Diffusion."
+      });
+    } finally {
+      await context.core?.cacheManager?.runAfterHeavyTask?.("sd").catch((err) => {
+        console.warn(`[RESOURCE][SD] after cleanup failed: ${err.message}`);
       });
     }
   });

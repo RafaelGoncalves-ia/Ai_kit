@@ -126,8 +126,8 @@ export function createAgentToolLoop(context, config = loadAgentToolLoopConfig())
       emitEvents: false,
       hasTools: true,
       temperature: 0.2,
-      numPredict: 900,
-      timeoutMs: 90000
+      numPredict: 2200,
+      timeoutMs: 120000
     });
 
     return String(result?.data?.text || "").trim();

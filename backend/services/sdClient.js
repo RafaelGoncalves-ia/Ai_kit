@@ -32,11 +32,26 @@ const PRESET_RATIOS = {
 
 const DIFFUSERS_SCHEDULERS = [
   "DPMSolverMultistepScheduler",
+  "DPM++ 2M SDE",
+  "DPM++ 3M SDE",
+  "UniPCMultistepScheduler",
+  "UniPC",
   "EulerDiscreteScheduler",
   "EulerAncestralDiscreteScheduler",
   "DDIMScheduler",
   "LMSDiscreteScheduler"
 ];
+
+const SD_SAMPLERS = [
+  "DPM++ 2M SDE",
+  "DPM++ 3M SDE",
+  "UniPC",
+  "Euler",
+  "Euler a",
+  "DPM++ 2M"
+];
+
+const SDXL_SCHEDULER_MODES = ["Karras", "Exponential", "SGM Uniform"];
 
 function gcd(a, b) {
   let x = Math.abs(Math.round(a || 0));
@@ -122,12 +137,17 @@ export function createStableDiffusionClient(options = {}) {
   return {
     baseUrl,
     schedulers: DIFFUSERS_SCHEDULERS,
+    samplers: SD_SAMPLERS,
+    schedulerModes: SDXL_SCHEDULER_MODES,
     resolveGenerationSize,
     async health() {
       return request("/health");
     },
     async models() {
       return request("/models");
+    },
+    async progress() {
+      return request("/progress");
     },
     async unload() {
       return request("/unload", {

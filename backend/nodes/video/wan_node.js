@@ -11,7 +11,7 @@ export class WanNode extends BaseNode {
     return {
       mode: "gpu_video_exclusive",
       requires: ["video"],
-      stopBeforeRun: ["ollama", "xtts", "stt", "sd"],
+      stopBeforeRun: ["ollama", "sd"],
       releaseAfterRun: true,
       jobTimeoutMs: this.params.timeoutMs || Number(process.env.WAN_GENERATE_TIMEOUT_MS || process.env.VIDEO_WAN_JOB_TIMEOUT_MS || 7200000),
       maxVramMb: this.params.maxVramMb || 11000,

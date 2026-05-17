@@ -14,7 +14,7 @@ const PROFILE_POLICIES = {
   gpu_video_exclusive: {
     mode: "gpu_exclusive",
     requires: ["video", "wan"],
-    stopBeforeRun: ["ollama", "xtts", "stt", "sd"],
+    stopBeforeRun: ["ollama", "sd"],
     releaseAfterRun: true,
     maxVramMb: 11000,
     maxRamMb: 14000
@@ -46,7 +46,7 @@ const PROFILE_POLICIES = {
   release_all: {
     mode: "release_all",
     requires: [],
-    stopBeforeRun: ["ollama", "xtts", "stt", "sd", "video", "wan"],
+    stopBeforeRun: ["ollama", "sd", "video", "wan"],
     releaseAfterRun: true,
     maxVramMb: 0,
     maxRamMb: 0
@@ -151,9 +151,11 @@ export class ResourceManager {
   }
 
   async prepareWanExclusiveMode(logger = () => {}) {
-    logger("[WAN][EXCLUSIVE] stopping xtts/stt/sd/ollama");
+    logger("[COMFYUI][EXCLUSIVE] stopping xtts");
+    logger("[COMFYUI][EXCLUSIVE] stopping sd");
+    logger("[COMFYUI][EXCLUSIVE] blocking ollama");
     const activeServices = await this.collectActiveServices();
-    logger(`[WAN][EXCLUSIVE] active_services=${activeServices.join(",") || "none"}`);
+    logger(`[COMFYUI][EXCLUSIVE] active_services=${activeServices.join(",") || "none"}`);
 
     const killed = [];
     for (const service of ["xtts", "stt", "sd", "ollama"]) {
@@ -161,10 +163,10 @@ export class ResourceManager {
       killed.push(service);
     }
 
-    logger(`[WAN][EXCLUSIVE] killed=${killed.join(",")}`);
-    logger("[WAN][EXCLUSIVE] services stopped");
+    logger(`[COMFYUI][EXCLUSIVE] killed=${killed.join(",")}`);
+    logger("[COMFYUI][EXCLUSIVE] services stopped");
     this.cleanupMemory(logger);
-    logger("[WAN][EXCLUSIVE] cuda cache cleared");
+    logger("[COMFYUI][EXCLUSIVE] cuda cache cleared");
     return { activeServices, killed };
   }
 
@@ -467,7 +469,7 @@ export class ResourceManager {
 
   cleanupMemory(logger = () => {}) {
     if (isWanGenerationLocked()) {
-      logger("[WAN][EXCLUSIVE] cleanup agressivo ignorado: wan_generation lock ativo");
+      logger("[COMFYUI][EXCLUSIVE] memory.consolidation skipped");
       return;
     }
     if (global.gc) {

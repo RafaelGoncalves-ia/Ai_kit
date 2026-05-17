@@ -4,6 +4,21 @@ import { buildPromptPreview, hasUsableAssistantText } from "../utils/assistantMe
 import { resolveLLMRequestPolicy } from "./llmPolicy.js";
 import { buildSpeechPayload } from "./speechFilter.js";
 
+const LLM_MODES = {
+  fast: {
+    id: "fast",
+    label: "Fast",
+    model: "fredrezones55/Gemma-4-Uncensored-HauhauCS-Aggressive:e2b-SCN",
+    keepAlive: "20m"
+  },
+  smart: {
+    id: "smart",
+    label: "Smart",
+    model: "fredrezones55/Gemma-4-Uncensored-HauhauCS-Aggressive:e4b",
+    keepAlive: "20m"
+  }
+};
+
 const THOUGHT_START_RE = /<\|channel\|>thought\s*/i;
 const THOUGHT_END_RE = /(?:<\|channel\|>|<channel\|>)/i;
 
@@ -379,9 +394,11 @@ export default function createAIService(context) {
     Number(process.env.OLLAMA_WARMUP_TIMEOUT_MS || 180000)
   );
 
-  let currentModel =
-    context.config.system?.defaultModel ||
-    "fredrezones55/Gemma-4-Uncensored-HauhauCS-Aggressive:e4b";
+  let currentMode = "off";
+  let requestedMode = "fast";
+  let currentModel = LLM_MODES.fast.model;
+  let switchingTo = null;
+  let modeSwitchPromise = null;
 
   const defaultRequestTimeoutMs = Math.max(
     1000,
@@ -427,6 +444,10 @@ export default function createAIService(context) {
   async function runWithConcurrencyLimit(task) {
     return new Promise((resolve, reject) => {
       const run = async () => {
+        if (modeSwitchPromise) {
+          await modeSwitchPromise.catch(() => {});
+        }
+
         activeRequests += 1;
 
         try {
@@ -464,10 +485,241 @@ export default function createAIService(context) {
 
   function setModel(modelName) {
     currentModel = modelName;
+    const matchedMode = Object.values(LLM_MODES).find((mode) => mode.model === modelName);
+    if (matchedMode) {
+      requestedMode = matchedMode.id;
+      currentMode = matchedMode.id;
+    }
   }
 
   function getModel() {
     return currentModel;
+  }
+
+  function normalizeMode(value = "fast") {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "smart" || normalized === "fast" || normalized === "off") {
+      return normalized;
+    }
+    return "fast";
+  }
+
+  function getMode() {
+    return {
+      active: currentMode,
+      requested: requestedMode,
+      switchingTo,
+      model: currentMode === "off" ? null : currentModel,
+      modes: LLM_MODES
+    };
+  }
+
+  function emitModeChanged(extra = {}) {
+    context.core?.eventBus?.emit("llm:mode", {
+      ...getMode(),
+      ...extra,
+      timestamp: Date.now()
+    });
+  }
+
+  function isSmartRequiredSource(source = "") {
+    const normalized = String(source || "").toLowerCase();
+    return (
+      normalized.includes("agent") ||
+      normalized.includes("studio") ||
+      normalized.includes("analyze") ||
+      normalized.includes("briefing") ||
+      normalized.includes("planner") ||
+      normalized.includes("script") ||
+      normalized.includes("document") ||
+      normalized.includes("code") ||
+      normalized.startsWith("task")
+    );
+  }
+
+  function resolveRequiredMode(source = "unknown", options = {}) {
+    if (options.llmMode) {
+      return normalizeMode(options.llmMode);
+    }
+    if (isSmartRequiredSource(source)) {
+      return "smart";
+    }
+    return requestedMode === "smart" ? "smart" : "fast";
+  }
+
+  function resolveModeReason(source = "unknown", explicitReason = "") {
+    if (explicitReason) return explicitReason;
+    const normalized = String(source || "").toLowerCase();
+    if (normalized.includes("agent")) return "agent_required";
+    if (normalized.includes("studio")) return "studio_required";
+    if (normalized === "chat-open" || normalized === "chat_open" || normalized === "warmup") return "chat_default";
+    return requestedMode === "smart" ? "manual_selection" : "chat_default";
+  }
+
+  async function postUnloadModel(model) {
+    if (!model) {
+      return { ok: true, model: null };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model,
+          prompt: "",
+          stream: false,
+          keep_alive: 0
+        })
+      });
+      await response.json().catch(() => ({}));
+      return {
+        ok: response.ok,
+        model,
+        status: response.status
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        model,
+        error: err.message
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function waitForVramRelease() {
+    const delayMs = Math.max(250, Number(process.env.OLLAMA_SWAP_VRAM_WAIT_MS || 1200));
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  async function loadMode(modeId, reason = "manual_selection") {
+    const mode = LLM_MODES[modeId];
+    if (!mode) {
+      return { ok: false, error: `Modo invalido: ${modeId}` };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), warmupTimeoutMs);
+    try {
+      const response = await fetch(`${OLLAMA_URL}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: mode.model,
+          stream: false,
+          think: false,
+          keep_alive: mode.keepAlive,
+          options: {
+            num_ctx: 512,
+            num_predict: 8,
+            temperature: 0.1
+          },
+          messages: buildChatMessages({
+            prompt: "Responda apenas com OK.",
+            thinkEnabled: false
+          })
+        })
+      });
+      await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      currentMode = modeId;
+      currentModel = mode.model;
+      console.log(`[LLM][MODE] active=${modeId} model=${mode.model.split(":").pop()} reason=${reason} keep_alive=${mode.keepAlive}`);
+      emitModeChanged({ reason });
+      return { ok: true, mode: modeId, model: mode.model };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function performModeSwitch(targetMode, reason = "manual_selection") {
+    const normalizedTarget = normalizeMode(targetMode);
+    if (["manual_selection", "chat_default"].includes(reason) && normalizedTarget !== "off") {
+      requestedMode = normalizedTarget;
+    }
+
+    if (normalizedTarget === "off") {
+      if (reason === "canvas_default") {
+        requestedMode = "fast";
+      }
+      switchingTo = "off";
+      emitModeChanged({ reason });
+      await Promise.all(Object.values(LLM_MODES).map((mode) => postUnloadModel(mode.model)));
+      await waitForVramRelease();
+      currentMode = "off";
+      currentModel = LLM_MODES.fast.model;
+      switchingTo = null;
+      console.log(`[LLM][MODE] active=off reason=${reason}`);
+      emitModeChanged({ reason });
+      return { ok: true, mode: "off" };
+    }
+
+    const target = LLM_MODES[normalizedTarget];
+    if (currentMode === normalizedTarget && currentModel === target.model) {
+      console.log(`[LLM][MODE] active=${normalizedTarget} model=${target.model.split(":").pop()} reason=${reason} keep_alive=${target.keepAlive}`);
+      emitModeChanged({ reason });
+      return { ok: true, mode: normalizedTarget, model: target.model, unchanged: true };
+    }
+
+    const previousMode = currentMode;
+    const previousModel = currentMode === "off" ? null : currentModel;
+    switchingTo = normalizedTarget;
+    emitModeChanged({ reason });
+
+    console.log(`[LLM][SWAP] from=${previousMode} to=${normalizedTarget} unload=${previousMode} load=${normalizedTarget}`);
+    await postUnloadModel(previousModel);
+    const otherMode = normalizedTarget === "fast" ? LLM_MODES.smart : LLM_MODES.fast;
+    await postUnloadModel(otherMode.model);
+    await waitForVramRelease();
+    try {
+      return await loadMode(normalizedTarget, reason);
+    } finally {
+      switchingTo = null;
+      emitModeChanged({ reason });
+    }
+  }
+
+  async function switchMode(targetMode, reason = "manual_selection") {
+    const runSwitch = async () => {
+      while (activeRequests > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      return performModeSwitch(targetMode, reason);
+    };
+
+    modeSwitchPromise = (modeSwitchPromise || Promise.resolve())
+      .catch(() => {})
+      .then(runSwitch)
+      .finally(() => {
+        modeSwitchPromise = null;
+      });
+
+    return modeSwitchPromise;
+  }
+
+  async function ensureMode(targetMode, reason = "chat_default") {
+    if (modeSwitchPromise) {
+      await modeSwitchPromise.catch(() => {});
+    }
+
+    const normalizedTarget = normalizeMode(targetMode);
+    if (normalizedTarget === "off") {
+      return switchMode("off", reason);
+    }
+
+    if (currentMode === normalizedTarget && currentModel === LLM_MODES[normalizedTarget].model) {
+      return { ok: true, mode: normalizedTarget, model: currentModel };
+    }
+
+    return switchMode(normalizedTarget, reason);
   }
 
   function recordCall(entry) {
@@ -537,20 +789,28 @@ export default function createAIService(context) {
 
   async function chat(prompt, options = {}, meta = {}) {
     const requestMeta = normalizeMeta(prompt, options, meta);
-    const resolvedTimeoutMs = resolveTimeoutMs(requestMeta.source, options);
+    const requiredMode = resolveRequiredMode(requestMeta.source, options);
+    const requiredReason = resolveModeReason(requestMeta.source, options.modeReason || options.llmModeReason);
+    const requestOptions = {
+      ...options,
+      keep_alive: options.keep_alive ?? options.keepAlive ?? LLM_MODES[requiredMode]?.keepAlive
+    };
+    const resolvedTimeoutMs = resolveTimeoutMs(requestMeta.source, requestOptions);
     const policy = resolveLLMRequestPolicy({
       context,
       source: requestMeta.source,
       prompt,
-      options
+      options: requestOptions
     });
-    const shouldEmitEvents = options.emitEvents !== false;
+    const shouldEmitEvents = requestOptions.emitEvents !== false;
+
+    await ensureMode(requiredMode, requiredReason);
 
     return runWithConcurrencyLimit(async () => {
       const controller = new AbortController();
       const startedAt = Date.now();
       const timeout = setTimeout(() => controller.abort(), resolvedTimeoutMs);
-      const requestThink = options.think ?? context.config.system?.thinkingEnabled ?? false;
+      const requestThink = requestOptions.think ?? context.config.system?.thinkingEnabled ?? false;
       const requestStream = policy.stream;
       let firstTokenAt = null;
       let promptEvalCount = null;
@@ -562,7 +822,7 @@ export default function createAIService(context) {
       logger.info(
         `[OLLAMA CALL] source=${requestMeta.source} timestamp=${requestMeta.timestamp} ` +
         `sessionId=${requestMeta.sessionId || "-"} executionId=${requestMeta.executionId || "-"} ` +
-        `mode=${policy.mode} profile=${policy.profileId} model=${currentModel} ` +
+        `mode=${policy.mode} llm_mode=${currentMode} profile=${policy.profileId} model=${currentModel} ` +
         `num_ctx=${policy.options.num_ctx} num_predict=${policy.options.num_predict} ` +
         `keep_alive=${policy.keepAlive} stream=${requestStream} think=${requestThink} ` +
         `prompt_tokens=${policy.promptTokens}/${policy.promptTokensBeforeTrim} ` +
@@ -586,13 +846,14 @@ export default function createAIService(context) {
         const res = await postChatRequestWithFallback({
           ollamaUrl: OLLAMA_URL,
           model: currentModel,
+          llmMode: currentMode,
           stream: requestStream,
           think: requestThink,
           keepAlive: policy.keepAlive,
           options: policy.options,
           prompt: policy.prompt,
-          images: options.images || [],
-          media: options.media || [],
+        images: requestOptions.images || [],
+        media: requestOptions.media || [],
           signal: controller.signal
         });
 
@@ -644,12 +905,12 @@ export default function createAIService(context) {
                 firstTokenAt = Date.now();
               }
 
-              if (thoughtDelta && typeof options.onThoughtToken === "function") {
-                options.onThoughtToken(thoughtDelta);
+              if (thoughtDelta && typeof requestOptions.onThoughtToken === "function") {
+                requestOptions.onThoughtToken(thoughtDelta);
               }
 
-              if (finalDelta && typeof options.onToken === "function") {
-                options.onToken(finalDelta);
+              if (finalDelta && typeof requestOptions.onToken === "function") {
+                requestOptions.onToken(finalDelta);
               }
 
               if (shouldEmitEvents) {
@@ -721,8 +982,8 @@ export default function createAIService(context) {
             keepAlive: policy.keepAlive,
             prompt: policy.prompt,
             options: policy.options,
-            images: options.images || [],
-            media: options.media || [],
+            images: requestOptions.images || [],
+            media: requestOptions.media || [],
             think: requestThink,
             timeoutMs: Math.min(20000, resolvedTimeoutMs)
           });
@@ -744,8 +1005,8 @@ export default function createAIService(context) {
             keepAlive: policy.keepAlive,
             prompt: policy.prompt,
             options: policy.options,
-            images: options.images || [],
-            media: options.media || [],
+            images: requestOptions.images || [],
+            media: requestOptions.media || [],
             think: false,
             timeoutMs: Math.min(Math.max(30000, resolvedTimeoutMs), 120000)
           });
@@ -879,47 +1140,11 @@ export default function createAIService(context) {
 
     warmupRunning = true;
     const startedAt = Date.now();
-    logger.info(`[OLLAMA WARMUP] iniciando model=${currentModel}`);
+    logger.info(`[OLLAMA WARMUP] iniciando mode=${requestedMode} model=${LLM_MODES[requestedMode]?.model || currentModel}`);
 
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), warmupTimeoutMs);
-      const response = await fetch(`${OLLAMA_URL}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: currentModel,
-          stream: false,
-          think: false,
-          keep_alive: "20m",
-          options: {
-            num_ctx: 512,
-            num_predict: 8,
-            temperature: 0.1
-          },
-          messages: buildChatMessages({
-            prompt: "Responda apenas com OK.",
-            thinkEnabled: false
-          })
-        })
-      });
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json().catch(() => ({}));
-      const text = salvageAssistantText(data);
-
-      if (text) {
-        logger.info(
-          `[OLLAMA WARMUP] sucesso model=${currentModel} durationMs=${Date.now() - startedAt} text="${buildPromptPreview(text, 40)}"`
-        );
-      } else {
-        logger.warn(`[OLLAMA WARMUP] concluido sem texto model=${currentModel} durationMs=${Date.now() - startedAt}`);
-      }
+      await ensureMode(requestedMode || "fast", requestedMode === "smart" ? "manual_selection" : "chat_default");
+      logger.info(`[OLLAMA WARMUP] sucesso mode=${currentMode} model=${currentModel} durationMs=${Date.now() - startedAt}`);
     } catch (err) {
       logger.warn(`[OLLAMA WARMUP] falhou model=${currentModel} durationMs=${Date.now() - startedAt} error=${err.message}`);
     } finally {
@@ -932,26 +1157,7 @@ export default function createAIService(context) {
     logger.info(`[OLLAMA UNLOAD] iniciando model=${currentModel}`);
 
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-      const response = await fetch(`${OLLAMA_URL}/api/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: currentModel,
-          prompt: "",
-          stream: false,
-          keep_alive: 0
-        })
-      });
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      await response.json().catch(() => ({}));
+      await switchMode("off", "unload");
       logger.info(`[OLLAMA UNLOAD] concluido model=${currentModel} durationMs=${Date.now() - startedAt}`);
       return {
         ok: true,
@@ -970,9 +1176,13 @@ export default function createAIService(context) {
   }
 
   function getDiagnostics() {
-    return {
-      currentModel,
-      singleModelMode,
+      return {
+        currentModel,
+        currentMode,
+        requestedMode,
+        switchingTo,
+        modes: LLM_MODES,
+        singleModelMode,
       defaultRequestTimeoutMs,
       timeoutBySource,
       maxConcurrent,
@@ -1008,5 +1218,5 @@ export default function createAIService(context) {
     }
   }
 
-  return { chat, listModels, setModel, getModel, getDiagnostics, getLiveDiagnostics, warmup, unload };
+  return { chat, listModels, setModel, getModel, getMode, switchMode, ensureMode, getDiagnostics, getLiveDiagnostics, warmup, unload };
 }

@@ -685,6 +685,28 @@ textarea {
   background: #11151a;
 }
 
+.toolbar-panel-search {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid #3a424e;
+  border-radius: 6px;
+  background: #11151a;
+  color: #eef1f5;
+}
+
+.toolbar-panel-empty {
+  min-height: 72px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border: 1px dashed #3a424e;
+  border-radius: 7px;
+  color: #9aa4b2;
+  font-size: 12px;
+  text-align: center;
+}
+
 .toolbar-media-actions {
   display: grid;
   gap: 8px;
@@ -748,6 +770,17 @@ textarea {
   height: 100%;
   background: transparent;
   overflow: hidden;
+}
+
+.fabric-board.is-drag-over::after {
+  content: "";
+  position: absolute;
+  inset: 18px;
+  z-index: 45;
+  border: 2px dashed rgba(143, 176, 212, 0.9);
+  border-radius: 8px;
+  background: rgba(143, 176, 212, 0.08);
+  pointer-events: none;
 }
 
 .fabric-board canvas,
@@ -1292,6 +1325,30 @@ textarea {
   font-size: 12px;
 }
 
+.ai-engine-label {
+  color: #8e99a8;
+  font-size: 11px;
+}
+
+.ai-checkbox-label {
+  display: flex !important;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.ai-checkbox-label input {
+  width: 16px !important;
+  min-height: 16px !important;
+  padding: 0 !important;
+}
+
+#aiNarrationPreviewPlayer {
+  min-width: 0;
+  width: 100%;
+  height: 32px;
+}
+
 .ai-engine-toggle,
 .ai-generate-button,
 .ai-abort-button {
@@ -1680,7 +1737,49 @@ button.brand-kit-item:focus {
   color: #8e99a8;
 }
 
+.timeline-keyframe-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 4px 12px;
+  border-top: 1px solid #232a33;
+  border-bottom: 1px solid #232a33;
+  background: #171b21;
+  color: #cbd3dd;
+  font-size: 11px;
+  overflow-x: auto;
+}
+
+.timeline-keyframe-editor label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.timeline-keyframe-editor input,
+.timeline-keyframe-editor select {
+  width: 72px;
+  height: 24px;
+  border: 1px solid #343c48;
+  border-radius: 4px;
+  background: #11151a;
+  color: #eef1f5;
+  font-size: 11px;
+}
+
+.timeline-keyframe-editor select {
+  width: 92px;
+}
+
 .timeline-player {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timeline-tools {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1697,6 +1796,12 @@ button.brand-kit-item:focus {
   border-radius: 5px;
   background: #232832;
   cursor: pointer;
+}
+
+.timeline-toggle-button[aria-pressed="true"] {
+  border-color: #f2b84b;
+  background: #3b3120;
+  box-shadow: 0 0 0 1px rgba(242,184,75,0.28);
 }
 
 .timeline-player-button img {
@@ -1830,6 +1935,30 @@ button.brand-kit-item:focus {
   padding: 6px 0 0;
 }
 
+.timeline-snap-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 6;
+  width: 1px;
+  background: #f2b84b;
+  box-shadow: 0 0 0 1px rgba(242,184,75,0.25), 0 0 12px rgba(242,184,75,0.35);
+  pointer-events: none;
+}
+
+.timeline-snap-guide::after {
+  content: "snap";
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(20, 24, 30, 0.92);
+  color: #f2b84b;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
 .timeline-slide-marker {
   position: absolute;
   top: 0;
@@ -1925,6 +2054,11 @@ button.brand-kit-item:focus {
   background: #3b414b;
 }
 
+.timeline-item.is-subtitle {
+  border-color: #c9a24c;
+  background: #4a3921;
+}
+
 .timeline-item.is-audio,
 .timeline-item.is-music {
   border-color: #4b9a72;
@@ -1934,6 +2068,23 @@ button.brand-kit-item:focus {
 .timeline-item.is-selected {
   border-color: #f2b84b;
   box-shadow: 0 0 0 1px rgba(242,184,75,0.55);
+}
+
+.timeline-item.is-linked::after {
+  content: "";
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #f2b84b;
+  box-shadow: 0 0 7px rgba(242,184,75,0.65);
+}
+
+.timeline-item.is-snap-reference {
+  border-color: #f2b84b;
+  box-shadow: 0 0 0 1px rgba(242,184,75,0.52), 0 0 12px rgba(242,184,75,0.22);
 }
 
 .timeline-item.is-hidden {
@@ -1969,6 +2120,24 @@ button.brand-kit-item:focus {
   width: 7px;
   height: 100%;
   cursor: ew-resize;
+}
+
+.timeline-keyframe-dot {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  width: 9px;
+  height: 9px;
+  border: 1px solid rgba(20, 24, 30, 0.9);
+  background: #f2b84b;
+  transform: translate(-50%, -50%) rotate(45deg);
+  cursor: grab;
+}
+
+.timeline-keyframe-dot.is-selected {
+  background: #ffffff;
+  border-color: #f2b84b;
+  box-shadow: 0 0 0 2px rgba(242,184,75,0.38);
 }
 
 .timeline-resize.start {

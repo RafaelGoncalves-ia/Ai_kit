@@ -44,6 +44,8 @@ const kitAPI = {
   getWakeListeningRuntime: () => ipcRenderer.invoke("wake-listening:get-runtime"),
   wakeListeningLog: (message) => ipcRenderer.send("wake-listening:log", message),
   openFileDialog: (options) => ipcRenderer.invoke("open-file-dialog", options || {}),
+  openPath: (filePath) => ipcRenderer.invoke("shell:open-path", filePath || ""),
+  selectClientFolder: () => ipcRenderer.invoke("canvas:client-folder:select"),
   createBrandKit: () => ipcRenderer.invoke("canvas:brand-kit:new"),
   openBrandKit: () => ipcRenderer.invoke("canvas:brand-kit:open"),
   saveBrandKit: (payload) => ipcRenderer.invoke("canvas:brand-kit:save", payload || {}),
@@ -54,6 +56,7 @@ const kitAPI = {
   saveCanvasProject: (payload) => ipcRenderer.invoke("canvas:project:save", payload || {}),
   saveCanvasMaskPng: (payload) => ipcRenderer.invoke("canvas:mask:save-png", payload || {}),
   saveCanvasImage: (payload) => ipcRenderer.invoke("canvas:image:save", payload || {}),
+  saveCanvasI2ITempPng: (payload) => ipcRenderer.invoke("canvas:i2i:save-temp-png", payload || {}),
   saveCanvasVideoMp4: (payload) => ipcRenderer.invoke("canvas:video:save-mp4", payload || {}),
   saveCanvasAutosave: (payload) => ipcRenderer.invoke("canvas:autosave:save", payload || {}),
   loadCanvasAutosave: () => ipcRenderer.invoke("canvas:autosave:load"),
@@ -133,6 +136,28 @@ const kitAPI = {
     const response = await fetch(`${BACKEND}/api/media/video-models`);
     return parseJson(response);
   },
+  listComfyWorkflows: async () => {
+    const response = await fetch(`${BACKEND}/api/comfy/workflows`);
+    return parseJson(response);
+  },
+  getComfyWorkflowFields: async (workflowId = "wan2.2") => {
+    const response = await fetch(`${BACKEND}/api/comfy/workflows/${encodeURIComponent(workflowId)}/fields`);
+    return parseJson(response);
+  },
+  listXttsVoices: () => ipcRenderer.invoke("xtts:voices:list"),
+  saveXttsSubtitle: (payload) => ipcRenderer.invoke("xtts:subtitle:save", payload || {}),
+  generateXttsNarration: async (payload) => {
+    const response = await fetch(`http://127.0.0.1:${payload?.port || 5005}/speak`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: payload?.text || "",
+        speaker: payload?.speaker || "Daisy Studious",
+        language: payload?.language || "pt"
+      })
+    });
+    return parseJson(response);
+  },
   getStudioClientMedia: async ({ clientId = "", clientName = "", projectId = "" } = {}) => {
     const query = new URLSearchParams();
     if (clientId) query.set("clientId", clientId);
@@ -161,6 +186,10 @@ const kitAPI = {
   },
   getStableDiffusionModels: async () => {
     const response = await fetch(`${BACKEND}/sd/models`);
+    return parseJson(response);
+  },
+  getStableDiffusionProgress: async () => {
+    const response = await fetch(`${BACKEND}/sd/progress`);
     return parseJson(response);
   },
   generateStableDiffusionImage: async (payload) => {

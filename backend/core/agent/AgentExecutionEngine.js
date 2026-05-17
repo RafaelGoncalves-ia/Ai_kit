@@ -533,7 +533,7 @@ function parseTextPlan(text = "", goal = "") {
     let type = "synthesize";
     if (/web|google|pesquis/.test(lower) || toolsText.includes("google_search") || toolsText.includes("web")) type = "web_search";
     if (/arquivo|pasta|local|contrato|pdf|xlsx|doc/.test(lower)) type = index === 0 ? "search_files" : "read_file";
-    if (/criar|salvar|csv|txt|documento/.test(lower)) type = "save_file";
+    if (/criar|salvar|csv|txt|documento/.test(lower)) type = "create_doc";
 
     return {
       id: `step_${index + 1}`,
@@ -624,7 +624,7 @@ function parseCognitivePlan(text = "", goal = "", intent = {}) {
     let type = "synthesize";
     if (/web|google|pesquis|tendenc|fonte|dados atuais|coletar dados/.test(lower) || toolsText.includes("web")) type = "web_search";
     if (/arquivo|pasta|local|contrato|pdf|xlsx|doc/.test(lower)) type = index === 0 ? "search_files" : "read_file";
-    if (/criar|salvar|csv|txt|documento|docx|planilha/.test(lower)) type = "save_file";
+    if (/criar|salvar|csv|txt|documento|docx|planilha/.test(lower)) type = "create_doc";
 
     return {
       id: `step_${index + 1}`,
@@ -1109,6 +1109,32 @@ function buildSynthesisPrompt({ goal, intent, toolResults }) {
   ].join("\n");
 }
 
+function buildDirectSynthesisPrompt({ goal, intent }) {
+  const columns = inferRequestedColumns(goal);
+  const wantsCurrentData = intent.requiresWeb;
+
+  return [
+    "Voce e a KIT respondendo uma tarefa longa diretamente no chat.",
+    "O pedido nao gerou resultado de ferramenta externa util, entao entregue a melhor resposta possivel com conhecimento geral e bom senso.",
+    "Nao diga que faltam ferramentas quando a tarefa puder ser respondida como texto, lista, explicacao, estrutura, roteiro, copy, ideia ou planejamento.",
+    wantsCurrentData
+      ? "Se o pedido depender de dados atuais, precos, telefones, links, ranking recente ou fontes verificaveis, diga claramente que esses campos nao foram confirmados e entregue uma estrutura util sem inventar dados."
+      : "Nao invente fontes, links, telefones, precos ou dados atuais.",
+    "Responda em portugues.",
+    "Entregue exatamente o formato pedido pelo usuario.",
+    "Se pediu lista, entregue lista numerada.",
+    `Se pediu tabela, use Markdown e estas colunas quando fizer sentido: ${columns.join(", ")}.`,
+    "Se pediu explicacao, explique de forma clara, completa e objetiva.",
+    "Nao mencione prompts, metadados, ferramentas internas ou rota do agente.",
+    "",
+    `Quantidade desejada: ${intent.count || "nao especificada"}`,
+    `Categorias: ${intent.categories.join(", ")}`,
+    "",
+    "Pedido:",
+    goal
+  ].join("\n");
+}
+
 function hasUsefulSynthesis(text = "", goal = "") {
   const value = String(text || "").trim();
   if (value.length < 20) return false;
@@ -1330,8 +1356,8 @@ export function createAgentExecutionEngine(context, config = loadAgentExecutionC
       think: false,
       emitEvents: false,
       temperature: 0.2,
-      numPredict: Math.max(420, Math.min(1100, Number(intent.count || 5) * 55)),
-      timeoutMs: Number(execConfig.stepTimeout || 45000)
+      numPredict: Math.max(1200, Math.min(2600, Number(intent.count || 5) * 180)),
+      timeoutMs: Number(execConfig.stepTimeout || 120000)
     });
 
     if (result?.status !== "ok") return "";
@@ -1555,8 +1581,34 @@ export function createAgentExecutionEngine(context, config = loadAgentExecutionC
       };
     }
 
+    try {
+      trace.add("sintetizando", "respondendo sem ferramenta externa");
+      const result = await context.invokeTool("ai_chat", {
+        prompt: buildDirectSynthesisPrompt({ goal, intent }),
+        source: "agent-exec.direct-synthesis",
+        sessionId: meta.sessionId,
+        executionId: meta.runId,
+        stream: false,
+        think: false,
+        emitEvents: false,
+        temperature: 0.3,
+        numPredict: Math.max(1400, Math.min(2800, Number(intent.count || 5) * 220)),
+        timeoutMs: Number(execConfig.stepTimeout || 120000)
+      });
+
+      const text = String(result?.data?.text || "").trim();
+      if (result?.status === "ok" && hasUsefulSynthesis(text, goal)) {
+        return {
+          answer: text,
+          sources: []
+        };
+      }
+    } catch (err) {
+      console.warn(`[AGENT] direct_synthesis_failed ${err.message}`);
+    }
+
     return {
-      answer: "Nao encontrei ferramentas necessarias para concluir com seguranca, mas o agente nao travou. Me passe mais contexto ou habilite a ferramenta necessaria.",
+      answer: "Nao consegui montar uma resposta confiavel com o contexto atual. Me passe mais detalhes do formato ou do assunto que eu tento de novo.",
       sources: []
     };
   }

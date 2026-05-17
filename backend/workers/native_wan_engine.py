@@ -428,6 +428,7 @@ def encode_video(frames, output_path, fps):
 
 
 def run_wan_inference(payload, logger):
+    raise WanEngineError("Runtime Wan nativo foi removido. Use ComfyUI externo.")
     runtime_alias = os.environ.get("VIDEO_WAN_RUNTIME", "comfy_gguf").strip().lower() or "comfy_gguf"
     if runtime_alias in {"comfy_gguf", "kit_wan_legacy"}:
         kit_root = str(Path(__file__).resolve().parents[2])

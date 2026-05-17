@@ -1,0 +1,119 @@
+{
+  "id": "video-job-20412185-f3b2-45c1-ad73-b5f671539692",
+  "projectId": "",
+  "sceneId": "",
+  "sessionId": "canvas",
+  "source": "canvas",
+  "fileName": "",
+  "prompt": "Young blonde girl performing a skateboarding trick, jumping, dressed in a mini skirt and loose top, pretty face.",
+  "negativePrompt": "Ugly face, disfigured, low quality, broken skateboard, deformed.",
+  "motionPrompt": "",
+  "duration": 1,
+  "fps": 16,
+  "frames": 16,
+  "sequenceLength": 17,
+  "width": 512,
+  "height": 512,
+  "ratio": "1:1",
+  "preset": "wan_wide_5s",
+  "model": "wan2.2",
+  "modelPath": "",
+  "modelFamily": "wan",
+  "modelRegistryEntry": {
+    "id": "wan2.2",
+    "name": "Wan 2.2 via ComfyUI",
+    "family": "wan",
+    "modelPath": "",
+    "type": "external-comfyui",
+    "available": true
+  },
+  "wanRuntime": "comfyui",
+  "wanDiagnostics": {
+    "runtime": "comfyui",
+    "message": "Runtime Wan nativo foi removido. Use ComfyUI externo."
+  },
+  "quality": "wan_wide_5s",
+  "exportSettings": {
+    "format": "mp4",
+    "videoCodec": "libx264",
+    "pixelFormat": "yuv420p"
+  },
+  "references": [],
+  "startImage": "",
+  "endImage": "",
+  "useLastFrameForChaining": false,
+  "seed": -1,
+  "steps": 4,
+  "cfg": 1.5,
+  "sampler": "euler_ancestral",
+  "scheduler": "beta",
+  "shift": 8,
+  "denoise": 0.7,
+  "motionStrength": 0.5,
+  "imageStrength": 0.65,
+  "loras": [
+    {
+      "id": "canvas-wan-lora-1",
+      "name": "DR34ML4Y_I2V_14B_LOW_V2",
+      "path": "F:\\AI\\models\\loras\\wan\\DR34ML4Y_I2V_14B_LOW_V2.safetensors",
+      "enabled": true,
+      "strength_model": 1,
+      "strength_clip": 1,
+      "weight": 1
+    }
+  ],
+  "outputPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-20412185-f3b2-45c1-ad73-b5f671539692.mp4",
+  "thumbnailPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-20412185-f3b2-45c1-ad73-b5f671539692.png",
+  "lastFramePath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-20412185-f3b2-45c1-ad73-b5f671539692-last-frame.png",
+  "projectAssetDir": "F:\\AI\\Ai_kit\\workspace\\projects\\studio\\assets\\video",
+  "workingDir": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-20412185-f3b2-45c1-ad73-b5f671539692",
+  "mode": "t2v",
+  "pipeline": {
+    "id": "standard-T2V",
+    "mode": "t2v",
+    "sourceStrategy": "text-conditioning",
+    "supports": [
+      "interpolation",
+      "startFrame",
+      "endFrame",
+      "chaining",
+      "frame-guidance"
+    ]
+  },
+  "conditioning": {
+    "preferredMode": "t2v",
+    "startImage": "",
+    "endImage": "",
+    "primaryReference": null,
+    "references": [],
+    "loras": [
+      {
+        "id": "canvas-wan-lora-1",
+        "name": "DR34ML4Y_I2V_14B_LOW_V2",
+        "path": "F:\\AI\\models\\loras\\wan\\DR34ML4Y_I2V_14B_LOW_V2.safetensors",
+        "weight": 1
+      }
+    ],
+    "logs": [
+      "preferred-mode:t2v",
+      "references:0",
+      "loras:1",
+      "start-image:none"
+    ]
+  },
+  "output": {
+    "assetDir": "F:\\AI\\Ai_kit\\output\\canvas-video",
+    "outputPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-20412185-f3b2-45c1-ad73-b5f671539692.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-20412185-f3b2-45c1-ad73-b5f671539692.png",
+    "lastFramePath": "F:\\AI\\Ai_kit\\output\\canvas-video\\video-video-job-20412185-f3b2-45c1-ad73-b5f671539692-last-frame.png",
+    "ratio": "1:1"
+  },
+  "summaryLogs": [
+    "pipeline:t2v",
+    "source:text-conditioning",
+    "preferred-mode:t2v",
+    "references:0",
+    "loras:1",
+    "start-image:none"
+  ]
+}

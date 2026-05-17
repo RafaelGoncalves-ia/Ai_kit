@@ -12,14 +12,11 @@ import { cleanupVideoMemory } from "./utils/cleanupVideoMemory.js";
 import { extractLastFrameFromVideo } from "./utils/extractLastFrameFromVideo.js";
 import { resolveVideoPaths, resolveProjectVideoAssetDir } from "./utils/resolveVideoPaths.js";
 import {
-  assertWanCanStart,
-  attachWanTimeouts,
-  buildWanWorkerEnv,
   setWanGenerationLock,
-  releaseWanJob,
-  resolveWanPython
+  releaseWanJob
 } from "./wanMemoryManager.js";
 import { ResourceManager } from "../../workflow/resource_manager.js";
+import { runComfyWorkflowJob, interruptComfy } from "../comfy/comfyService.js";
 
 const {
   STUDIO_PROJECTS_DIR,
@@ -78,6 +75,11 @@ function normalizeVideoMode(value = "") {
     return "t2v";
   }
   return "t2v";
+}
+
+function shouldUseComfyWan(payload = {}) {
+  const engine = String(payload.engine || payload.videoEngine || payload.wanEngine || process.env.WAN_ENGINE || "comfyui").trim().toLowerCase();
+  return engine === "comfyui" || engine === "comfy" || engine === "external-comfyui";
 }
 
 function resolveStandaloneAssetDir(payload = {}) {
@@ -273,7 +275,15 @@ export function createVideoEngine(context = {}) {
       quality: payload.quality || payload.preset || "standard-T2V"
     });
     const requestedMode = normalizeVideoMode(payload.mode || scene?.generationMode || "");
-    const resolvedModel = resolveVideoModel({
+    const useComfyWan = shouldUseComfyWan(payload);
+    const resolvedModel = useComfyWan ? {
+      id: "wan2.2",
+      name: "Wan 2.2 via ComfyUI",
+      family: "wan",
+      modelPath: "",
+      type: "external-comfyui",
+      available: true
+    } : resolveVideoModel({
       requestedModel: payload.model || "",
       mode: requestedMode
     });
@@ -286,7 +296,7 @@ export function createVideoEngine(context = {}) {
     if (!resolvedModel) {
       throw new Error("Nenhum modelo de video disponivel para iniciar o worker. Configure um modelo Wan/GGUF antes de gerar video.");
     }
-    const isWanJob = (resolvedModel?.family || "").toLowerCase() === "wan" || /wan/i.test(String(resolvedModel?.name || resolvedModel?.modelPath || payload.model || ""));
+    const isWanJob = useComfyWan || (resolvedModel?.family || "").toLowerCase() === "wan" || /wan/i.test(String(resolvedModel?.name || resolvedModel?.modelPath || payload.model || ""));
     const jobId = `video-job-${randomUUID()}`;
     const jobDir = path.join(JOBS_DIR, jobId);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -312,9 +322,22 @@ export function createVideoEngine(context = {}) {
         progress: 3,
         logs: [`[VideoAPI] job Wan preparando recursos ${jobId}`]
       });
-      await resourceManager.prepareWanExclusiveMode(exclusiveLogger);
+      await context.core?.cacheManager?.runBeforeHeavyTask?.("wan").catch((err) => {
+        console.warn(`[RESOURCE][WAN] cache manager preparation failed: ${err.message}`);
+      });
+      try {
+        await resourceManager.prepareWanExclusiveMode(exclusiveLogger);
+      } catch (err) {
+        await context.core?.cacheManager?.runAfterHeavyTask?.("wan").catch((cleanupErr) => {
+          console.warn(`[RESOURCE][WAN] after cleanup failed: ${cleanupErr.message}`);
+        });
+        throw err;
+      }
     }
-    const wanDiagnostics = isWanJob ? assertWanCanStart(jobId) : null;
+    const wanDiagnostics = isWanJob ? {
+      runtime: "comfyui",
+      message: "Runtime Wan nativo foi removido. Use ComfyUI externo."
+    } : null;
     if (isWanJob) {
       setWanGenerationLock(jobId);
     }
@@ -418,7 +441,88 @@ export function createVideoEngine(context = {}) {
       logs: [...exclusiveLogs, `[VideoAPI] job criado ${jobId}`]
     });
 
-    const pythonExecutable = isWanJob ? resolveWanPython() : "python";
+    if (isWanJob) {
+      runComfyWorkflowJob({
+        jobId,
+        workflowId: payload.workflowId || payload.workflow || process.env.WAN_WORKFLOW || "wan2.2",
+        values: {
+          positivePrompt: workerPayload.prompt,
+          negativePrompt: workerPayload.negativePrompt,
+          seconds: workerPayload.duration,
+          fps: workerPayload.fps,
+          videoFps: workerPayload.fps,
+          width: workerPayload.width,
+          height: workerPayload.height,
+          mode: workerPayload.mode,
+          inputImage: "",
+          startImage: workerPayload.startImage,
+          seed: workerPayload.seed >= 0 ? workerPayload.seed : Math.floor(Math.random() * 1000000000000),
+          filenamePrefix: `Kit/wan-${jobId}`,
+          ...(payload.workflowParams || {})
+        },
+        logger: (message) => {
+          const latest = safeReadJson(statusPath) || {};
+          writeJson(statusPath, {
+            ...latest,
+            id: jobId,
+            status: latest.status || "generating",
+            logs: [...ensureArray(latest.logs), message]
+          });
+          console.log(message);
+        },
+        onProgress: (event = {}) => {
+          const latest = safeReadJson(statusPath) || {};
+          writeJson(statusPath, {
+            ...latest,
+            id: jobId,
+            status: event.status || latest.status || "generating",
+            progress: Number.isFinite(Number(event.progress)) ? Number(event.progress) : latest.progress || 0,
+            message: event.message || latest.message || "",
+            logs: event.message ? [...ensureArray(latest.logs), event.message] : ensureArray(latest.logs)
+          });
+        }
+      }).then((result) => {
+        const completed = updateJob(jobId, {
+          status: "completed",
+          progress: 100,
+          output: {
+            path: result.videoPath,
+            lastFramePath: result.lastFramePath || "",
+            sourcePromptId: result.sourcePromptId,
+            engine: result.engine,
+            workflow: result.workflow
+          },
+          finishedAt: new Date().toISOString()
+        });
+        writeJson(statusPath, {
+          ...serializeJob(completed),
+          logs: [...ensureArray(safeReadJson(statusPath)?.logs), "Finalizado"]
+        });
+      }).catch((err) => {
+        const failed = updateJob(jobId, {
+          status: "failed",
+          progress: 100,
+          error: err.message || String(err),
+          finishedAt: new Date().toISOString()
+        });
+        writeJson(statusPath, {
+          ...serializeJob(failed),
+          logs: [...ensureArray(safeReadJson(statusPath)?.logs), `[COMFYUI] erro ${err.message || String(err)}`]
+        });
+        console.error("[COMFYUI] erro", err);
+      }).finally(async () => {
+        try {
+          await context.core?.cacheManager?.runAfterHeavyTask?.("wan");
+        } catch (err) {
+          console.warn(`[RESOURCE][WAN] after cleanup failed: ${err.message}`);
+        }
+        releaseWanJob(jobId);
+      });
+
+      return getJob(jobId);
+    }
+
+    const pythonExecutable = "python";
     console.log("[VideoAPI] chamando video_worker", {
       jobId,
       python: pythonExecutable,
@@ -431,7 +535,7 @@ export function createVideoEngine(context = {}) {
       cwd: ROOT_DIR,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
-      env: isWanJob ? buildWanWorkerEnv() : process.env
+      env: process.env
     });
     updateJob(jobId, {
       childProcess: child,
@@ -456,7 +560,6 @@ export function createVideoEngine(context = {}) {
 
     child.on("error", (err) => {
       if (isWanJob) {
-        // attachWanTimeouts releases on exit; spawn errors may not emit exit on Windows.
         try {
           child.kill?.();
         } catch {
@@ -476,27 +579,6 @@ export function createVideoEngine(context = {}) {
       });
       console.error("[VideoAPI] erro", err);
     });
-
-    if (isWanJob) {
-      attachWanTimeouts({
-        child,
-        jobId,
-        statusPath,
-        onTimeout: (message) => {
-          const failed = updateJob(jobId, {
-            status: "timeout",
-            progress: 100,
-            error: message,
-            finishedAt: new Date().toISOString()
-          });
-          writeJson(statusPath, {
-            ...serializeJob(failed),
-            logs: [`[VideoAPI] erro ${message}`]
-          });
-          console.error("[VideoAPI] erro", message);
-        }
-      });
-    }
 
     child.on("exit", (code, signal) => {
       const latest = getJob(jobId);
@@ -543,6 +625,9 @@ export function createVideoEngine(context = {}) {
 
     try {
       current.childProcess?.kill?.();
+      if (current.output?.engine === "comfyui" || current.input?.wanRuntime === "comfyui" || current.model?.type === "external-comfyui") {
+        interruptComfy(jobId).catch(() => null);
+      }
     } catch {
       // ignore kill failures
     }

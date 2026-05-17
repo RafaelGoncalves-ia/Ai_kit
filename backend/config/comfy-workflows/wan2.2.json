@@ -1,0 +1,107 @@
+{
+  "id": "wan2.2",
+  "name": "Wan 2.2 Rapid Low VRAM",
+  "workflowPath": "F:/AI/Ai_kit/models/Workflow/WAN2.2.json",
+  "outputType": "video",
+  "engine": "comfyui",
+  "nodes": {
+    "positivePrompt": { "nodeId": 12, "widgetIndex": 0 },
+    "negativePrompt": { "nodeId": 127, "widgetIndex": 0 },
+    "seconds": { "nodeId": 74, "subgraphNodeId": 85, "widgetIndex": 0 },
+    "fps": { "nodeId": 74, "subgraphNodeId": 66, "widgetIndex": 0 },
+    "width": { "nodeId": 74, "subgraphNodeId": 64, "widgetIndex": 0 },
+    "height": { "nodeId": 74, "subgraphNodeId": 65, "widgetIndex": 0 },
+    "modeSwitch": {
+      "nodeId": 59,
+      "subgraphNodeId": 44,
+      "widgetIndex": 0,
+      "values": { "t2v": 1, "i2v": 2 }
+    },
+    "inputImage": { "nodeId": 23, "widgetIndex": 0 },
+    "seed": { "nodeId": 7, "widgetIndex": 0 },
+    "filenamePrefix": { "nodeId": 104, "widgetIndex": 0 },
+    "videoFps": { "nodeId": 115, "widgetName": "frame_rate" }
+  },
+  "uiFields": [
+    {
+      "key": "positivePrompt",
+      "label": "Prompt positivo",
+      "type": "textarea",
+      "nodeId": 12,
+      "widgetIndex": 0
+    },
+    {
+      "key": "negativePrompt",
+      "label": "Prompt negativo",
+      "type": "textarea",
+      "nodeId": 127,
+      "widgetIndex": 0
+    },
+    {
+      "key": "seconds",
+      "label": "Segundos",
+      "type": "number",
+      "nodeId": 74,
+      "subgraphNodeId": 85,
+      "widgetIndex": 0,
+      "min": 1,
+      "max": 10
+    },
+    {
+      "key": "fps",
+      "label": "FPS",
+      "type": "number",
+      "nodeId": 74,
+      "subgraphNodeId": 66,
+      "widgetIndex": 0,
+      "min": 8,
+      "max": 24
+    },
+    {
+      "key": "width",
+      "label": "Largura",
+      "type": "number",
+      "nodeId": 74,
+      "subgraphNodeId": 64,
+      "widgetIndex": 0,
+      "min": 256,
+      "max": 1024
+    },
+    {
+      "key": "height",
+      "label": "Altura",
+      "type": "number",
+      "nodeId": 74,
+      "subgraphNodeId": 65,
+      "widgetIndex": 0,
+      "min": 256,
+      "max": 1024
+    },
+    {
+      "key": "mode",
+      "label": "Modo",
+      "type": "select",
+      "nodeId": 59,
+      "subgraphNodeId": 44,
+      "widgetIndex": 0,
+      "options": [
+        { "label": "Texto para video", "value": 1 },
+        { "label": "Imagem para video", "value": 2 }
+      ]
+    },
+    {
+      "key": "inputImage",
+      "label": "Imagem de entrada",
+      "type": "image",
+      "nodeId": 23,
+      "widgetIndex": 0
+    },
+    {
+      "key": "seed",
+      "label": "Seed",
+      "type": "number",
+      "nodeId": 7,
+      "widgetIndex": 0
+    }
+  ]
+}

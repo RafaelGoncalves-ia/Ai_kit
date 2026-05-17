@@ -5,7 +5,7 @@ const statusLine = document.getElementById("statusLine");
 const logOutput = document.getElementById("logOutput");
 
 const MAX_LINES = 1500;
-const serviceOrder = ["backend", "ollama", "stt", "xtts", "sd"];
+const serviceOrder = ["backend", "ollama", "stt", "xtts", "sd", "comfyui"];
 const serviceState = {};
 let renderedLines = [];
 
@@ -18,6 +18,7 @@ function resolveKitAPI() {
     const { ipcRenderer } = require("electron");
     return {
       getProcessState: () => ipcRenderer.invoke("monitor:get-state"),
+      controlService: (service, action) => ipcRenderer.invoke("service:control", service, action),
       onProcessLog: (callback) => {
         const subscription = (event, payload) => callback(payload);
         ipcRenderer.on("process-log", subscription);
@@ -36,6 +37,10 @@ function resolveKitAPI() {
 }
 
 const kitAPI = resolveKitAPI();
+const serviceMenu = document.createElement("div");
+serviceMenu.className = "service-context-menu";
+serviceMenu.hidden = true;
+document.body.appendChild(serviceMenu);
 
 function formatTime(timestamp) {
   if (!timestamp) return "--:--:--";
@@ -49,6 +54,7 @@ function serviceLabel(value) {
   if (key === "stt") return "stt";
   if (key === "xtts") return "xtts";
   if (key === "sd") return "sd";
+  if (key === "comfyui") return "ConfyUi";
   return key || "host";
 }
 
@@ -74,15 +80,73 @@ function renderOutput() {
 }
 
 function updateStatusLine() {
-  const summary = serviceOrder
-    .filter((key) => serviceState[key])
-    .map((key) => {
-      const service = serviceState[key];
-      return `${serviceLabel(key)}: ${service.status || "desconhecido"} / ${service.health || "offline"} / PID ${service.pid || "-"}`;
-    })
-    .join(" | ");
+  const services = serviceOrder.map((key) => ({
+    key,
+    service: serviceState[key] || {
+      status: "stopped",
+      health: "offline",
+      pid: "-"
+    }
+  }));
 
-  statusLine.textContent = summary || "Sem processos no snapshot.";
+  statusLine.replaceChildren();
+
+  services.forEach(({ key, service }) => {
+    const status = service.status || "desconhecido";
+    const health = service.health || "offline";
+    const pid = service.pid || "-";
+    const hasPid = Boolean(service.pid) && String(service.pid) !== "-";
+    const isActive =
+      hasPid ||
+      health === "online" ||
+      ["ready", "running", "starting"].includes(String(status).toLowerCase());
+    const block = document.createElement("span");
+    block.className = `service-block ${isActive ? "is-active" : "is-offline"}`;
+    block.textContent = `${serviceLabel(key)}: ${status} / ${health} / PID ${pid}`;
+    block.dataset.service = key;
+    block.dataset.active = String(isActive);
+    block.title = "Clique direito para controlar o servico";
+    block.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      showServiceMenu(event.clientX, event.clientY, key, isActive);
+    });
+    statusLine.appendChild(block);
+  });
+}
+
+function hideServiceMenu() {
+  serviceMenu.hidden = true;
+  serviceMenu.replaceChildren();
+}
+
+function showServiceMenu(x, y, serviceKey, isActive) {
+  hideServiceMenu();
+
+  const action = isActive ? "stop" : "start";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = isActive ? "Desligar" : "Ativação";
+  button.addEventListener("click", async () => {
+    hideServiceMenu();
+    statusLine.dataset.busy = "true";
+    try {
+      await kitAPI.controlService(serviceKey, action);
+      const snapshot = await kitAPI.getProcessState();
+      buildHistoryFromSnapshot(snapshot);
+    } catch (err) {
+      renderedLines.push(`[${formatTime(Date.now())}] [monitor] [stderr] controle de ${serviceLabel(serviceKey)} falhou: ${err.message}`);
+      renderOutput();
+    } finally {
+      delete statusLine.dataset.busy;
+    }
+  });
+
+  serviceMenu.appendChild(button);
+  serviceMenu.hidden = false;
+
+  const bounds = serviceMenu.getBoundingClientRect();
+  serviceMenu.style.left = `${Math.min(x, window.innerWidth - bounds.width - 8)}px`;
+  serviceMenu.style.top = `${Math.min(y, window.innerHeight - bounds.height - 8)}px`;
 }
 
 function buildHistoryFromSnapshot(snapshot) {
@@ -137,6 +201,13 @@ refreshBtn.addEventListener("click", () => {
 clearBtn.addEventListener("click", () => {
   renderedLines = [];
   renderOutput();
+});
+
+document.addEventListener("click", hideServiceMenu);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    hideServiceMenu();
+  }
 });
 
 loadSnapshot().catch((err) => {

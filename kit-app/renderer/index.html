@@ -37,6 +37,22 @@
     <div class="header-actions">
       <button id="thinkingBtn" class="btn-thinking" title="Thinking na rota curta">🧠</button>
       <button id="internetBtn" class="btn-internet" type="button" title="Pesquisa web ligada" aria-label="Pesquisa web ligada" aria-pressed="true">&#127760;</button>
+      <div id="llmModeSelector" class="llm-mode-selector" data-state="fast">
+        <button id="llmModeToggle" class="llm-mode-toggle" type="button" title="Fast ativo" aria-label="Fast ativo" aria-haspopup="true" aria-expanded="false">
+          <span id="llmModeIcon" aria-hidden="true">&#9889;</span>
+        </button>
+        <div id="llmModeMenu" class="llm-mode-menu" role="menu" aria-label="Modo do modelo">
+          <button id="llmFastBtn" class="llm-mode-btn active" type="button" role="menuitemradio" aria-checked="true" data-mode="fast">
+            <span aria-hidden="true">&#9889;</span>
+            <span>Fast</span>
+          </button>
+          <button id="llmSmartBtn" class="llm-mode-btn" type="button" role="menuitemradio" aria-checked="false" data-mode="smart">
+            <span aria-hidden="true">&#129504;</span>
+            <span>Smart</span>
+          </button>
+        </div>
+        <span id="llmModeStatus" class="llm-mode-status" aria-live="polite">Fast ativo</span>
+      </div>
       <div class="app-menu">
         <button id="appMenuBtn" class="btn-app-menu" type="button" title="Abrir menu de ferramentas" aria-label="Abrir menu de ferramentas" aria-expanded="false">
           <span aria-hidden="true">&#8942;</span>
@@ -82,7 +98,9 @@
 
     <textarea id="input" rows="1" placeholder="Digite algo..." spellcheck="true"></textarea>
 
-    <button id="micBtn">🎤</button>
+    <button id="micBtn" class="chat-icon-btn" type="button" title="Ativar Microfone" aria-label="Ativar Microfone">
+      <img src="./assets/icones/Widget/microfone.svg" alt="">
+    </button>
     <button id="sendBtn">➤</button>
   </footer>
 

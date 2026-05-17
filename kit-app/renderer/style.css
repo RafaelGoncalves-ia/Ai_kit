@@ -167,6 +167,89 @@ header h1 {
   box-shadow: none;
 }
 
+.llm-mode-selector {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.llm-mode-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.header-actions .llm-mode-toggle {
+  width: 36px;
+  height: 36px;
+  border-color: #343844;
+  background: #202228;
+}
+
+.llm-mode-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 128px;
+  display: none;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid #343844;
+  border-radius: 8px;
+  background: #1d1f25;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.38);
+  z-index: 1200;
+}
+
+.llm-mode-selector.open .llm-mode-menu {
+  display: grid;
+}
+
+.header-actions .llm-mode-btn {
+  width: 100%;
+  height: 34px;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border-color: transparent;
+  background: transparent;
+  color: #b9c0ce;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.header-actions .llm-mode-btn.active {
+  background: #334155;
+  border-color: #64748b;
+  color: #f8fafc;
+}
+
+.header-actions .llm-mode-btn.switching {
+  opacity: 0.62;
+}
+
+.llm-mode-selector[data-state="fast"] .llm-mode-toggle,
+.llm-mode-selector[data-state="fast"] .llm-mode-btn.active {
+  background: #203a2c;
+  border-color: #3f8f63;
+}
+
+.llm-mode-selector[data-state="smart"] .llm-mode-toggle,
+.llm-mode-selector[data-state="smart"] .llm-mode-btn.active {
+  background: #33245a;
+  border-color: #8b5cf6;
+}
+
+.llm-mode-selector[data-state="off"],
+.llm-mode-selector[data-state="unavailable"] {
+  opacity: 0.68;
+}
+
 /* ================= SIDEBAR ================= */
 .sidebar {
   position: fixed;
@@ -671,11 +754,34 @@ footer textarea {
 footer button {
   width: 40px;
   height: 40px;
+  flex: 0 0 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border-radius: 50%;
-  border: none;
+  border: 1px solid transparent;
   background: #333;
   color: #fff;
   cursor: pointer;
+  line-height: 1;
+}
+
+footer button:disabled {
+  cursor: default;
+}
+
+footer button:disabled:hover {
+  transform: none;
+}
+
+.chat-icon-btn img {
+  width: 18px;
+  height: 18px;
+  display: block;
+  object-fit: contain;
+  filter: brightness(0) invert(84%);
+  pointer-events: none;
 }
 
 #sendBtn,
@@ -711,6 +817,32 @@ footer button {
 
 #internetBtn:not(.active) {
   opacity: 0.72;
+}
+
+#micBtn.loading {
+  background: #3a3a3a;
+  border-color: #555;
+  color: #9a9a9a;
+  opacity: 0.9;
+}
+
+#micBtn.loading img {
+  filter: brightness(0) invert(62%);
+}
+
+#micBtn.listening,
+#micBtn.recording {
+  border-color: #8b5cf6;
+  box-shadow:
+    0 0 0 1px rgba(0, 120, 212, 0.75),
+    0 0 12px rgba(139, 92, 246, 0.55);
+  color: #c9d7ff;
+  animation: pulse 1.5s infinite;
+}
+
+#micBtn.listening img,
+#micBtn.recording img {
+  filter: brightness(0) saturate(100%) invert(64%) sepia(67%) saturate(1384%) hue-rotate(196deg) brightness(104%) contrast(99%);
 }
 
 /* ================= PROCESSING INDICATOR ================= */

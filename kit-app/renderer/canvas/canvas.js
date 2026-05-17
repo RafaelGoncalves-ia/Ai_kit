@@ -19,6 +19,7 @@ const FABRIC_CUSTOM_PROPS = [
   "lockRotation",
   "selectable",
   "evented",
+  "editable",
   "hasControls",
   "visible",
   "name",
@@ -39,8 +40,16 @@ const FABRIC_CUSTOM_PROPS = [
   "mediaSourceSrc",
   "mediaDuration",
   "timelineItemId",
+  "timelineBaseProps",
+  "subtitleText",
+  "subtitleStartTime",
+  "subtitleEndTime",
   "isToolOverlay",
   "vectorRole",
+  "vectorPoints",
+  "vectorClosed",
+  "closed",
+  "vectorBounds",
   "vectorCurvePoints"
 ];
 
@@ -225,9 +234,11 @@ const exportStatus = document.getElementById("exportStatus");
 const sdStatus = document.getElementById("sdStatus");
 const sdPrompt = document.getElementById("sdPrompt");
 const sdNegativePrompt = document.getElementById("sdNegativePrompt");
-const aiEngineToggleButton = document.getElementById("aiEngineToggleButton");
-const aiGeneratorTabImage = document.getElementById("aiGeneratorTabImage");
-const aiGeneratorTabVideo = document.getElementById("aiGeneratorTabVideo");
+const aiImageEngineToggleButton = document.getElementById("aiImageEngineToggleButton");
+const aiVideoEngineToggleButton = document.getElementById("aiVideoEngineToggleButton");
+const aiNarrationEngineToggleButton = document.getElementById("aiNarrationEngineToggleButton");
+const aiVideoStatus = document.getElementById("aiVideoStatus");
+const aiNarrationStatus = document.getElementById("aiNarrationStatus");
 const aiImageSection = document.getElementById("aiImageSection");
 const aiVideoSection = document.getElementById("aiVideoSection");
 const aiStyle = document.getElementById("aiStyle");
@@ -241,9 +252,11 @@ const sdArchitecture = document.getElementById("sdArchitecture");
 const sdLora = document.getElementById("sdLora");
 const sdMode = document.getElementById("sdMode");
 const sdI2IMode = document.getElementById("sdI2IMode");
+const sdI2ISizeMode = document.getElementById("sdI2ISizeMode");
 const sdI2IControls = document.getElementById("sdI2IControls");
 const sdSourceStatus = document.getElementById("sdSourceStatus");
 const sdInpaintMaskContext = document.getElementById("sdInpaintMaskContext");
+const sdSampler = document.getElementById("sdSampler");
 const sdScheduler = document.getElementById("sdScheduler");
 const sdSteps = document.getElementById("sdSteps");
 const sdCfgScale = document.getElementById("sdCfgScale");
@@ -255,6 +268,10 @@ const sdInpaintInsertMode = document.getElementById("sdInpaintInsertMode");
 const sdOutpaintTarget = document.getElementById("sdOutpaintTarget");
 const sdOutpaintSide = document.getElementById("sdOutpaintSide");
 const aiVideoMode = document.getElementById("aiVideoMode");
+const aiVideoWorkflow = document.getElementById("aiVideoWorkflow");
+const aiVideoPrompt = document.getElementById("aiVideoPrompt");
+const aiVideoNegativePrompt = document.getElementById("aiVideoNegativePrompt");
+const aiVideoWorkflowFields = document.getElementById("aiVideoWorkflowFields");
 const aiVideoSourceStatus = document.getElementById("aiVideoSourceStatus");
 const aiVideoPreset = document.getElementById("aiVideoPreset");
 const aiVideoModel = document.getElementById("aiVideoModel");
@@ -265,13 +282,34 @@ const aiVideoModelPreview = document.getElementById("aiVideoModelPreview");
 const aiVideoLoraPreviewCard = document.getElementById("aiVideoLoraPreviewCard");
 const aiVideoLoraPreview = document.getElementById("aiVideoLoraPreview");
 const aiVideoDuration = document.getElementById("aiVideoDuration");
+const aiVideoFps = document.getElementById("aiVideoFps");
+const aiVideoSeed = document.getElementById("aiVideoSeed");
 const aiVideoFinalResolution = document.getElementById("aiVideoFinalResolution");
 const aiVideoFinalDuration = document.getElementById("aiVideoFinalDuration");
 const aiVideoEstimate = document.getElementById("aiVideoEstimate");
 const sdGenerateButton = document.getElementById("sdGenerateButton");
+const aiVideoGenerateButton = document.getElementById("aiVideoGenerateButton");
 const aiVideoAbortButton = document.getElementById("aiVideoAbortButton");
+const aiNarrationVoice = document.getElementById("aiNarrationVoice");
+const aiNarrationPreviewButton = document.getElementById("aiNarrationPreviewButton");
+const aiNarrationPreviewPlayer = document.getElementById("aiNarrationPreviewPlayer");
+const aiNarrationText = document.getElementById("aiNarrationText");
+const aiNarrationSubtitle = document.getElementById("aiNarrationSubtitle");
+const aiNarrationGenerateButton = document.getElementById("aiNarrationGenerateButton");
 const timelineTrack = document.getElementById("timelineTrack");
 const timelineStatus = document.getElementById("timelineStatus");
+const timelineSnapButton = document.getElementById("timelineSnapButton");
+const timelineAutoKeyframeButton = document.getElementById("timelineAutoKeyframeButton");
+const timelineKeyframeEditor = document.getElementById("timelineKeyframeEditor");
+const keyframeTimeInput = document.getElementById("keyframeTimeInput");
+const keyframeXInput = document.getElementById("keyframeXInput");
+const keyframeYInput = document.getElementById("keyframeYInput");
+const keyframeScaleInput = document.getElementById("keyframeScaleInput");
+const keyframeRotationInput = document.getElementById("keyframeRotationInput");
+const keyframeOpacityInput = document.getElementById("keyframeOpacityInput");
+const keyframeVolumeLabel = document.getElementById("keyframeVolumeLabel");
+const keyframeVolumeInput = document.getElementById("keyframeVolumeInput");
+const keyframeEasingInput = document.getElementById("keyframeEasingInput");
 const timelineResizeHandle = document.getElementById("timelineResizeHandle");
 const sidePanelResizeHandle = document.getElementById("sidePanelResizeHandle");
 const board = document.querySelector(".fabric-board");
@@ -307,8 +345,10 @@ let artboardHeight = DEFAULT_ARTBOARD_HEIGHT;
 let currentArtboardPreset = "instagram-post";
 let currentProject = null;
 let availableVideoLoras = [];
+let availableComfyWorkflows = [];
+let activeComfyWorkflowFields = [];
+let availableNarrationVoices = [];
 let currentProjectFilePath = null;
-let activeAiGeneratorTab = "image";
 let globalVideoEngineReady = false;
 const CANVAS_VIDEO_JOB_TIMEOUT_MS = Math.max(
   30000,
@@ -343,9 +383,14 @@ const aiEngineState = {
     status: "desligado",
     detail: "Motor de video desligado."
   },
+  narration: {
+    status: "desligado",
+    detail: "Motor de narracao desligado."
+  },
   generating: false
 };
 let topbarGenerationHideTimer = null;
+let stableDiffusionProgressTimer = null;
 let currentBrandKit = null;
 let currentBrandKitFilePath = null;
 let inheritedBrandKit = null;
@@ -385,12 +430,17 @@ let lastAutosaveProjectHash = "";
 let timelineSlides = [];
 let timelineItems = [];
 let timelineTrackLabels = [];
+let timelineLinkedItems = [];
 let activeSlideId = null;
 let selectedTimelineItemId = null;
+let selectedTimelineKeyframeId = null;
 let timelinePlayhead = 0;
 let timelinePlaybackFrame = null;
 let timelinePlaybackLastTime = 0;
 let timelineIsPlaying = false;
+let timelineSnapEnabled = false;
+let timelineAutoKeyframeEnabled = false;
+let activeTimelineSnapGuide = null;
 let rasterCursorState = {
   element: null,
   visible: false,
@@ -411,6 +461,7 @@ const HISTORY_DEBOUNCE_MS = 250;
 const AUTOSAVE_DEBOUNCE_MS = 2500;
 const CanvasActionRegistry = new Map();
 const TIMELINE_PIXELS_PER_SECOND = 72;
+const SNAP_THRESHOLD_PX = 10;
 const TIMELINE_TRACK_HEIGHT = 34;
 const TIMELINE_LABEL_WIDTH = 86;
 const TIMELINE_MIN_TRACKS = 1;
@@ -422,7 +473,8 @@ const TIMELINE_TYPE_ICONS = {
   musica: "musica-alt.svg",
   audio: "toque.svg",
   text: "texto.svg",
-  texto: "texto.svg"
+  texto: "texto.svg",
+  subtitle: "texto.svg"
 };
 
 function getFabricClass(name) {
@@ -1064,16 +1116,18 @@ const ToolRegistry = {
     onPointerDown: addVectorPenPoint
   }),
   vectorMovePoints: makeToolHandler("vectorMovePoints", "Vetor mover pontos", "pointer", {
-    onActivate: activateTargetInspectTool,
+    onActivate: activateVectorEditTool,
     onDeactivate: clearVectorEditOverlays,
     onPointerDown: startVectorPointEdit,
     onPointerMove: moveVectorPointEdit,
     onPointerUp: finishVectorPointEdit
   }),
   vectorCurve: makeToolHandler("vectorCurve", "Editar curva", "pointer", {
-    onActivate: activateTargetInspectTool,
+    onActivate: activateVectorEditTool,
     onDeactivate: clearVectorEditOverlays,
-    onPointerDown: handleVectorCurvePointerDown
+    onPointerDown: startVectorCurveEdit,
+    onPointerMove: moveVectorPointEdit,
+    onPointerUp: finishVectorPointEdit
   }),
   eyedropper: makeToolHandler("eyedropper", "Pipeta", "copy", {
     onActivate: activateNonSelectingTool,
@@ -1667,7 +1721,7 @@ function syncInspectorContext(object = canvas?.getActiveObject?.() || null) {
   setInspectorAccordionVisible("brand", true);
   setInspectorAccordionVisible("export", true);
 
-  const openSections = new Set(["properties"]);
+  const openSections = new Set(["layers", "properties"]);
   if (isBrushTool) {
     openSections.add("brush");
   }
@@ -1847,6 +1901,18 @@ function selectLayerObject(object) {
     return;
   }
 
+  const timelineItem = object.layerId
+    ? timelineItems.find((entry) => entry.layerId === object.layerId)
+    : null;
+  if (timelineItem) {
+    selectedTimelineItemId = timelineItem.id;
+    if (!isTimelineItemActiveAt(timelineItem, timelinePlayhead) && timelineItem.visible !== false) {
+      timelinePlayhead = Math.max(0, Number(timelineItem.startTime || 0));
+      activeSlideId = getSlideAtTime(timelinePlayhead)?.id || activeSlideId;
+      applyTimelineVisibilityAtTime(timelinePlayhead);
+    }
+  }
+
   canvas.discardActiveObject();
   if (object.visible !== false || isMaskLayerObject(object)) {
     canvas.setActiveObject(object);
@@ -1854,6 +1920,7 @@ function selectLayerObject(object) {
 
   canvas.requestRenderAll();
   updateSelectionInfo();
+  renderTimeline();
 }
 
 function renameLayer(object, nextName) {
@@ -2480,7 +2547,7 @@ function getBrushConfig() {
   const brushKind = toolItem?.settings?.brushKind || (normalizedTool === "pencil" ? "pencil" : normalizedTool === "maskBrush" ? "mask" : normalizedTool);
   const hardness = brushKind === "pencil"
     ? 100
-    : clampValue(getNumericValue(brushHardness, 85), 1, 100);
+    : clampValue(getNumericValue(brushHardness, 85), 0, 100);
   const color = mode === "mask" ? "#FFFFFF" : normalizeHexColor(brushColor?.value || "#20232A", "#20232A");
 
   return {
@@ -2802,6 +2869,14 @@ function activateTargetInspectTool() {
   canvas.skipTargetFind = false;
 }
 
+function activateVectorEditTool() {
+  activateTargetInspectTool();
+  const object = getActiveEditableObject();
+  if (object && getEditableVectorPoints(object).length) {
+    drawVectorEditHandles(object);
+  }
+}
+
 function activateRasterTool() {
   activateNonSelectingTool();
   configureBrush();
@@ -3007,6 +3082,77 @@ function cloneWaveform(waveform = null) {
   };
 }
 
+function createFallbackWaveform(duration = 5, bars = 180) {
+  const safeBars = Math.max(16, Math.floor(Number(bars || 180)));
+  const peaks = Array.from({ length: safeBars }, (_, index) => {
+    const phase = index / Math.max(1, safeBars - 1);
+    const value = 0.12 + Math.abs(Math.sin(phase * Math.PI * 8)) * 0.32;
+    return { min: -value, max: value };
+  });
+  return {
+    peaks,
+    duration: Math.max(0.1, Number(duration || 5))
+  };
+}
+
+async function generateWaveformFromSource(source = "", durationFallback = 5, bars = 1200) {
+  const cacheKey = `source|${source}`;
+  if (cacheKey && mediaWaveformCache.has(cacheKey)) {
+    return mediaWaveformCache.get(cacheKey);
+  }
+
+  const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextCtor || !source) {
+    return createFallbackWaveform(durationFallback);
+  }
+
+  const audioCtx = new AudioContextCtor();
+  try {
+    const response = await fetch(resolveMediaSourceUrl(source));
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+    const channelData = audioBuffer.getChannelData(0);
+    const safeBars = Math.max(16, Math.floor(Number(bars || 1200)));
+    const samplesPerBar = Math.max(1, Math.floor(channelData.length / safeBars));
+    const peaks = [];
+
+    for (let index = 0; index < safeBars; index += 1) {
+      const start = index * samplesPerBar;
+      const end = Math.min(start + samplesPerBar, channelData.length);
+      let min = 1;
+      let max = -1;
+      for (let sampleIndex = start; sampleIndex < end; sampleIndex += 1) {
+        const value = channelData[sampleIndex];
+        if (value < min) min = value;
+        if (value > max) max = value;
+      }
+      peaks.push({ min, max });
+    }
+
+    const waveform = {
+      peaks,
+      duration: Math.max(0.1, Number(audioBuffer.duration || durationFallback || 0))
+    };
+    mediaWaveformCache.set(cacheKey, waveform);
+    console.info(`[MEDIA] waveform generated peaks=${peaks.length}`);
+    return waveform;
+  } catch (err) {
+    console.warn("Falha ao gerar waveform da fonte:", err);
+    const fallback = createFallbackWaveform(durationFallback);
+    mediaWaveformCache.set(cacheKey, fallback);
+    return fallback;
+  } finally {
+    try {
+      await audioCtx.close();
+    } catch {
+      // Ignore AudioContext close failures.
+    }
+  }
+}
+
 function isTimelineMediaItemActiveAt(item, time = timelinePlayhead) {
   if (!item || item.visible === false) {
     return false;
@@ -3016,8 +3162,11 @@ function isTimelineMediaItemActiveAt(item, time = timelinePlayhead) {
   return value >= range.startTime && value <= range.endTime;
 }
 
-function getTimelineItemMediaVolume(item, object = null) {
-  const raw = item?.volume ?? object?.volume ?? 1;
+function getTimelineItemMediaVolume(item, object = null, time = timelinePlayhead) {
+  const animated = item?.keyframes?.length
+    ? getAnimatedProps(item, getLocalTimeForTimelineItem(item, time)).volume
+    : undefined;
+  const raw = animated ?? item?.volume ?? object?.volume ?? 1;
   const value = Number(raw);
   return Number.isFinite(value) ? clampValue(value, 0, 2) : 1;
 }
@@ -3267,7 +3416,7 @@ function syncVideoTimelineAtTime(time = timelinePlayhead, options = {}) {
 
       const isActive = isTimelineMediaItemActiveAt(item, time) && object.visible !== false;
       const localTime = Math.max(0, Number(time || 0) - Number(item.startTime || 0));
-      video.volume = getTimelineItemMediaVolume(item, object);
+      video.volume = getTimelineItemMediaVolume(item, object, time);
       video.muted = getTimelineItemMediaMuted(item, object);
       video.playbackRate = Math.max(0.1, Number(item.speed || 1));
 
@@ -3309,7 +3458,7 @@ function syncAudioTimelineAtTime(time = timelinePlayhead, options = {}) {
       }
       const isActive = isTimelineMediaItemActiveAt(item, time);
       const localTime = Math.max(0, Number(time || 0) - Number(item.startTime || 0));
-      audio.volume = getTimelineItemMediaVolume(item);
+      audio.volume = getTimelineItemMediaVolume(item, null, time);
       audio.muted = getTimelineItemMediaMuted(item);
       audio.playbackRate = Math.max(0.1, Number(item.speed || 1));
 
@@ -3792,6 +3941,74 @@ function scenePointToImagePixel(imageObject, scenePoint, rasterCanvas) {
   return { x, y };
 }
 
+function makeSoftBrushStamp(config, color) {
+  const radius = Math.max(0.5, Number(config?.size || 1) / 2);
+  const padding = Math.ceil(Math.max(2, radius * 0.08));
+  const diameter = Math.max(3, Math.ceil(radius * 2 + padding * 2));
+  const stampCanvas = makeRasterCanvas(diameter, diameter);
+  const ctx = stampCanvas.getContext("2d");
+  const center = diameter / 2;
+  const hardness = clampValue(Number(config?.hardness || 0), 0, 100);
+  const solidStop = hardness >= 100 ? 1 : clampValue(hardness / 100, 0, 0.99);
+  const { r, g, b } = hexToRgb(color);
+  const gradient = ctx.createRadialGradient(center, center, 0, center, center, radius);
+
+  gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 1)`);
+  if (solidStop > 0) {
+    gradient.addColorStop(solidStop, `rgba(${r}, ${g}, ${b}, 1)`);
+  }
+  gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(center, center, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  return {
+    canvas: stampCanvas,
+    offset: center
+  };
+}
+
+function getRasterEditStamp(edit, color) {
+  if (!edit?.brushStamp || edit.brushStamp.color !== color) {
+    edit.brushStamp = {
+      color,
+      stamp: makeSoftBrushStamp(edit.config, color)
+    };
+  }
+
+  return edit.brushStamp.stamp;
+}
+
+function drawSoftBrushSegment(ctx, edit, previous, point, color, compositeOperation) {
+  const config = edit.config;
+  const stamp = getRasterEditStamp(edit, color);
+  const opacity = clampValue(config.opacity, 0, 100) / 100;
+  const dx = point.x - previous.x;
+  const dy = point.y - previous.y;
+  const distance = Math.hypot(dx, dy);
+  const radius = Math.max(1, config.size / 2);
+  const spacing = Math.max(1, radius * 0.2);
+  const steps = Math.max(1, Math.ceil(distance / spacing));
+  const startIndex = edit.lastPoint ? 1 : 0;
+
+  ctx.globalCompositeOperation = compositeOperation;
+  ctx.globalAlpha = opacity;
+
+  if (distance <= 0) {
+    ctx.drawImage(stamp.canvas, point.x - stamp.offset, point.y - stamp.offset);
+    return;
+  }
+
+  for (let index = startIndex; index <= steps; index += 1) {
+    const progress = index / steps;
+    const x = previous.x + dx * progress;
+    const y = previous.y + dy * progress;
+    ctx.drawImage(stamp.canvas, x - stamp.offset, y - stamp.offset);
+  }
+}
+
 function drawRasterStrokeSegment(edit, point) {
   if (!edit || !point) {
     return;
@@ -3802,6 +4019,8 @@ function drawRasterStrokeSegment(edit, point) {
   const previous = edit.lastPoint || point;
   const config = edit.config;
   const radius = Math.max(1, config.size / 2);
+  const isPencil = config.brushKind === "pencil";
+  const useSoftEdge = !isPencil && config.hardness < 100;
 
   ctx.save();
   ctx.lineCap = "round";
@@ -3809,33 +4028,42 @@ function drawRasterStrokeSegment(edit, point) {
   ctx.lineWidth = config.size;
 
   if (normalizeToolId(activeTool) === "eraser") {
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.globalAlpha = clampValue(config.opacity, 0, 100) / 100;
-    ctx.strokeStyle = "rgba(0,0,0,1)";
-    ctx.beginPath();
-    ctx.moveTo(previous.x, previous.y);
-    ctx.lineTo(point.x, point.y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-    ctx.fill();
+    if (useSoftEdge) {
+      drawSoftBrushSegment(ctx, edit, previous, point, "#000000", "destination-out");
+    } else {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.globalAlpha = clampValue(config.opacity, 0, 100) / 100;
+      ctx.strokeStyle = "rgba(0,0,0,1)";
+      ctx.beginPath();
+      ctx.moveTo(previous.x, previous.y);
+      ctx.lineTo(point.x, point.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
   } else {
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = clampValue(config.opacity, 0, 100) / 100;
-    ctx.strokeStyle = config.mode === "mask" ? getMaskPaintColor() : config.color;
-    ctx.fillStyle = ctx.strokeStyle;
+    const paintColor = config.mode === "mask" ? getMaskPaintColor() : config.color;
 
-    if (config.brushKind === "pencil") {
+    if (isPencil) {
       ctx.imageSmoothingEnabled = false;
     }
 
-    ctx.beginPath();
-    ctx.moveTo(previous.x, previous.y);
-    ctx.lineTo(point.x, point.y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-    ctx.fill();
+    if (useSoftEdge) {
+      drawSoftBrushSegment(ctx, edit, previous, point, paintColor, "source-over");
+    } else {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = clampValue(config.opacity, 0, 100) / 100;
+      ctx.strokeStyle = paintColor;
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.beginPath();
+      ctx.moveTo(previous.x, previous.y);
+      ctx.lineTo(point.x, point.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   ctx.restore();
@@ -3885,6 +4113,7 @@ async function startRasterEdit(event) {
       sourceCanvas,
       maskCanvas: null,
       config,
+      brushStamp: null,
       lastPoint: null
     };
 
@@ -4077,14 +4306,13 @@ document.addEventListener("click", (event) => {
   }
 
   if (action === "upload") {
-    imageInput?.click();
+    void openMediaExplorer();
     return;
   }
 
   if (action === "generate-video") {
-    setInspectorAccordionVisible("sd", true);
-    setInspectorAccordionOpen("sd", true, { persist: false });
-    setAiGeneratorTab("video");
+    setInspectorAccordionVisible("ai-video", true);
+    setInspectorAccordionOpen("ai-video", true, { persist: false });
     if (aiVideoMode) {
       aiVideoMode.value = "text_to_video";
     }
@@ -4093,9 +4321,8 @@ document.addEventListener("click", (event) => {
   }
 
   if (action === "animate-selection") {
-    setInspectorAccordionVisible("sd", true);
-    setInspectorAccordionOpen("sd", true, { persist: false });
-    setAiGeneratorTab("video");
+    setInspectorAccordionVisible("ai-video", true);
+    setInspectorAccordionOpen("ai-video", true, { persist: false });
     if (aiVideoMode) {
       aiVideoMode.value = "image_to_video";
     }
@@ -4139,18 +4366,71 @@ function openMediaPanel() {
     <span>Escolha como deseja adicionar ou gerar midia no Canvas.</span>
     <div class="toolbar-media-actions">
       <button type="button" data-media-panel-action="upload">Inserir arquivo</button>
-      <button type="button" data-media-panel-action="generate-video">Abrir Gerador IA (T2V)</button>
-      <button type="button" data-media-panel-action="animate-selection">Abrir Gerador IA (I2V)</button>
+      <button type="button" data-media-panel-action="generate-video">Abrir Gerar Video (T2V)</button>
+      <button type="button" data-media-panel-action="animate-selection">Abrir Gerar Video (I2V)</button>
     </div>
   `;
   positionFloatingPanelNearToolbarAction(panel, "add-image");
   panel.hidden = false;
 }
 
+async function openMediaExplorer() {
+  const selected = await window.kitAPI?.openFileDialog?.({ kind: "media" }).catch((err) => {
+    showToolNotice(`Falha ao abrir Midia: ${err.message || err}`);
+    return null;
+  });
+  if (!selected?.path) {
+    return;
+  }
+  await addMediaFile({
+    path: selected.path,
+    filePath: selected.path,
+    name: selected.name || getFileName(selected.path),
+    type: selected.mime || "",
+    size: selected.sizeBytes || 0
+  });
+}
+
 function openStickersPanel() {
-  const panel = getSimpleFloatingPanel("toolbarStickersPanel", "Stiks", "Stiks em implementacao.");
+  const panel = getSimpleFloatingPanel("toolbarStickersPanel", "Stiks", "Biblioteca de Stiks ainda nao configurada");
+  panel.innerHTML = `
+    <strong>Stiks</strong>
+    <input type="search" class="toolbar-panel-search" placeholder="Buscar Stiks">
+    <div class="toolbar-panel-empty">Biblioteca de Stiks ainda nao configurada</div>
+  `;
   positionFloatingPanelNearToolbarAction(panel, "open-sticks");
   panel.hidden = false;
+}
+
+async function openClientKitFolder() {
+  const metadata = currentProject?.metadata || {};
+  let folderPath = String(metadata.clientFolderPath || metadata.clientPath || "").trim();
+  if (!folderPath) {
+    const selected = await window.kitAPI?.selectClientFolder?.().catch((err) => {
+      showToolNotice(`Falha ao escolher pasta: ${err.message || err}`);
+      return null;
+    });
+    folderPath = String(selected?.path || "").trim();
+    if (!folderPath) {
+      return;
+    }
+    currentProject = {
+      ...(currentProject || createLocalDefaultProject()),
+      metadata: {
+        ...(currentProject?.metadata || {}),
+        clientFolderPath: folderPath
+      }
+    };
+    markCanvasChanged("client-folder");
+  }
+
+  const result = await window.kitAPI?.openPath?.(folderPath);
+  console.info(`[KIT_CLIENT] open folder path=${folderPath}`);
+  if (!result?.success) {
+    showToolNotice(`Nao foi possivel abrir a pasta: ${result?.error || folderPath}`);
+  } else {
+    updateAutosaveStatus("Pasta do cliente aberta.");
+  }
 }
 
 function getScenePoint(event) {
@@ -4754,6 +5034,185 @@ function distanceBetweenPoints(a, b) {
   return Math.hypot(Number(a.x || 0) - Number(b.x || 0), Number(a.y || 0) - Number(b.y || 0));
 }
 
+function createVectorPoint(x = 0, y = 0, overrides = {}) {
+  return {
+    id: overrides.id || `vp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    x: Number(x || 0),
+    y: Number(y || 0),
+    handleIn: overrides.handleIn || null,
+    handleOut: overrides.handleOut || null,
+    type: overrides.type === "curve" ? "curve" : "corner"
+  };
+}
+
+function cloneVectorHandle(handle = null) {
+  if (!handle) {
+    return null;
+  }
+  return {
+    x: Number(handle.x || 0),
+    y: Number(handle.y || 0)
+  };
+}
+
+function normalizeVectorPoint(point = {}, index = 0) {
+  return createVectorPoint(point.x, point.y, {
+    id: point.id || `vp-${index + 1}`,
+    type: point.type,
+    handleIn: cloneVectorHandle(point.handleIn),
+    handleOut: cloneVectorHandle(point.handleOut)
+  });
+}
+
+function getVectorPoints(object) {
+  if (Array.isArray(object?.vectorPoints) && object.vectorPoints.length) {
+    object.vectorPoints = object.vectorPoints.map(normalizeVectorPoint);
+    return object.vectorPoints;
+  }
+
+  if ((object?.type === "polygon" || object?.type === "polyline") && Array.isArray(object.points)) {
+    object.vectorPoints = object.points.map((point, index) => normalizeVectorPoint(point, index));
+    object.vectorClosed = object.type === "polygon";
+    return object.vectorPoints;
+  }
+
+  return [];
+}
+
+function calculateVectorBounds(points = []) {
+  const candidates = [];
+  points.forEach((point) => {
+    candidates.push(point);
+    if (point.handleIn) candidates.push(point.handleIn);
+    if (point.handleOut) candidates.push(point.handleOut);
+  });
+  if (!candidates.length) {
+    return { x: 0, y: 0, width: 1, height: 1 };
+  }
+  const xs = candidates.map((point) => Number(point.x || 0));
+  const ys = candidates.map((point) => Number(point.y || 0));
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const maxX = Math.max(...xs);
+  const maxY = Math.max(...ys);
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY)
+  };
+}
+
+function buildVectorPathCommands(points = [], closed = true) {
+  if (!points.length) {
+    return [["M", 0, 0]];
+  }
+
+  const commands = [["M", Number(points[0].x || 0), Number(points[0].y || 0)]];
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    if (previous.handleOut && current.handleIn) {
+      commands.push([
+        "C",
+        Number(previous.handleOut.x || previous.x || 0),
+        Number(previous.handleOut.y || previous.y || 0),
+        Number(current.handleIn.x || current.x || 0),
+        Number(current.handleIn.y || current.y || 0),
+        Number(current.x || 0),
+        Number(current.y || 0)
+      ]);
+    } else {
+      commands.push(["L", Number(current.x || 0), Number(current.y || 0)]);
+    }
+  }
+
+  if (closed && points.length > 2) {
+    const last = points[points.length - 1];
+    const first = points[0];
+    if (last.handleOut && first.handleIn) {
+      commands.push([
+        "C",
+        Number(last.handleOut.x || last.x || 0),
+        Number(last.handleOut.y || last.y || 0),
+        Number(first.handleIn.x || first.x || 0),
+        Number(first.handleIn.y || first.y || 0),
+        Number(first.x || 0),
+        Number(first.y || 0)
+      ]);
+    }
+    commands.push(["Z"]);
+  }
+
+  return commands;
+}
+
+function isVectorPathObject(object) {
+  return Boolean(object && (object.layerKind === "vectorPath" || (object.type === "path" && Array.isArray(object.vectorPoints))));
+}
+
+function vectorLocalPointToScene(object, point) {
+  const Point = getFabricClass("Point");
+  const transformPoint = fabricApi?.util?.transformPoint || fabricApi?.transformPoint;
+  if (!Point || !transformPoint || !object) {
+    return { x: Number(point?.x || 0), y: Number(point?.y || 0) };
+  }
+  const pathOffset = object.pathOffset || { x: 0, y: 0 };
+  return transformPoint(
+    new Point(Number(point.x || 0) - Number(pathOffset.x || 0), Number(point.y || 0) - Number(pathOffset.y || 0)),
+    object.calcTransformMatrix()
+  );
+}
+
+function scenePointToVectorLocal(object, point) {
+  const Point = getFabricClass("Point");
+  const invertTransform = fabricApi?.util?.invertTransform || fabricApi?.invertTransform;
+  const transformPoint = fabricApi?.util?.transformPoint || fabricApi?.transformPoint;
+  if (!Point || !invertTransform || !transformPoint || !object) {
+    return { x: Number(point?.x || 0), y: Number(point?.y || 0) };
+  }
+  const local = transformPoint(new Point(point.x, point.y), invertTransform(object.calcTransformMatrix()));
+  const pathOffset = object.pathOffset || { x: 0, y: 0 };
+  return {
+    x: Number(local.x || 0) + Number(pathOffset.x || 0),
+    y: Number(local.y || 0) + Number(pathOffset.y || 0)
+  };
+}
+
+function refreshVectorPathObject(object, options = {}) {
+  const points = getVectorPoints(object);
+  if (!object || !points.length) {
+    return object;
+  }
+
+  const preserveIndex = Number.isInteger(options.preserveIndex)
+    ? options.preserveIndex
+    : points.length > 1
+      ? 0
+      : -1;
+  const preservePoint = preserveIndex >= 0 ? points[preserveIndex] : null;
+  const before = preservePoint ? vectorLocalPointToScene(object, preservePoint) : null;
+  object.vectorClosed = options.closed ?? object.vectorClosed ?? object.closed ?? true;
+  object.closed = object.vectorClosed;
+  object.vectorBounds = calculateVectorBounds(points);
+  object.set({
+    path: buildVectorPathCommands(points, object.vectorClosed),
+    dirty: true
+  });
+  object.setBoundingBox?.();
+  object.setCoords();
+  if (before && preservePoint) {
+    const after = vectorLocalPointToScene(object, preservePoint);
+    object.set({
+      left: Number(object.left || 0) + before.x - after.x,
+      top: Number(object.top || 0) + before.y - after.y
+    });
+    object.setCoords();
+  }
+  canvas?.requestRenderAll();
+  return object;
+}
+
 function addVectorPenPoint(event) {
   const point = getScenePoint(event);
   if (!point || !canvas) {
@@ -4787,16 +5246,31 @@ function addVectorPenPoint(event) {
 }
 
 function closeVectorShape() {
-  const Polygon = getFabricClass("Polygon");
-  if (!Polygon || vectorDraft.points.length < 3) {
+  const Path = getFabricClass("Path");
+  if (!Path || vectorDraft.points.length < 3) {
     return;
   }
 
-  const object = new Polygon(vectorDraft.points, {
+  const minX = Math.min(...vectorDraft.points.map((point) => point.x));
+  const minY = Math.min(...vectorDraft.points.map((point) => point.y));
+  const points = vectorDraft.points.map((point, index) => createVectorPoint(point.x - minX, point.y - minY, {
+    id: `vp-${index + 1}`,
+    type: "corner"
+  }));
+  const object = new Path(buildVectorPathCommands(points, true), {
+    left: minX,
+    top: minY,
+    originX: "left",
+    originY: "top",
     fill: getSecondaryColor(),
     stroke: getPrimaryColor(),
     strokeWidth: 3,
-    objectCaching: false
+    objectCaching: false,
+    layerKind: "vectorPath",
+    vectorPoints: points,
+    vectorClosed: true,
+    closed: true,
+    vectorBounds: calculateVectorBounds(points)
   });
   clearVectorDraft();
   canvas.add(object);
@@ -4808,28 +5282,7 @@ function closeVectorShape() {
 }
 
 function handleVectorCurvePointerDown(event) {
-  const point = getScenePoint(event);
-  const target = event.target && !event.target.isToolOverlay ? event.target : getCanvasObjectAtScenePoint(point);
-  const object = target && !target.isArtboard ? target : getActiveEditableObject();
-  if (!object) {
-    showToolNotice("Clique em um ponto vetorial existente para editar curva.");
-    return;
-  }
-
-  canvas.setActiveObject(object);
-  drawVectorEditHandles(object);
-  const nearest = point ? getNearestVectorPoint(object, point, 18) : null;
-  if (!nearest) {
-    showToolNotice("Pontos exibidos. Clique em um no para converter em curva.");
-    return;
-  }
-
-  object.vectorCurvePoints = Array.isArray(object.vectorCurvePoints) ? object.vectorCurvePoints : [];
-  if (!object.vectorCurvePoints.includes(nearest.index)) {
-    object.vectorCurvePoints.push(nearest.index);
-  }
-  showToolNotice("No marcado como curva. Handles Bezier completos serao refinados na proxima etapa.");
-  markCanvasChanged("vector-curve");
+  return startVectorCurveEdit(event);
 }
 
 function updatePropertyControls(object) {
@@ -4889,6 +5342,13 @@ function updateSelectionInfo() {
   updatePropertyControls(isMaskLayerObject(object) ? null : object);
   updateLayers();
   syncInspectorContext(object);
+  if (!activeVectorEdit && ["vectorMovePoints", "vectorCurve"].includes(activeTool)) {
+    if (getEditableVectorPoints(object).length) {
+      drawVectorEditHandles(object);
+    } else {
+      clearVectorEditOverlays();
+    }
+  }
 }
 
 function renderBrandKitList(target, items = [], emptyText, options = {}) {
@@ -5109,6 +5569,9 @@ function serializeFabricObjects() {
         : null;
       if (timelineItem) {
         serialized.visible = timelineItem.visible !== false;
+        if (timelineItem.keyframes?.length && object.timelineBaseProps) {
+          applyAnimationBasePropsToSerialized(serialized, object.timelineBaseProps);
+        }
       }
       return serialized;
     });
@@ -5195,7 +5658,8 @@ function normalizeTimelineType(type = "image") {
   if (value === "musica" || value === "música") return "music";
   if (value === "texto") return "text";
   if (value === "vídeo" || value === "video") return "video";
-  return ["image", "video", "music", "text", "audio"].includes(value) ? value : "image";
+  if (value === "legenda" || value === "subtitle") return "subtitle";
+  return ["image", "video", "music", "text", "audio", "subtitle"].includes(value) ? value : "image";
 }
 
 function getDefaultTrackForType(type = "image") {
@@ -5207,6 +5671,116 @@ function normalizeTimelineTrackLabels(project = {}) {
   return rawLabels.length
     ? rawLabels.map((label) => String(label || "").trim()).filter(Boolean)
     : [];
+}
+
+function normalizeTimelineLinkedItems(project = {}) {
+  const rawLinks = Array.isArray(project.timeline?.linkedItems) ? project.timeline.linkedItems : [];
+  return rawLinks
+    .map((link, index) => ({
+      id: link.id || `link-${Date.now().toString(36)}-${index}`,
+      items: Array.isArray(link.items) ? [...new Set(link.items.filter(Boolean).map(String))] : [],
+      mode: link.mode || "edge-lock"
+    }))
+    .filter((link) => link.items.length >= 2);
+}
+
+function normalizeKeyframeProps(props = {}) {
+  const normalized = {};
+  ["x", "y", "scale", "scaleX", "scaleY", "rotation", "opacity", "volume"].forEach((key) => {
+    if (props[key] === undefined || props[key] === null || props[key] === "") {
+      return;
+    }
+    const value = Number(props[key]);
+    if (!Number.isFinite(value)) {
+      return;
+    }
+    normalized[key] = key === "opacity"
+      ? clampValue(value, 0, 1)
+      : key === "volume"
+        ? clampValue(value, 0, 2)
+        : key === "scale" || key === "scaleX" || key === "scaleY"
+          ? Math.max(0.01, value)
+          : value;
+  });
+  return normalized;
+}
+
+function createKeyframeId(index = 0) {
+  return `kf-${Date.now().toString(36)}-${index}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function normalizeKeyframeEasing(easing = "linear") {
+  return ["linear", "easeIn", "easeOut", "easeInOut", "hold"].includes(easing) ? easing : "linear";
+}
+
+function cloneTimelineKeyframes(keyframes = [], options = {}) {
+  return (Array.isArray(keyframes) ? keyframes : [])
+    .map((keyframe, index) => ({
+      id: options.regenerateIds ? createKeyframeId() : keyframe.id || createKeyframeId(index),
+      time: Math.max(0, Number(keyframe.time || 0)),
+      props: normalizeKeyframeProps(keyframe.props || {}),
+      easing: normalizeKeyframeEasing(keyframe.easing)
+    }))
+    .filter((keyframe) => Object.keys(keyframe.props).length)
+    .sort((a, b) => a.time - b.time);
+}
+
+function normalizeTimelineKeyframes(item = {}) {
+  const duration = Math.max(0.1, Number(item.duration ?? item.length ?? 5));
+  return cloneTimelineKeyframes(item.keyframes || [])
+    .map((keyframe) => ({
+      ...keyframe,
+      time: clampValue(Number(keyframe.time || 0), 0, duration)
+    }))
+    .sort((a, b) => a.time - b.time);
+}
+
+function cleanupTimelineLinks() {
+  const itemIds = new Set(timelineItems.map((item) => item.id));
+  timelineLinkedItems = timelineLinkedItems
+    .map((link) => ({
+      ...link,
+      items: [...new Set((link.items || []).filter((id) => itemIds.has(id)))]
+    }))
+    .filter((link) => link.items.length >= 2);
+}
+
+function getTimelineLinksForItem(itemOrId) {
+  const itemId = typeof itemOrId === "string" ? itemOrId : itemOrId?.id;
+  if (!itemId) {
+    return [];
+  }
+  return timelineLinkedItems.filter((link) => Array.isArray(link.items) && link.items.includes(itemId));
+}
+
+function isTimelineItemLinked(itemOrId) {
+  return getTimelineLinksForItem(itemOrId).length > 0;
+}
+
+function getLinkedTimelineGroup(itemOrId) {
+  const rootId = typeof itemOrId === "string" ? itemOrId : itemOrId?.id;
+  if (!rootId) {
+    return [];
+  }
+
+  const visited = new Set();
+  const queue = [rootId];
+  while (queue.length) {
+    const id = queue.shift();
+    if (!id || visited.has(id)) {
+      continue;
+    }
+    visited.add(id);
+    getTimelineLinksForItem(id).forEach((link) => {
+      (link.items || []).forEach((linkedId) => {
+        if (!visited.has(linkedId)) {
+          queue.push(linkedId);
+        }
+      });
+    });
+  }
+
+  return timelineItems.filter((item) => visited.has(item.id));
 }
 
 function getTimelineTrackLabel(track = 0) {
@@ -5316,9 +5890,422 @@ function getSlideNodeTitle(slide, index) {
   return `Slide ${index + 1} | ${Number(slide.startTime || 0).toFixed(1)}s ate ${(Number(slide.startTime || 0) + Math.max(0.5, Number(slide.duration || 5))).toFixed(1)}s`;
 }
 
+function getTimelineSnapThresholdSeconds() {
+  return SNAP_THRESHOLD_PX / TIMELINE_PIXELS_PER_SECOND;
+}
+
+function isAudioKeyframeItem(item) {
+  return ["audio", "music", "video"].includes(normalizeTimelineType(item?.type));
+}
+
+function getTimelineItemForObject(object) {
+  return object?.layerId ? timelineItems.find((item) => item.layerId === object.layerId) || null : null;
+}
+
+function captureObjectKeyframeProps(object, item = getTimelineItemForObject(object)) {
+  const props = {
+    x: Number(object?.left || 0),
+    y: Number(object?.top || 0),
+    scaleX: Number(object?.scaleX || 1),
+    scaleY: Number(object?.scaleY || 1),
+    scale: (Number(object?.scaleX || 1) + Number(object?.scaleY || 1)) / 2,
+    rotation: Number(object?.angle || 0),
+    opacity: Number(object?.opacity ?? 1)
+  };
+  if (isAudioKeyframeItem(item)) {
+    props.volume = getTimelineItemMediaVolume(item, object);
+  }
+  return normalizeKeyframeProps(props);
+}
+
+function ensureTimelineAnimationBaseProps(item, object) {
+  if (!item || !object) {
+    return {};
+  }
+  if (!object.timelineBaseProps) {
+    object.timelineBaseProps = captureObjectKeyframeProps(object, item);
+  }
+  return object.timelineBaseProps;
+}
+
+function getSelectedTimelineKeyframe() {
+  const item = findTimelineItem();
+  if (!item || !selectedTimelineKeyframeId) {
+    return null;
+  }
+  return (item.keyframes || []).find((keyframe) => keyframe.id === selectedTimelineKeyframeId) || null;
+}
+
+function getLocalTimeForTimelineItem(item, time = timelinePlayhead) {
+  if (!item) {
+    return 0;
+  }
+  return clampValue(Number(time || 0) - Number(item.startTime || 0), 0, Math.max(0.1, Number(item.duration || 0.1)));
+}
+
+function findKeyframeAtTime(item, localTime, epsilon = 0.03) {
+  return (item?.keyframes || []).find((keyframe) => Math.abs(Number(keyframe.time || 0) - localTime) <= epsilon) || null;
+}
+
+function upsertKeyframeForItem(item, localTime, props = {}, options = {}) {
+  if (!item) {
+    return null;
+  }
+  const time = clampValue(Number(localTime || 0), 0, Math.max(0.1, Number(item.duration || 0.1)));
+  const nextProps = normalizeKeyframeProps(props);
+  if (!Object.keys(nextProps).length) {
+    return null;
+  }
+  item.keyframes = normalizeTimelineKeyframes(item);
+  let keyframe = findKeyframeAtTime(item, time);
+  if (!keyframe) {
+    keyframe = {
+      id: createKeyframeId(item.keyframes.length),
+      time,
+      props: {},
+      easing: normalizeKeyframeEasing(options.easing || "linear")
+    };
+    item.keyframes.push(keyframe);
+  }
+  keyframe.time = time;
+  keyframe.props = { ...keyframe.props, ...nextProps };
+  keyframe.easing = normalizeKeyframeEasing(options.easing || keyframe.easing);
+  item.keyframes = normalizeTimelineKeyframes(item);
+  selectedTimelineItemId = item.id;
+  selectedTimelineKeyframeId = keyframe.id;
+  return keyframe;
+}
+
+function addKeyframeAtPlayhead(item = findTimelineItem()) {
+  if (!item) {
+    showToolNotice("Selecione um item da timeline para criar marcador.");
+    return null;
+  }
+  const object = item.layerId ? findCanvasObject({ layerId: item.layerId }) : null;
+  const localTime = getLocalTimeForTimelineItem(item);
+  const props = object ? captureObjectKeyframeProps(object, item) : { volume: getTimelineItemMediaVolume(item) };
+  if (object) {
+    ensureTimelineAnimationBaseProps(item, object);
+  }
+  const keyframe = upsertKeyframeForItem(item, localTime, props);
+  renderTimeline();
+  syncKeyframeEditor();
+  markCanvasChanged("timeline-keyframe-add");
+  showToolNotice("Keyframe adicionado.");
+  return keyframe;
+}
+
+function removeSelectedKeyframe() {
+  const item = findTimelineItem();
+  if (!item || !selectedTimelineKeyframeId) {
+    showToolNotice("Selecione um keyframe para remover.");
+    return false;
+  }
+  const before = item.keyframes?.length || 0;
+  item.keyframes = (item.keyframes || []).filter((keyframe) => keyframe.id !== selectedTimelineKeyframeId);
+  selectedTimelineKeyframeId = null;
+  renderTimeline();
+  syncKeyframeEditor();
+  if ((item.keyframes?.length || 0) !== before) {
+    markCanvasChanged("timeline-keyframe-remove");
+    showToolNotice("Keyframe removido.");
+    return true;
+  }
+  return false;
+}
+
+function applyEasing(progress, easing = "linear") {
+  const t = clampValue(Number(progress || 0), 0, 1);
+  if (easing === "hold") return 0;
+  if (easing === "easeIn") return t * t;
+  if (easing === "easeOut") return 1 - (1 - t) * (1 - t);
+  if (easing === "easeInOut") return t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2;
+  return t;
+}
+
+function getAnimatedProps(item, localTime) {
+  const keyframes = normalizeTimelineKeyframes(item);
+  if (!keyframes.length) {
+    return {};
+  }
+  const time = clampValue(Number(localTime || 0), 0, Math.max(0.1, Number(item.duration || 0.1)));
+  const previous = [...keyframes].reverse().find((keyframe) => keyframe.time <= time) || keyframes[0];
+  const next = keyframes.find((keyframe) => keyframe.time >= time) || keyframes[keyframes.length - 1];
+  if (!previous || !next || previous.id === next.id || next.time <= previous.time) {
+    return { ...(previous || next).props };
+  }
+  const progress = applyEasing((time - previous.time) / (next.time - previous.time), previous.easing);
+  const props = {};
+  [...new Set([...Object.keys(previous.props || {}), ...Object.keys(next.props || {})])].forEach((key) => {
+    const start = Number(previous.props?.[key]);
+    const end = Number(next.props?.[key]);
+    if (!Number.isFinite(start) && Number.isFinite(end)) {
+      props[key] = end;
+    } else if (Number.isFinite(start) && !Number.isFinite(end)) {
+      props[key] = start;
+    } else if (Number.isFinite(start) && Number.isFinite(end)) {
+      props[key] = start + (end - start) * progress;
+    }
+  });
+  return normalizeKeyframeProps(props);
+}
+
+function collectTimelineAudioAutomation(startTime = 0, endTime = getTimelineDuration()) {
+  return timelineItems
+    .filter((item) => isAudioKeyframeItem(item) && item.source)
+    .map((item) => ({
+      id: item.id,
+      source: item.source,
+      layerId: item.layerId,
+      volume: clampValue(Number(item.volume ?? 1), 0, 2),
+      muted: Boolean(item.muted),
+      itemStartTime: Number(item.startTime || 0),
+      sourceStartTime: Math.max(0, Number(item.sourceStartTime || 0)),
+      startTime: Math.max(Number(startTime || 0), Number(item.startTime || 0)),
+      endTime: Math.min(Number(endTime || 0), getTimelineItemEndTime(item)),
+      keyframes: (item.keyframes || [])
+        .filter((keyframe) => keyframe.props?.volume !== undefined)
+        .map((keyframe) => ({
+          id: keyframe.id,
+          time: keyframe.time,
+          volume: clampValue(Number(keyframe.props.volume), 0, 2),
+          easing: normalizeKeyframeEasing(keyframe.easing)
+        }))
+    }))
+    .filter((entry) => entry.endTime > entry.startTime);
+}
+
+function applyAnimatedPropsToObject(object, props = {}) {
+  if (!object || !Object.keys(props).length) {
+    return;
+  }
+  const next = {};
+  if (props.x !== undefined) next.left = props.x;
+  if (props.y !== undefined) next.top = props.y;
+  if (props.scale !== undefined) {
+    next.scaleX = props.scale;
+    next.scaleY = props.scale;
+  }
+  if (props.scaleX !== undefined) next.scaleX = props.scaleX;
+  if (props.scaleY !== undefined) next.scaleY = props.scaleY;
+  if (props.rotation !== undefined) next.angle = props.rotation;
+  if (props.opacity !== undefined) next.opacity = props.opacity;
+  object.set(next);
+  object.setCoords();
+}
+
+function applyAnimationBasePropsToSerialized(serialized = {}, baseProps = {}) {
+  const props = normalizeKeyframeProps(baseProps);
+  if (props.x !== undefined) serialized.left = props.x;
+  if (props.y !== undefined) serialized.top = props.y;
+  if (props.scale !== undefined) {
+    serialized.scaleX = props.scale;
+    serialized.scaleY = props.scale;
+  }
+  if (props.scaleX !== undefined) serialized.scaleX = props.scaleX;
+  if (props.scaleY !== undefined) serialized.scaleY = props.scaleY;
+  if (props.rotation !== undefined) serialized.angle = props.rotation;
+  if (props.opacity !== undefined) serialized.opacity = props.opacity;
+  return serialized;
+}
+
+function applyTimelineAnimationsAtTime(time = timelinePlayhead) {
+  timelineItems.forEach((item) => {
+    if (!item.layerId || !item.keyframes?.length || !isTimelineItemActiveAt(item, time)) {
+      return;
+    }
+    const object = findCanvasObject({ layerId: item.layerId });
+    if (!object) {
+      return;
+    }
+    const baseProps = ensureTimelineAnimationBaseProps(item, object);
+    applyAnimatedPropsToObject(object, baseProps);
+    applyAnimatedPropsToObject(object, getAnimatedProps(item, getLocalTimeForTimelineItem(item, time)));
+  });
+}
+
+function makeKeyframeTooltip(keyframe = {}) {
+  const props = Object.entries(keyframe.props || {})
+    .map(([key, value]) => `${key}: ${Number(value).toFixed(key === "opacity" || key === "volume" ? 2 : 0)}`)
+    .join(", ");
+  return `Keyframe - ${Number(keyframe.time || 0).toFixed(1)}s${props ? ` | ${props}` : ""}`;
+}
+
+function syncKeyframeEditor() {
+  if (!timelineKeyframeEditor) {
+    return;
+  }
+  const item = findTimelineItem();
+  const keyframe = getSelectedTimelineKeyframe();
+  timelineKeyframeEditor.hidden = !item || !keyframe;
+  if (!item || !keyframe) {
+    return;
+  }
+  const props = keyframe.props || {};
+  setInputValue(keyframeTimeInput, Number(keyframe.time || 0).toFixed(2));
+  setInputValue(keyframeXInput, props.x ?? "");
+  setInputValue(keyframeYInput, props.y ?? "");
+  setInputValue(keyframeScaleInput, props.scale ?? props.scaleX ?? "");
+  setInputValue(keyframeRotationInput, props.rotation ?? "");
+  setInputValue(keyframeOpacityInput, props.opacity ?? "");
+  if (keyframeVolumeLabel) {
+    keyframeVolumeLabel.hidden = !isAudioKeyframeItem(item);
+  }
+  setInputValue(keyframeVolumeInput, props.volume ?? "");
+  if (keyframeEasingInput) {
+    keyframeEasingInput.value = normalizeKeyframeEasing(keyframe.easing);
+  }
+}
+
+function applyKeyframeEditorValues() {
+  const item = findTimelineItem();
+  const keyframe = getSelectedTimelineKeyframe();
+  if (!item || !keyframe) {
+    return;
+  }
+  const props = normalizeKeyframeProps({
+    x: keyframeXInput?.value,
+    y: keyframeYInput?.value,
+    scale: keyframeScaleInput?.value,
+    rotation: keyframeRotationInput?.value,
+    opacity: keyframeOpacityInput?.value,
+    volume: isAudioKeyframeItem(item) ? keyframeVolumeInput?.value : undefined
+  });
+  keyframe.time = clampValue(Number(keyframeTimeInput?.value || keyframe.time || 0), 0, Math.max(0.1, Number(item.duration || 0.1)));
+  keyframe.props = props;
+  keyframe.easing = normalizeKeyframeEasing(keyframeEasingInput?.value || keyframe.easing);
+  item.keyframes = normalizeTimelineKeyframes(item);
+  timelinePlayhead = item.startTime + keyframe.time;
+  applyTimelineVisibilityAtTime(timelinePlayhead);
+  renderTimeline();
+  markCanvasChanged("timeline-keyframe-edit");
+}
+
+function startTimelineKeyframeDrag(event, item, keyframe) {
+  event.preventDefault();
+  event.stopPropagation();
+  selectedTimelineItemId = item.id;
+  selectedTimelineKeyframeId = keyframe.id;
+  const startX = event.clientX;
+  const startTime = Number(keyframe.time || 0);
+  const onMove = (moveEvent) => {
+    const delta = (moveEvent.clientX - startX) / TIMELINE_PIXELS_PER_SECOND;
+    const currentKeyframe = (item.keyframes || []).find((entry) => entry.id === keyframe.id) || keyframe;
+    currentKeyframe.time = clampValue(startTime + delta, 0, Math.max(0.1, Number(item.duration || 0.1)));
+    item.keyframes = (item.keyframes || []).sort((a, b) => Number(a.time || 0) - Number(b.time || 0));
+    timelinePlayhead = item.startTime + currentKeyframe.time;
+    applyTimelineVisibilityAtTime(timelinePlayhead);
+    renderTimeline();
+  };
+  const onUp = () => {
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    syncKeyframeEditor();
+    markCanvasChanged("timeline-keyframe-move");
+  };
+  document.addEventListener("pointermove", onMove);
+  document.addEventListener("pointerup", onUp, { once: true });
+}
+
+function recordAutoKeyframeForObject(object) {
+  if (!timelineAutoKeyframeEnabled || !object?.layerId || isApplyingSnapshot) {
+    return null;
+  }
+  const item = getTimelineItemForObject(object);
+  if (!item || !isTimelineItemActiveAt(item, timelinePlayhead)) {
+    return null;
+  }
+  const keyframe = upsertKeyframeForItem(item, getLocalTimeForTimelineItem(item), captureObjectKeyframeProps(object, item));
+  renderTimeline();
+  syncKeyframeEditor();
+  markCanvasChanged("timeline-auto-keyframe");
+  return keyframe;
+}
+
+function applyKeyframeVolumePreset(preset = "") {
+  const item = findTimelineItem();
+  if (!item || !isAudioKeyframeItem(item)) {
+    showToolNotice("Selecione audio ou video para keyframe de volume.");
+    return;
+  }
+  const localTime = getLocalTimeForTimelineItem(item);
+  const volume = preset === "mute" || preset === "fade-in"
+    ? 0
+    : 1;
+  const keyframe = upsertKeyframeForItem(item, localTime, { volume });
+  if (preset === "fade-in") {
+    upsertKeyframeForItem(item, Math.min(item.duration, localTime + 2), { volume: 1 });
+  }
+  if (preset === "fade-out") {
+    upsertKeyframeForItem(item, Math.max(0, item.duration - 2), { volume: 1 });
+    upsertKeyframeForItem(item, item.duration, { volume: 0 });
+  }
+  selectedTimelineKeyframeId = keyframe?.id || selectedTimelineKeyframeId;
+  renderTimeline();
+  syncKeyframeEditor();
+  markCanvasChanged("timeline-volume-preset");
+}
+
+function setTimelineSnapGuide(guide = null) {
+  activeTimelineSnapGuide = guide;
+}
+
+function clearTimelineSnapGuide() {
+  activeTimelineSnapGuide = null;
+}
+
+function resolveTimelineSnap(draggedItem, nextStart, options = {}) {
+  if (!timelineSnapEnabled || !draggedItem) {
+    return {
+      startTime: Math.max(0, Number(nextStart || 0)),
+      guide: null
+    };
+  }
+
+  const threshold = getTimelineSnapThresholdSeconds();
+  const duration = Math.max(0.1, Number(options.duration ?? draggedItem.duration ?? 0.1));
+  const ignoredIds = new Set([draggedItem.id, ...(options.ignoreIds || [])].filter(Boolean));
+  const draggedStart = Math.max(0, Number(nextStart || 0));
+  const draggedEnd = draggedStart + duration;
+  let best = null;
+
+  timelineItems.forEach((target) => {
+    if (!target || ignoredIds.has(target.id)) {
+      return;
+    }
+
+    const targetStart = Math.max(0, Number(target.startTime || 0));
+    const targetEnd = getTimelineItemEndTime(target);
+    [
+      { distance: Math.abs(draggedStart - targetEnd), startTime: targetEnd, guideTime: targetEnd, targetId: target.id },
+      { distance: Math.abs(draggedEnd - targetStart), startTime: targetStart - duration, guideTime: targetStart, targetId: target.id },
+      { distance: Math.abs(draggedStart - targetStart), startTime: targetStart, guideTime: targetStart, targetId: target.id },
+      { distance: Math.abs(draggedEnd - targetEnd), startTime: targetEnd - duration, guideTime: targetEnd, targetId: target.id }
+    ].forEach((candidate) => {
+      if (candidate.distance <= threshold && (!best || candidate.distance < best.distance)) {
+        best = candidate;
+      }
+    });
+  });
+
+  if (!best) {
+    return { startTime: draggedStart, guide: null };
+  }
+
+  const snappedStart = Math.max(0, best.startTime);
+  return {
+    startTime: snappedStart,
+    guide: {
+      time: Math.max(0, best.guideTime),
+      targetId: best.targetId
+    }
+  };
+}
+
 function normalizeTimelineItem(item = {}, index = 0) {
   const startTime = Math.max(0, Number(item.startTime ?? item.start ?? 0));
   const type = normalizeTimelineType(item.type || item.kind || "image");
+  const duration = Math.max(0.1, Number(item.duration ?? item.length ?? 5));
   const slide = item.slideId
     ? timelineSlides.find((entry) => entry.id === item.slideId)
     : getSlideAtTime(startTime);
@@ -5326,7 +6313,8 @@ function normalizeTimelineItem(item = {}, index = 0) {
     id: item.id || `tl-${Date.now().toString(36)}-${index}-${Math.random().toString(36).slice(2, 7)}`,
     type,
     startTime,
-    duration: Math.max(0.1, Number(item.duration ?? item.length ?? 5)),
+    duration,
+    endTime: startTime + duration,
     track: Math.max(0, Number(item.track ?? getDefaultTrackForType(type))),
     source: item.source || item.filePath || item.url || item.layerId || "",
     label: item.label || item.name || makeTimelineItemLabel(type, item.source || item.filePath || item.url || ""),
@@ -5337,6 +6325,7 @@ function normalizeTimelineItem(item = {}, index = 0) {
     speed: Math.max(0.1, Number(item.speed ?? 1)),
     sourceStartTime: Math.max(0, Number(item.sourceStartTime ?? 0)),
     waveform: cloneWaveform(item.waveform),
+    keyframes: normalizeTimelineKeyframes({ ...item, duration }),
     locked: Boolean(item.locked),
     layerId: item.layerId || null
   };
@@ -5368,7 +6357,8 @@ function makeTimelineItemLabel(type = "image", source = "") {
     video: "Video",
     music: "Musica",
     text: "Texto",
-    audio: "Audio"
+    audio: "Audio",
+    subtitle: "Legenda"
   };
   return labels[normalizeTimelineType(type)] || "Midia";
 }
@@ -5438,7 +6428,11 @@ function addTimelineItem(input = {}) {
   if (existing) {
     updateTimelineItem(existing, {
       label: input.label || existing.label,
+      type: input.type || existing.type,
       source: input.source || input.filePath || input.path || existing.source,
+      duration: input.duration ?? existing.duration,
+      startTime: input.startTime ?? existing.startTime,
+      track: input.track ?? existing.track,
       visible: input.visible ?? existing.visible,
       sourceStartTime: input.sourceStartTime ?? existing.sourceStartTime,
       waveform: input.waveform ?? existing.waveform
@@ -5472,6 +6466,7 @@ function addTimelineItem(input = {}) {
     speed: input.speed,
     sourceStartTime: input.sourceStartTime,
     waveform: input.waveform,
+    keyframes: input.keyframes,
     locked: input.locked,
     layerId: input.layerId || null
   }, timelineItems.length);
@@ -5543,6 +6538,42 @@ function selectTimelineItemForCanvasObject(object) {
   }
 }
 
+function selectTimelineItem(item, options = {}) {
+  if (!item) {
+    return null;
+  }
+
+  selectedTimelineItemId = item.id;
+  if (selectedTimelineKeyframeId && !(item.keyframes || []).some((keyframe) => keyframe.id === selectedTimelineKeyframeId)) {
+    selectedTimelineKeyframeId = null;
+  }
+  if (options.seek !== false) {
+    timelinePlayhead = Math.max(0, Number(item.startTime || 0));
+    activeSlideId = getSlideAtTime(timelinePlayhead)?.id || activeSlideId;
+  }
+
+  applyTimelineVisibilityAtTime(timelinePlayhead);
+  const object = item.layerId ? findCanvasObject({ layerId: item.layerId }) : null;
+  if (object && canvas) {
+    object.set({
+      visible: true,
+      selectable: object.layerLocked ? false : true,
+      evented: object.layerLocked ? false : true
+    });
+    canvas.discardActiveObject();
+    canvas.setActiveObject(object);
+    object.setCoords();
+    updateSelectionInfo();
+  } else {
+    updateLayers();
+  }
+
+  syncTimelineMediaAtTime(timelinePlayhead, { shouldPlay: false });
+  renderTimeline();
+  canvas?.requestRenderAll();
+  return item;
+}
+
 function updateTimelineItem(item, patch = {}) {
   if (!item || item.locked) {
     return item;
@@ -5553,7 +6584,9 @@ function updateTimelineItem(item, patch = {}) {
   }
   if (patch.duration !== undefined) {
     item.duration = Math.max(0.1, Number(patch.duration || 0.1));
+    item.keyframes = normalizeTimelineKeyframes(item);
   }
+  item.endTime = item.startTime + item.duration;
   if (patch.track !== undefined) {
     item.track = Math.max(0, Number(patch.track || 0));
   }
@@ -5563,7 +6596,9 @@ function updateTimelineItem(item, patch = {}) {
   if (patch.speed !== undefined) item.speed = Math.max(0.1, Number(patch.speed));
   if (patch.sourceStartTime !== undefined) item.sourceStartTime = Math.max(0, Number(patch.sourceStartTime || 0));
   if (patch.waveform !== undefined) item.waveform = cloneWaveform(patch.waveform);
+  if (patch.keyframes !== undefined) item.keyframes = normalizeTimelineKeyframes({ ...item, keyframes: patch.keyframes });
   if (patch.label !== undefined) item.label = String(patch.label || item.label);
+  if (patch.type !== undefined) item.type = normalizeTimelineType(patch.type);
   if (patch.source !== undefined) item.source = String(patch.source || "");
   if (patch.locked !== undefined) item.locked = Boolean(patch.locked);
   if (patch.visible !== undefined && item.layerId) {
@@ -5579,6 +6614,25 @@ function updateTimelineItem(item, patch = {}) {
   }
   renderTimeline();
   markCanvasChanged("timeline-item-update");
+  return item;
+}
+
+function applyTimelineTimingDirect(item, patch = {}) {
+  if (!item || item.locked) {
+    return item;
+  }
+  if (patch.startTime !== undefined) {
+    item.startTime = Math.max(0, Number(patch.startTime || 0));
+    item.slideId = getSlideAtTime(item.startTime)?.id || item.slideId;
+  }
+  if (patch.duration !== undefined) {
+    item.duration = Math.max(0.1, Number(patch.duration || 0.1));
+    item.keyframes = normalizeTimelineKeyframes(item);
+  }
+  if (patch.track !== undefined) {
+    item.track = Math.max(0, Number(patch.track || 0));
+  }
+  item.endTime = item.startTime + item.duration;
   return item;
 }
 
@@ -5605,6 +6659,7 @@ function applyTimelineVisibilityAtTime(time = timelinePlayhead) {
     }
     object.set("visible", isTimelineItemActiveAt(item, time));
   });
+  applyTimelineAnimationsAtTime(time);
   syncTimelineMediaAtTime(time, { shouldPlay: timelineIsPlaying });
   canvas.requestRenderAll();
   updateLayers();
@@ -5620,15 +6675,34 @@ function cutTimelineItem(item = findTimelineItem()) {
   if (localCut <= 0.1 || item.duration - localCut <= 0.1) {
     return null;
   }
+  const originalKeyframes = cloneTimelineKeyframes(item.keyframes || []);
+  const cutProps = getAnimatedProps({ ...item, keyframes: originalKeyframes }, localCut);
   const next = normalizeTimelineItem({
     ...item,
     id: null,
     startTime: item.startTime + localCut,
     duration: item.duration - localCut,
     sourceStartTime: Math.max(0, Number(item.sourceStartTime || 0) + localCut),
-    label: `${item.label} B`
+    label: `${item.label} B`,
+    keyframes: [
+      { id: createKeyframeId(0), time: 0, props: cutProps, easing: "linear" },
+      ...originalKeyframes
+        .filter((keyframe) => keyframe.time > localCut)
+        .map((keyframe, index) => ({
+          ...keyframe,
+          id: createKeyframeId(index + 1),
+          time: keyframe.time - localCut
+        }))
+    ]
   }, timelineItems.length);
   item.duration = localCut;
+  item.keyframes = normalizeTimelineKeyframes({
+    ...item,
+    keyframes: [
+      ...originalKeyframes.filter((keyframe) => keyframe.time < localCut),
+      { id: createKeyframeId(0), time: localCut, props: cutProps, easing: "linear" }
+    ]
+  });
   timelineItems.push(next);
   selectedTimelineItemId = next.id;
   reflowTimelineTracks();
@@ -5686,7 +6760,8 @@ async function duplicateTimelineItem(item = findTimelineItem()) {
     source: cloned.layerId,
     label: cloned.layerName,
     startTime: item.startTime + 0.25,
-    track: item.track
+    track: item.track,
+    keyframes: cloneTimelineKeyframes(item.keyframes || [], { regenerateIds: true })
   });
   selectedTimelineItemId = duplicated.id;
   canvas.requestRenderAll();
@@ -5704,8 +6779,10 @@ function removeTimelineItem(item = findTimelineItem()) {
   const object = item.layerId ? findCanvasObject({ layerId: item.layerId }) : null;
   cleanupMediaForItemOrObject(item);
   timelineItems = timelineItems.filter((entry) => entry !== item);
+  cleanupTimelineLinks();
   if (selectedTimelineItemId === item.id) {
     selectedTimelineItemId = null;
+    selectedTimelineKeyframeId = null;
   }
   if (object && canvas) {
     canvas.remove(object);
@@ -5730,7 +6807,93 @@ function removeTimelineItemsBySlide(slideId) {
   if (!timelineItems.some((item) => item.id === selectedTimelineItemId)) {
     selectedTimelineItemId = null;
   }
+  cleanupTimelineLinks();
   reflowTimelineTracks();
+}
+
+function findTimelineEdgeLockCandidate(item = findTimelineItem()) {
+  if (!item) {
+    return null;
+  }
+
+  const threshold = getTimelineSnapThresholdSeconds();
+  const itemStart = Math.max(0, Number(item.startTime || 0));
+  const itemEnd = getTimelineItemEndTime(item);
+  let best = null;
+
+  timelineItems.forEach((target) => {
+    if (!target || target.id === item.id) {
+      return;
+    }
+    const targetStart = Math.max(0, Number(target.startTime || 0));
+    const targetEnd = getTimelineItemEndTime(target);
+    const distance = Math.min(
+      Math.abs(itemStart - targetEnd),
+      Math.abs(itemEnd - targetStart),
+      Math.abs(itemStart - targetStart),
+      Math.abs(itemEnd - targetEnd)
+    );
+    if (distance <= threshold && (!best || distance < best.distance)) {
+      best = { item: target, distance };
+    }
+  });
+
+  return best?.item || null;
+}
+
+function linkSelectedTimelineItem() {
+  const item = findTimelineItem();
+  const target = findTimelineEdgeLockCandidate(item);
+  if (!item || !target) {
+    showToolNotice("Selecione um item encostado em outro para grudar.");
+    return null;
+  }
+
+  const existing = timelineLinkedItems.find((link) => {
+    const ids = new Set(link.items || []);
+    return ids.has(item.id) && ids.has(target.id);
+  });
+  if (existing) {
+    showToolNotice("Itens ja estao grudados.");
+    return existing;
+  }
+
+  const link = {
+    id: `link-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    items: [item.id, target.id],
+    mode: "edge-lock"
+  };
+  timelineLinkedItems.push(link);
+  renderTimeline();
+  markCanvasChanged("timeline-link");
+  showToolNotice("Itens grudados na timeline.");
+  return link;
+}
+
+function unlinkSelectedTimelineItem() {
+  const item = findTimelineItem();
+  if (!item) {
+    showToolNotice("Selecione um item para desgrudar.");
+    return false;
+  }
+
+  const before = JSON.stringify(timelineLinkedItems);
+  timelineLinkedItems = timelineLinkedItems
+    .map((link) => ({
+      ...link,
+      items: (link.items || []).filter((id) => id !== item.id)
+    }))
+    .filter((link) => link.items.length >= 2);
+
+  if (JSON.stringify(timelineLinkedItems) === before) {
+    showToolNotice("Este item nao esta grudado.");
+    return false;
+  }
+
+  renderTimeline();
+  markCanvasChanged("timeline-unlink");
+  showToolNotice("Item desgrudado.");
+  return true;
 }
 
 function createTimelineIcon(iconName, alt = "") {
@@ -5823,6 +6986,10 @@ function collectTimelineState() {
     })),
     items: timelineItems.map((item) => ({ ...item })),
     layers: timelineTrackLabels.slice(),
+    linkedItems: timelineLinkedItems.map((link) => ({
+      ...link,
+      items: Array.isArray(link.items) ? link.items.slice() : []
+    })),
     audio: timelineItems.filter((item) => item.type === "audio" || item.type === "music").map((item) => ({ ...item })),
     video: timelineItems.filter((item) => item.type === "video").map((item) => ({ ...item })),
     activeSlideId: activeSlideId || timelineSlides[0]?.id || null
@@ -5998,11 +7165,13 @@ function renderTimeline() {
     block.className = `timeline-item is-${item.type}`;
     block.classList.toggle("is-selected", item.id === selectedTimelineItemId);
     block.classList.toggle("is-hidden", item.visible === false);
+    block.classList.toggle("is-linked", isTimelineItemLinked(item));
+    block.classList.toggle("is-snap-reference", activeTimelineSnapGuide?.targetId === item.id);
     block.style.left = `${TIMELINE_LABEL_WIDTH + item.startTime * TIMELINE_PIXELS_PER_SECOND}px`;
     block.style.width = `${itemWidth}px`;
     block.dataset.itemId = item.id;
     block.title = `${item.label} | ${item.startTime.toFixed(1)}s - ${(item.startTime + item.duration).toFixed(1)}s`;
-    const waveform = createTimelineWaveformElement(item, itemWidth, 24);
+  const waveform = createTimelineWaveformElement(item, itemWidth, 24);
     if (waveform) {
       block.appendChild(waveform);
     }
@@ -6011,6 +7180,24 @@ function renderTimeline() {
     label.className = "timeline-item-label";
     label.textContent = item.label;
     block.appendChild(label);
+    (item.keyframes || []).forEach((keyframe) => {
+      const dot = document.createElement("span");
+      dot.className = "timeline-keyframe-dot";
+      dot.classList.toggle("is-selected", item.id === selectedTimelineItemId && keyframe.id === selectedTimelineKeyframeId);
+      dot.style.left = `${clampValue(Number(keyframe.time || 0) / Math.max(0.1, Number(item.duration || 0.1)), 0, 1) * 100}%`;
+      dot.title = makeKeyframeTooltip(keyframe);
+      dot.addEventListener("pointerdown", (event) => startTimelineKeyframeDrag(event, item, keyframe));
+      dot.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectedTimelineItemId = item.id;
+        selectedTimelineKeyframeId = keyframe.id;
+        timelinePlayhead = item.startTime + keyframe.time;
+        applyTimelineVisibilityAtTime(timelinePlayhead);
+        renderTimeline();
+        syncKeyframeEditor();
+      });
+      block.appendChild(dot);
+    });
     block.appendChild(createTimelineIconButton(item.visible === false ? "olhos-cruzados.svg" : "olho.svg", item.visible === false ? "Exibir" : "Ocultar", () => {
       updateTimelineItem(item, { visible: item.visible === false });
     }));
@@ -6018,7 +7205,13 @@ function renderTimeline() {
       block.appendChild(createTimelineIconButton("volume.svg", "Volume", () => {
         const value = window.prompt("Volume (0 a 2)", String(item.volume ?? 1));
         if (value !== null) {
-          updateTimelineItem(item, { volume: Number(value) });
+          const volume = Number(value);
+          updateTimelineItem(item, { volume });
+          if (timelineAutoKeyframeEnabled) {
+            upsertKeyframeForItem(item, getLocalTimeForTimelineItem(item), { volume });
+            renderTimeline();
+            syncKeyframeEditor();
+          }
         }
       }));
       block.appendChild(createTimelineIconButton(item.muted ? "volume.svg" : "silenciar-volume.svg", item.muted ? "Ativar som" : "Mutar", () => {
@@ -6035,14 +7228,7 @@ function renderTimeline() {
     block.addEventListener("click", (event) => {
       event.stopPropagation();
       pauseTimelinePlayback({ keepPlayhead: true });
-      selectedTimelineItemId = item.id;
-      timelinePlayhead = item.startTime;
-      const object = item.layerId ? findCanvasObject({ layerId: item.layerId }) : null;
-      if (object) {
-        selectLayerObject(object);
-      }
-      syncTimelineMediaAtTime(timelinePlayhead, { shouldPlay: false });
-      renderTimeline();
+      selectTimelineItem(item);
     });
     lane.appendChild(block);
   });
@@ -6054,6 +7240,12 @@ function renderTimeline() {
   editor.appendChild(ruler);
   editor.appendChild(slidesRow);
   editor.appendChild(lanes);
+  if (activeTimelineSnapGuide) {
+    const guide = document.createElement("div");
+    guide.className = "timeline-snap-guide";
+    guide.style.left = `${TIMELINE_LABEL_WIDTH + Number(activeTimelineSnapGuide.time || 0) * TIMELINE_PIXELS_PER_SECOND}px`;
+    lanes.appendChild(guide);
+  }
   editor.appendChild(playhead);
   timelineTrack.appendChild(editor);
 
@@ -6064,6 +7256,15 @@ function renderTimeline() {
   const removeSlideButton = document.querySelector('[data-timeline-action="remove-slide"]');
   const activeSlide = getActiveTimelineSlide();
   removeSlideButton?.toggleAttribute("disabled", timelineSlides.length <= 1 || isProtectedTimelineSlide(activeSlide));
+  if (timelineSnapButton) {
+    timelineSnapButton.setAttribute("aria-pressed", timelineSnapEnabled ? "true" : "false");
+    timelineSnapButton.title = timelineSnapEnabled ? "Ima / Snap ligado" : "Ima / Snap desligado";
+  }
+  if (timelineAutoKeyframeButton) {
+    timelineAutoKeyframeButton.setAttribute("aria-pressed", timelineAutoKeyframeEnabled ? "true" : "false");
+    timelineAutoKeyframeButton.title = timelineAutoKeyframeEnabled ? "Keyframe automatico ligado" : "Keyframe automatico desligado";
+  }
+  syncKeyframeEditor();
 }
 
 function startTimelineDrag(event, item) {
@@ -6072,11 +7273,17 @@ function startTimelineDrag(event, item) {
   }
 
   event.preventDefault();
-  selectedTimelineItemId = item.id;
+  selectTimelineItem(item, { seek: false });
   pauseTimelinePlayback({ keepPlayhead: true });
   const startX = event.clientX;
   const startTime = item.startTime;
   const startTrack = item.track;
+  const linkedGroup = getLinkedTimelineGroup(item);
+  const dragGroup = linkedGroup.length ? linkedGroup : [item];
+  const groupStartTimes = new Map(dragGroup.map((entry) => [entry.id, Number(entry.startTime || 0)]));
+  const groupTrackOffsets = new Map(dragGroup.map((entry) => [entry.id, Number(entry.track || 0) - Number(startTrack || 0)]));
+  const groupMinStart = Math.min(...dragGroup.map((entry) => Number(entry.startTime || 0)));
+  const ignoredSnapIds = dragGroup.map((entry) => entry.id);
   const lanesElement = timelineTrack?.querySelector(".timeline-lanes");
   const laneBounds = lanesElement?.getBoundingClientRect();
   let createdTopLayer = false;
@@ -6084,9 +7291,15 @@ function startTimelineDrag(event, item) {
 
   const onMove = (moveEvent) => {
     const deltaSeconds = (moveEvent.clientX - startX) / TIMELINE_PIXELS_PER_SECOND;
-    const patch = {
-      startTime: Math.max(0, startTime + deltaSeconds)
-    };
+    const unclampedStart = startTime + deltaSeconds;
+    const minDelta = -groupMinStart;
+    const safeDelta = Math.max(minDelta, unclampedStart - startTime);
+    const snapResult = resolveTimelineSnap(item, startTime + safeDelta, {
+      duration: item.duration,
+      ignoreIds: ignoredSnapIds
+    });
+    const snappedDelta = Math.max(minDelta, snapResult.startTime - startTime);
+    let nextTrack = startTrack;
     if (laneBounds) {
       const laneOffsetY = moveEvent.clientY - laneBounds.top - 6;
       const renderedTrackCount = Math.max(TIMELINE_MIN_TRACKS, lanesElement?.querySelectorAll(".timeline-lane").length || 0, timelineTrackLabels.length);
@@ -6099,22 +7312,36 @@ function startTimelineDrag(event, item) {
           }
         });
         createdTopLayer = true;
-        patch.track = 0;
+        nextTrack = 0;
       } else if (rawTrack >= renderedTrackCount && !createdBottomLayer) {
         timelineTrackLabels.push("");
         createdBottomLayer = true;
-        patch.track = timelineTrackLabels.length - 1;
+        nextTrack = timelineTrackLabels.length - 1;
       } else {
-        patch.track = clampValue(rawTrack, 0, Math.max(0, timelineTrackLabels.length - 1));
+        nextTrack = clampValue(rawTrack, 0, Math.max(0, timelineTrackLabels.length - 1));
       }
     } else {
-      patch.track = startTrack;
+      nextTrack = startTrack;
     }
-    updateTimelineItem(item, patch);
+    dragGroup.forEach((entry) => {
+      const entryStart = Number(groupStartTimes.get(entry.id) ?? entry.startTime ?? 0);
+      const entryTrack = Number(nextTrack || 0) + Number(groupTrackOffsets.get(entry.id) || 0);
+      applyTimelineTimingDirect(entry, {
+        startTime: entryStart + snappedDelta,
+        track: Math.max(0, entryTrack)
+      });
+    });
+    setTimelineSnapGuide(snapResult.guide);
+    reflowTimelineTracks();
+    renderTimeline();
   };
   const onUp = () => {
     document.removeEventListener("pointermove", onMove);
     document.removeEventListener("pointerup", onUp);
+    clearTimelineSnapGuide();
+    reflowTimelineTracks();
+    renderTimeline();
+    markCanvasChanged("timeline-item-drag");
   };
   document.addEventListener("pointermove", onMove);
   document.addEventListener("pointerup", onUp, { once: true });
@@ -6593,7 +7820,10 @@ async function applyProject(project, filePath = null, inherited = null, options 
       : timelineSlides[0]?.id || null;
     timelineTrackLabels = normalizeTimelineTrackLabels(safeProject);
     timelineItems = normalizeTimelineItems(safeProject);
+    timelineLinkedItems = normalizeTimelineLinkedItems(safeProject);
+    cleanupTimelineLinks();
     selectedTimelineItemId = null;
+    selectedTimelineKeyframeId = null;
     timelinePlayhead = getActiveTimelineSlide()?.startTime || 0;
     syncArtboardLabel();
     renderProjectBrandKit(safeProject, inherited);
@@ -7040,6 +8270,7 @@ function updateObjectCoordsAndRender(object) {
   object.setCoords();
   canvas.requestRenderAll();
   updateSelectionInfo();
+  recordAutoKeyframeForObject(getPrimaryLayerObject(object) || object);
   markCanvasChanged("property");
 }
 
@@ -7282,6 +8513,14 @@ async function createArtboardImageDataUrl(config = getExportConfig(), options = 
       continue;
     }
 
+    const timelineItem = exportTime !== undefined && object.layerId
+      ? timelineItems.find((item) => item.layerId === object.layerId)
+      : null;
+    if (timelineItem?.keyframes?.length) {
+      applyAnimatedPropsToObject(cloned, object.timelineBaseProps || captureObjectKeyframeProps(object, timelineItem));
+      applyAnimatedPropsToObject(cloned, getAnimatedProps(timelineItem, getLocalTimeForTimelineItem(timelineItem, exportTime)));
+    }
+
     cloned.set({
       visible: exportTime !== undefined ? true : object.visible !== false,
       left: Number(cloned.left || 0) - artboardRect.x,
@@ -7347,6 +8586,189 @@ async function createObjectImageDataUrl(object) {
   });
   exportCanvas.dispose?.();
   return dataUrl;
+}
+
+function getStableI2ISourceMode() {
+  const value = String(sdI2IMode?.value || "selected-layer").trim();
+  return ["selected-layer", "visible-selection", "full-slide"].includes(value) ? value : "selected-layer";
+}
+
+function getStableI2ISizeMode() {
+  const value = String(sdI2ISizeMode?.value || "layer").trim();
+  return ["layer", "canvas", "sd-1024", "sd-832x1216", "sd-1216x832"].includes(value) ? value : "layer";
+}
+
+function getObjectBoundsForRaster(object) {
+  const fallback = {
+    left: Number(object?.left || 0),
+    top: Number(object?.top || 0),
+    width: Number(object?.getScaledWidth?.() || object?.width || 1),
+    height: Number(object?.getScaledHeight?.() || object?.height || 1)
+  };
+  const bounds = object?.getBoundingRect?.(true, true) || fallback;
+  return {
+    left: Number(bounds.left || fallback.left || 0),
+    top: Number(bounds.top || fallback.top || 0),
+    width: Math.max(1, Math.round(Number(bounds.width || fallback.width || 1))),
+    height: Math.max(1, Math.round(Number(bounds.height || fallback.height || 1)))
+  };
+}
+
+function resolveStableI2IRasterPlan(sourceObject, sourceMode = getStableI2ISourceMode(), sizeMode = getStableI2ISizeMode()) {
+  const artboardRect = getArtboardRect();
+  const sourceBounds = sourceObject ? getObjectBoundsForRaster(sourceObject) : {
+    left: artboardRect.x,
+    top: artboardRect.y,
+    width: artboardWidth,
+    height: artboardHeight
+  };
+  const region = sourceMode === "full-slide" || sizeMode === "canvas"
+    ? { left: artboardRect.x, top: artboardRect.y, width: artboardWidth, height: artboardHeight }
+    : sourceBounds;
+  const presets = {
+    "sd-1024": { width: 1024, height: 1024 },
+    "sd-832x1216": { width: 832, height: 1216 },
+    "sd-1216x832": { width: 1216, height: 832 }
+  };
+  const target = presets[sizeMode] || {
+    width: Math.max(1, Math.round(region.width)),
+    height: Math.max(1, Math.round(region.height))
+  };
+
+  return {
+    sourceMode,
+    sizeMode,
+    region,
+    width: Math.min(MAX_ARTBOARD_SIZE, target.width),
+    height: Math.min(MAX_ARTBOARD_SIZE, target.height)
+  };
+}
+
+function loadImageElementFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Falha ao redimensionar raster I2I."));
+    image.src = dataUrl;
+  });
+}
+
+async function resizePngDataUrl(dataUrl, width, height) {
+  const image = await loadImageElementFromDataUrl(dataUrl);
+  const canvasElement = document.createElement("canvas");
+  canvasElement.width = Math.max(1, Math.round(width));
+  canvasElement.height = Math.max(1, Math.round(height));
+  const context = canvasElement.getContext("2d");
+  context.fillStyle = "#FFFFFF";
+  context.fillRect(0, 0, canvasElement.width, canvasElement.height);
+  context.drawImage(image, 0, 0, canvasElement.width, canvasElement.height);
+  return canvasElement.toDataURL("image/png");
+}
+
+async function createStableI2IRasterDataUrl(options = {}) {
+  const StaticCanvas = getFabricClass("StaticCanvas");
+  if (!StaticCanvas) {
+    throw new Error("StaticCanvas indisponivel para rasterizar referencia I2I.");
+  }
+
+  const sourceMode = options.sourceMode || getStableI2ISourceMode();
+  const sizeMode = options.sizeMode || getStableI2ISizeMode();
+  const sourceObject = sourceMode === "full-slide" ? null : getStableSourceObject(options);
+  if (sourceMode !== "full-slide" && !sourceObject) {
+    throw new Error("I2I precisa de uma camada de imagem ativa.");
+  }
+
+  const plan = resolveStableI2IRasterPlan(sourceObject, sourceMode, sizeMode);
+  const renderObjects = sourceMode === "selected-layer"
+    ? [sourceObject]
+    : getLayerObjects().filter((object) => object.visible !== false && !object.isMaskPath);
+  const regionCanvas = new StaticCanvas(null, {
+    width: plan.region.width,
+    height: plan.region.height,
+    backgroundColor: "#FFFFFF",
+    enableRetinaScaling: false
+  });
+
+  for (const object of renderObjects) {
+    const cloned = await cloneFabricObject(object);
+    if (!cloned) {
+      continue;
+    }
+    cloned.set({
+      left: Number(cloned.left || 0) - plan.region.left,
+      top: Number(cloned.top || 0) - plan.region.top,
+      selectable: false,
+      evented: false
+    });
+    regionCanvas.add(cloned);
+  }
+
+  regionCanvas.renderAll();
+  const regionDataUrl = regionCanvas.toDataURL({
+    format: "png",
+    multiplier: 1,
+    enableRetinaScaling: false
+  });
+  regionCanvas.dispose?.();
+
+  const dataUrl = plan.width === Math.round(plan.region.width) && plan.height === Math.round(plan.region.height)
+    ? regionDataUrl
+    : await resizePngDataUrl(regionDataUrl, plan.width, plan.height);
+
+  return {
+    dataUrl,
+    width: plan.width,
+    height: plan.height,
+    sourceMode,
+    sizeMode,
+    sourceLayerId: sourceObject?.layerId || null,
+    sourceLayerName: sourceObject ? makeObjectName(sourceObject) : "Slide inteiro"
+  };
+}
+
+async function createStableI2ITempImage(options = {}) {
+  const raster = await createStableI2IRasterDataUrl(options);
+  const saved = await window.kitAPI?.saveCanvasI2ITempPng?.({
+    dataUrl: raster.dataUrl,
+    layerId: raster.sourceLayerId || raster.sourceMode,
+    name: raster.sourceLayerName,
+    width: raster.width,
+    height: raster.height
+  });
+  if (!saved?.filePath) {
+    throw new Error("Nao foi possivel salvar PNG temporario de I2I.");
+  }
+  console.info("[Canvas I2I] referencia rasterizada", {
+    layer: raster.sourceLayerName,
+    sourceMode: raster.sourceMode,
+    sizeMode: raster.sizeMode,
+    initImagePath: saved.filePath,
+    width: raster.width,
+    height: raster.height
+  });
+  return {
+    ...raster,
+    initImagePath: saved.filePath
+  };
+}
+
+async function saveStableMaskTempImage(maskImageDataUrl) {
+  const saved = await window.kitAPI?.saveCanvasI2ITempPng?.({
+    dataUrl: maskImageDataUrl,
+    layerId: "inpaint-mask",
+    name: "inpaint-mask",
+    width: artboardWidth,
+    height: artboardHeight
+  });
+  if (!saved?.filePath) {
+    throw new Error("Nao foi possivel salvar mascara temporaria de inpaint.");
+  }
+  console.info("[Canvas I2I] mascara temporaria salva", {
+    maskPath: saved.filePath,
+    width: artboardWidth,
+    height: artboardHeight
+  });
+  return saved.filePath;
 }
 
 function normalizeStableMetadata(metadata = {}, fallback = {}) {
@@ -7521,6 +8943,9 @@ async function exportCarouselSlidesAsVideos() {
       const payload = {
         frames,
         fps,
+        timelineStart: slide.startTime,
+        timelineEnd: slide.endTime,
+        audioAutomation: collectTimelineAudioAutomation(slide.startTime, slide.endTime),
         name: `slide_${String(slideIndex + 1).padStart(2, "0")}`
       };
 
@@ -7596,25 +9021,16 @@ function makeCanvasCommandResult(ok, message, data = {}) {
 }
 
 function setStableDiffusionStatus(message) {
-  const engineKey = getCurrentAiEngineKey();
-  const current = getAiEngineStatus(engineKey);
-  aiEngineState[engineKey] = {
+  const current = getAiEngineStatus("image");
+  aiEngineState.image = {
     ...current,
     detail: String(message || "").trim()
   };
   renderAiEngineState();
 }
 
-function getCurrentAiEngineKey() {
-  return getAiGeneratorTab() === "video" ? "video" : "image";
-}
-
-function getCurrentAiEngineLabel() {
-  return getCurrentAiEngineKey() === "video" ? "video" : "imagem";
-}
-
 function setAiEngineStatus(engineKey = "image", status = "desligado", detail = "") {
-  const normalizedKey = engineKey === "video" ? "video" : "image";
+  const normalizedKey = ["image", "video", "narration"].includes(engineKey) ? engineKey : "image";
   aiEngineState[normalizedKey] = {
     status,
     detail: String(detail || "").trim()
@@ -7623,9 +9039,9 @@ function setAiEngineStatus(engineKey = "image", status = "desligado", detail = "
     setTopbarGenerationStatus({
       active: true,
       type: normalizedKey === "video" ? "video" : "image",
-      engine: normalizedKey === "video" ? "wan" : "stable",
+      engine: normalizedKey === "video" ? "wan" : normalizedKey === "narration" ? "xtts" : "stable",
       phase: "preparing",
-      label: String(detail || "").trim() || (normalizedKey === "video" ? "Gerando video Wan: preparando pipeline" : "Gerando imagem: preparando pipeline"),
+      label: String(detail || "").trim() || (normalizedKey === "video" ? "Gerando video Wan: preparando pipeline" : normalizedKey === "narration" ? "Gerando narracao: preparando XTTS" : "Gerando imagem: preparando pipeline"),
       progress: null,
       indeterminate: true
     });
@@ -7634,25 +9050,41 @@ function setAiEngineStatus(engineKey = "image", status = "desligado", detail = "
 }
 
 function getAiEngineStatus(engineKey = "image") {
-  const normalizedKey = engineKey === "video" ? "video" : "image";
+  const normalizedKey = ["image", "video", "narration"].includes(engineKey) ? engineKey : "image";
   return aiEngineState[normalizedKey] || { status: "desligado", detail: "" };
 }
 
-function renderAiEngineState() {
-  const currentKey = getCurrentAiEngineKey();
-  const currentState = getAiEngineStatus(currentKey);
-  const label = currentKey === "video" ? "video" : "imagem";
-  const detail = currentState.detail || `Motor de ${label} ${currentState.status}.`;
+function formatAiEngineStatus(status = "desligado") {
+  if (status === "desligado") return "offline";
+  if (status === "carregando") return "iniciando";
+  if (status === "pronto" || status === "gerando") return "online";
+  return "erro";
+}
 
-  if (sdStatus) {
-    sdStatus.textContent = `Motor ${label}: ${currentState.status}. ${detail}`;
+function isAiEngineReady(engineKey = "image") {
+  return getAiEngineStatus(engineKey).status === "pronto";
+}
+
+function renderSingleAiEngineState(engineKey, statusElement, buttonElement, label) {
+  const currentState = getAiEngineStatus(engineKey);
+  const visibleStatus = formatAiEngineStatus(currentState.status);
+  const detail = currentState.detail || `Motor de ${label} ${visibleStatus}.`;
+  if (statusElement) {
+    statusElement.textContent = `Status: ${visibleStatus}. ${detail}`;
   }
-
-  if (aiEngineToggleButton) {
+  if (buttonElement) {
     const isActive = currentState.status === "pronto" || currentState.status === "carregando" || currentState.status === "gerando";
-    aiEngineToggleButton.textContent = isActive ? "Desativar motor IA" : "Ativar motor IA";
-    aiEngineToggleButton.disabled = aiEngineState.generating || currentState.status === "carregando";
+    buttonElement.textContent = engineKey === "narration"
+      ? (isActive ? "Desativar XTTS" : "Ativar XTTS")
+      : (isActive ? "Desativar motor IA" : "Ativar motor IA");
+    buttonElement.disabled = aiEngineState.generating || currentState.status === "carregando";
   }
+}
+
+function renderAiEngineState() {
+  renderSingleAiEngineState("image", sdStatus, aiImageEngineToggleButton, "imagem");
+  renderSingleAiEngineState("video", aiVideoStatus, aiVideoEngineToggleButton, "video");
+  renderSingleAiEngineState("narration", aiNarrationStatus, aiNarrationEngineToggleButton, "narracao");
 }
 
 function registerCanvasAction(name, handler) {
@@ -7715,31 +9147,6 @@ function updateSelectPreview(select, imageElement, cardElement) {
   cardElement.hidden = false;
 }
 
-function getAiGeneratorTab() {
-  return activeAiGeneratorTab === "video" ? "video" : "image";
-}
-
-function setAiGeneratorTab(tab = "image") {
-  activeAiGeneratorTab = tab === "video" ? "video" : "image";
-  const isVideo = activeAiGeneratorTab === "video";
-  if (aiGeneratorTabImage) {
-    aiGeneratorTabImage.classList.toggle("is-active", !isVideo);
-    aiGeneratorTabImage.setAttribute("aria-selected", String(!isVideo));
-  }
-  if (aiGeneratorTabVideo) {
-    aiGeneratorTabVideo.classList.toggle("is-active", isVideo);
-    aiGeneratorTabVideo.setAttribute("aria-selected", String(isVideo));
-  }
-  if (aiImageSection) {
-    aiImageSection.hidden = isVideo;
-  }
-  if (aiVideoSection) {
-    aiVideoSection.hidden = !isVideo;
-  }
-  renderAiEngineState();
-  updateAiGeneratorPanelState();
-}
-
 function getSelectedCheckpointArchitecture() {
   const selected = sdCheckpoint?.selectedOptions?.[0];
   if (sdArchitecture?.value && sdArchitecture.value !== "auto") {
@@ -7753,12 +9160,12 @@ function isStableImageSourceObject(object) {
 }
 
 function getSelectedStablePrimaryMode() {
-  return sdMode?.value === "i2i" ? "i2i" : "txt2img";
+  return sdMode?.value === "txt2img" ? "txt2img" : "i2i";
 }
 
 function getSelectedStableI2ISubmode() {
-  const value = String(sdI2IMode?.value || "img2img").trim();
-  return ["img2img", "sketch", "inpaint", "inpaint-sketch"].includes(value) ? value : "img2img";
+  const value = String(sdMode?.value || "img2img").trim();
+  return ["img2img", "inpaint"].includes(value) ? value : "img2img";
 }
 
 function getStableInsertMode() {
@@ -7828,6 +9235,9 @@ function getStableMaskObject(options = {}) {
 }
 
 function getStableSourceStatusMessage(options = {}) {
+  if (getStableI2ISourceMode() === "full-slide") {
+    return "Slide inteiro pronto como referencia I2I.";
+  }
   const sourceObject = getStableSourceObject(options);
   if (sourceObject) {
     return `Camada ativa: ${makeObjectName(sourceObject)} pronta para I2I.`;
@@ -7836,15 +9246,13 @@ function getStableSourceStatusMessage(options = {}) {
 }
 
 function updateStableDiffusionPanelState() {
-  if (getAiGeneratorTab() !== "image") {
-    return;
-  }
   const engineState = getAiEngineStatus("image");
   const isI2I = getSelectedStablePrimaryMode() === "i2i";
+  const i2iSourceMode = getStableI2ISourceMode();
   const sourceObject = getStableSourceObject();
   const i2iMode = getSelectedStableI2ISubmode();
   const needsMask = i2iMode === "inpaint" || i2iMode === "inpaint-sketch";
-  const needsSketch = i2iMode === "sketch" || i2iMode === "inpaint-sketch";
+  const needsSketch = false;
 
   if (sdI2IControls) {
     sdI2IControls.hidden = !isI2I;
@@ -7883,7 +9291,7 @@ function updateStableDiffusionPanelState() {
   if (sdGenerateButton) {
     const promptReady = Boolean(sdPrompt?.value?.trim());
     const checkpointReady = Boolean(sdCheckpoint?.value);
-    const sourceReady = !isI2I || Boolean(sourceObject);
+    const sourceReady = !isI2I || i2iSourceMode === "full-slide" || Boolean(sourceObject);
     const engineReady = engineState.status === "pronto";
     sdGenerateButton.disabled = aiEngineState.generating || !engineReady || !promptReady || !checkpointReady || !sourceReady;
   }
@@ -7916,6 +9324,10 @@ function getWanDurationSeconds() {
   return Math.max(1, Math.min(15, Math.round(getNumericValue(aiVideoDuration, 5))));
 }
 
+function getWanFps() {
+  return Math.max(1, Math.min(60, Math.round(getNumericValue(aiVideoFps, 16))));
+}
+
 function estimateWanLoad(presetId = getSelectedWanPresetId(), durationSeconds = getWanDurationSeconds()) {
   const size = resolveCanvasWanOutputSize();
   const pixels = size.width * size.height;
@@ -7931,7 +9343,7 @@ function estimateWanLoad(presetId = getSelectedWanPresetId(), durationSeconds = 
 function updateWanRuntimeSummary() {
   const size = resolveCanvasWanOutputSize();
   const seconds = getWanDurationSeconds();
-  const fps = 16;
+  const fps = getWanFps();
   const length = seconds * fps + 1;
   if (aiVideoFinalResolution) {
     aiVideoFinalResolution.textContent = `${size.width} x ${size.height}`;
@@ -8062,13 +9474,10 @@ function updateVideoLoraState() {
 }
 
 function updateVideoPanelState() {
-  if (getAiGeneratorTab() !== "video") {
-    return;
-  }
   const engineState = getAiEngineStatus("video");
   const mode = normalizeVideoModeValue(aiVideoMode?.value || "text_to_video");
   const sourceObject = getVideoSourceObject();
-  const promptReady = Boolean(sdPrompt?.value?.trim());
+  const promptReady = Boolean(aiVideoPrompt?.value?.trim());
   const sourceReady = mode !== "i2v" || Boolean(sourceObject);
 
   if (aiVideoSourceStatus) {
@@ -8081,9 +9490,9 @@ function updateVideoPanelState() {
     }
   }
 
-  if (sdGenerateButton) {
+  if (aiVideoGenerateButton) {
     const engineReady = engineState.status === "pronto";
-    sdGenerateButton.disabled = aiEngineState.generating || !engineReady || !promptReady || !sourceReady;
+    aiVideoGenerateButton.disabled = aiEngineState.generating || !engineReady || !promptReady || !sourceReady;
   }
   updateWanRuntimeSummary();
   updateVideoLoraState();
@@ -8103,6 +9512,7 @@ function getVideoPresetValue(value = "") {
 function updateAiGeneratorPanelState() {
   updateStableDiffusionPanelState();
   updateVideoPanelState();
+  updateNarrationPanelState();
   updateSelectPreview(sdCheckpoint, aiImageModelPreview, aiImageModelPreviewCard);
   updateSelectPreview(sdLora, aiImageLoraPreview, aiImageLoraPreviewCard);
   updateSelectPreview(aiVideoModel, aiVideoModelPreview, aiVideoModelPreviewCard);
@@ -8249,6 +9659,69 @@ function normalizeVideoJobGenerationState(job = {}) {
   };
 }
 
+function normalizeStableGenerationPhase(phase = "") {
+  const value = String(phase || "").toLowerCase();
+  if (value === "idle") return "idle";
+  if (value === "loading_model") return "loading_model";
+  if (value === "generating") return "sampling";
+  if (value === "saving") return "saving";
+  if (value === "completed") return "completed";
+  if (value === "error") return "error";
+  return "preparing";
+}
+
+function renderStableDiffusionProgress(progress = {}) {
+  const phase = normalizeStableGenerationPhase(progress.phase);
+  const percent = Number(progress.percent);
+  const step = Number(progress.step);
+  const total = Number(progress.total);
+  const progressRatio = Number.isFinite(percent) ? clampValue(percent / 100, 0, 1) : null;
+  const isLoading = phase === "loading_model" || phase === "preparing";
+  const defaultLabel = isLoading
+    ? "Carregando modelo SD"
+    : phase === "sampling"
+      ? "Gerando imagem"
+      : getGenerationPhaseText(phase);
+  const stepLabel = phase === "sampling" && Number.isFinite(step) && Number.isFinite(total) && total > 0
+    ? `Gerando imagem: ${step}/${total}`
+    : defaultLabel;
+
+  setTopbarGenerationStatus({
+    active: phase !== "idle",
+    type: "image",
+    engine: "stable",
+    phase,
+    label: stepLabel,
+    step: Number.isFinite(step) ? step : null,
+    total: Number.isFinite(total) ? total : null,
+    progress: progressRatio,
+    indeterminate: progressRatio === null
+  });
+}
+
+function stopStableDiffusionProgressPolling() {
+  if (stableDiffusionProgressTimer) {
+    clearInterval(stableDiffusionProgressTimer);
+    stableDiffusionProgressTimer = null;
+  }
+}
+
+function startStableDiffusionProgressPolling() {
+  stopStableDiffusionProgressPolling();
+  const poll = async () => {
+    const progress = await window.kitAPI?.getStableDiffusionProgress?.().catch(() => null);
+    if (!progress?.success && !progress?.status) {
+      return;
+    }
+    renderStableDiffusionProgress(progress);
+    if (["completed", "error"].includes(String(progress.phase || "").toLowerCase())) {
+      stopStableDiffusionProgressPolling();
+    }
+  };
+  void poll();
+  stableDiffusionProgressTimer = setInterval(() => void poll(), 500);
+}
+
 async function refreshStableDiffusionModels() {
   try {
     setAiEngineStatus("image", "carregando", "Consultando worker SD...");
@@ -8263,16 +9736,35 @@ async function refreshStableDiffusionModels() {
       placeholder: "Sem LoRA"
     });
 
-    if (sdScheduler && Array.isArray(data?.schedulers) && data.schedulers.length) {
+    if (sdSampler && Array.isArray(data?.samplers) && data.samplers.length) {
+      const currentValue = sdSampler.value;
+      sdSampler.innerHTML = "";
+      const autoOption = document.createElement("option");
+      autoOption.value = "";
+      autoOption.textContent = "Auto";
+      sdSampler.appendChild(autoOption);
+      data.samplers.forEach((sampler) => {
+        const option = document.createElement("option");
+        option.value = sampler;
+        option.textContent = sampler;
+        sdSampler.appendChild(option);
+      });
+      sdSampler.value = data.samplers.includes(currentValue) ? currentValue : "";
+    }
+
+    const schedulerOptions = Array.isArray(data?.schedulerModes) && data.schedulerModes.length
+      ? data.schedulerModes
+      : data?.schedulers;
+    if (sdScheduler && Array.isArray(schedulerOptions) && schedulerOptions.length) {
       const currentValue = sdScheduler.value;
       sdScheduler.innerHTML = "";
-      data.schedulers.forEach((scheduler) => {
+      schedulerOptions.forEach((scheduler) => {
         const option = document.createElement("option");
         option.value = scheduler;
         option.textContent = scheduler;
         sdScheduler.appendChild(option);
       });
-      sdScheduler.value = data.schedulers.includes(currentValue) ? currentValue : data.schedulers[0];
+      sdScheduler.value = schedulerOptions.includes(currentValue) ? currentValue : schedulerOptions[0];
     }
 
     const counts = data?.counts || {};
@@ -8285,7 +9777,7 @@ async function refreshStableDiffusionModels() {
     );
     updateAiGeneratorPanelState();
   } catch (err) {
-    console.error("[Gerador IA] Falha ao consultar worker SD:", err);
+    console.error("[Gerar Imagem] Falha ao consultar worker SD:", err);
     setAiEngineStatus("image", "erro", `Worker SD indisponivel: ${err.message || err}`);
     updateAiGeneratorPanelState();
     throw err;
@@ -8312,7 +9804,7 @@ async function startStableDiffusionWorker() {
     }
     await refreshStableDiffusionModels();
   } catch (err) {
-    console.error("[Gerador IA] Falha ao iniciar worker SD:", err);
+    console.error("[Gerar Imagem] Falha ao iniciar worker SD:", err);
     setAiEngineStatus("image", "erro", `Erro ao iniciar worker SD: ${err.message || err}`);
     throw err;
   }
@@ -8353,7 +9845,10 @@ function selectDefaultWanModel() {
 async function refreshGlobalVideoModels() {
   try {
     setAiEngineStatus("video", "carregando", "Consultando motor global de video...");
-    const data = await window.kitAPI?.getGlobalVideoModels?.();
+    const [data, workflowsData] = await Promise.all([
+      window.kitAPI?.getGlobalVideoModels?.(),
+      window.kitAPI?.listComfyWorkflows?.().catch(() => null)
+    ]);
     const wanGgufModels = (data?.models || []).filter(isWanGgufModelEntry);
     const wanLoras = (data?.loras || []).filter((item) => (
       String(item.familyHint || "").toLowerCase() === "wan" ||
@@ -8365,6 +9860,7 @@ async function refreshGlobalVideoModels() {
     });
     selectDefaultWanModel();
     renderVideoLoraSlots(wanLoras);
+    await refreshComfyWorkflowSelector(workflowsData);
     globalVideoEngineReady = true;
     setAiEngineStatus(
       "video",
@@ -8373,7 +9869,7 @@ async function refreshGlobalVideoModels() {
     );
   } catch (err) {
     globalVideoEngineReady = false;
-    console.error("[Gerador IA] Falha ao consultar motor global de video:", err);
+    console.error("[Gerar Video] Falha ao consultar ComfyUI:", err);
     setAiEngineStatus("video", "erro", `Motor global de video indisponivel: ${err.message || err}`);
     throw err;
   } finally {
@@ -8381,8 +9877,352 @@ async function refreshGlobalVideoModels() {
   }
 }
 
+async function refreshComfyWorkflowSelector(workflowsData = null) {
+  availableComfyWorkflows = Array.isArray(workflowsData?.workflows) ? workflowsData.workflows : [];
+  setSelectOptions(aiVideoWorkflow, availableComfyWorkflows, {
+    placeholder: "Wan2.2 padrao"
+  });
+  const defaultWorkflow = workflowsData?.defaultWorkflow || "wan2.2";
+  const preferred = Array.from(aiVideoWorkflow?.options || []).find((option) => option.value === defaultWorkflow || /wan2\.2/i.test(option.textContent || ""));
+  if (preferred && aiVideoWorkflow) {
+    aiVideoWorkflow.value = preferred.value;
+  }
+  await refreshSelectedComfyWorkflowFields();
+}
+
+async function refreshSelectedComfyWorkflowFields() {
+  const workflowId = aiVideoWorkflow?.value || "wan2.2";
+  try {
+    const data = await window.kitAPI?.getComfyWorkflowFields?.(workflowId);
+    activeComfyWorkflowFields = Array.isArray(data?.workflow?.uiFields) ? data.workflow.uiFields : [];
+  } catch {
+    activeComfyWorkflowFields = [];
+  }
+  renderComfyWorkflowFields();
+}
+
+function renderComfyWorkflowFields() {
+  if (!aiVideoWorkflowFields) return;
+  aiVideoWorkflowFields.innerHTML = "";
+  activeComfyWorkflowFields
+    .filter((field) => !["positivePrompt", "negativePrompt", "mode", "inputImage", "seconds", "fps", "videoFps", "seed"].includes(field.key))
+    .forEach((field) => {
+      const label = document.createElement("label");
+      const caption = document.createElement("span");
+      caption.textContent = field.label || field.key;
+      let input = null;
+      if (field.type === "select") {
+        input = document.createElement("select");
+        (field.options || []).forEach((item) => {
+          const option = document.createElement("option");
+          option.value = item.value;
+          option.textContent = item.label || item.value;
+          input.appendChild(option);
+        });
+      } else if (field.type === "textarea") {
+        input = document.createElement("textarea");
+        input.rows = 3;
+      } else {
+        input = document.createElement("input");
+        input.type = field.type === "number" ? "number" : "text";
+        if (field.min != null) input.min = field.min;
+        if (field.max != null) input.max = field.max;
+        if (field.step != null) input.step = field.step;
+      }
+      input.dataset.workflowField = field.key;
+      input.value = field.defaultValue ?? "";
+      label.append(caption, input);
+      aiVideoWorkflowFields.appendChild(label);
+    });
+}
+
+function renderNarrationVoices(voices = []) {
+  availableNarrationVoices = Array.isArray(voices) ? voices : [];
+  if (!aiNarrationVoice) return;
+  aiNarrationVoice.innerHTML = "";
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = availableNarrationVoices.length ? "Selecione uma voz" : "Nenhuma voz encontrada";
+  aiNarrationVoice.appendChild(empty);
+  availableNarrationVoices.forEach((voice) => {
+    const option = document.createElement("option");
+    option.value = voice.name || voice.id || voice.path || "";
+    option.textContent = voice.label || voice.name || voice.id || "Voz";
+    if (voice.samplePath) option.dataset.samplePath = voice.samplePath;
+    aiNarrationVoice.appendChild(option);
+  });
+  const firstVoice = Array.from(aiNarrationVoice.options).find((option) => option.value);
+  if (firstVoice) {
+    aiNarrationVoice.value = firstVoice.value;
+  }
+}
+
+async function refreshNarrationVoices() {
+  const data = await window.kitAPI?.listXttsVoices?.().catch(() => null);
+  renderNarrationVoices(data?.voices || []);
+  updateNarrationPanelState();
+}
+
+function updateNarrationPanelState() {
+  const textReady = Boolean(aiNarrationText?.value?.trim());
+  const voiceReady = Boolean(aiNarrationVoice?.value);
+  const engineReady = isAiEngineReady("narration");
+  if (aiNarrationPreviewButton) {
+    const samplePath = aiNarrationVoice?.selectedOptions?.[0]?.dataset?.samplePath || "";
+    aiNarrationPreviewButton.disabled = !samplePath;
+  }
+  if (aiNarrationGenerateButton) {
+    aiNarrationGenerateButton.disabled = aiEngineState.generating || !engineReady || !textReady || !voiceReady;
+  }
+}
+
+function makeSrtTimestamp(seconds = 0) {
+  const safe = Math.max(0, Number(seconds || 0));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const wholeSeconds = Math.floor(safe % 60);
+  const millis = Math.floor((safe - Math.floor(safe)) * 1000);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(wholeSeconds).padStart(2, "0")},${String(millis).padStart(3, "0")}`;
+}
+
+function buildSimpleSrt(text = "", durationSeconds = 5) {
+  const lines = String(text || "").split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const safeLines = lines.length ? lines : [String(text || "").trim()].filter(Boolean);
+  const segmentDuration = Math.max(1, Number(durationSeconds || safeLines.length || 1) / Math.max(1, safeLines.length));
+  return safeLines.map((line, index) => {
+    const start = index * segmentDuration;
+    const end = Math.max(start + 0.5, (index + 1) * segmentDuration);
+    return `${index + 1}\n${makeSrtTimestamp(start)} --> ${makeSrtTimestamp(end)}\n${line}\n`;
+  }).join("\n");
+}
+
+function splitSubtitleTextIntoSegments(text = "", durationSeconds = 5) {
+  const words = String(text || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+  if (!words.length) {
+    return [];
+  }
+
+  const chunks = [];
+  let current = [];
+  let currentLength = 0;
+  words.forEach((word) => {
+    const nextLength = currentLength + word.length + (current.length ? 1 : 0);
+    const shouldBreak = current.length >= 3 && (
+      current.length >= 7 ||
+      nextLength > 32 ||
+      /[.!?;:]$/.test(current[current.length - 1] || "")
+    );
+    if (shouldBreak) {
+      chunks.push(current.join(" "));
+      current = [];
+      currentLength = 0;
+    }
+    current.push(word);
+    currentLength += word.length + (current.length > 1 ? 1 : 0);
+  });
+  if (current.length) {
+    chunks.push(current.join(" "));
+  }
+
+  const weights = chunks.map((chunk) => Math.max(1, chunk.split(/\s+/).length));
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0) || chunks.length;
+  const safeDuration = Math.max(0.5, Number(durationSeconds || chunks.length || 1));
+  let cursor = 0;
+  return chunks.map((chunk, index) => {
+    const isLast = index === chunks.length - 1;
+    const duration = isLast
+      ? Math.max(0.35, safeDuration - cursor)
+      : Math.max(0.35, safeDuration * (weights[index] / totalWeight));
+    const segment = {
+      text: chunk,
+      startTime: cursor,
+      duration,
+      endTime: cursor + duration
+    };
+    cursor += duration;
+    return segment;
+  });
+}
+
+function createSubtitleLayer(segment, options = {}) {
+  const Textbox = getFabricClass("Textbox");
+  if (!Textbox || !canvas) {
+    return null;
+  }
+  const absoluteStart = Math.max(0, Number(options.startTime || 0) + Number(segment.startTime || 0));
+  const duration = Math.max(0.35, Number(segment.duration || 0.35));
+  const artboardRect = getArtboardRect();
+  const object = new Textbox(segment.text || "", {
+    width: Math.min(880, Math.max(320, artboardWidth * 0.78)),
+    fontFamily: "Segoe UI",
+    fontSize: Math.max(28, Math.round(artboardWidth * 0.045)),
+    fontWeight: "700",
+    fill: "#FFFFFF",
+    stroke: "#111827",
+    strokeWidth: 3,
+    textAlign: "center",
+    originX: "center",
+    originY: "center",
+    selectable: true,
+    evented: true,
+    editable: true,
+    left: artboardRect.x + artboardRect.width / 2,
+    top: artboardRect.y + artboardRect.height / 2,
+    name: `Legenda - ${segment.text}`,
+    layerName: `Legenda - ${segment.text}`,
+    layerKind: "subtitle",
+    subtitleText: segment.text,
+    subtitleStartTime: absoluteStart,
+    subtitleEndTime: absoluteStart + duration
+  });
+  canvas.add(object);
+  object.setCoords();
+  const item = addTimelineItem({
+    type: "subtitle",
+    layerId: object.layerId,
+    source: options.source || object.layerId,
+    label: segment.text,
+    startTime: absoluteStart,
+    duration,
+    track: options.track
+  });
+  object.timelineItemId = item?.id || null;
+  return { object, item };
+}
+
+function focusCreatedSubtitleLayers(created = []) {
+  const first = Array.isArray(created) ? created.find((entry) => entry?.object && entry?.item) : null;
+  if (!first?.object || !first?.item || !canvas) {
+    return;
+  }
+
+  first.object.set({
+    visible: true,
+    selectable: true,
+    evented: true,
+    editable: true
+  });
+  selectTimelineItem(first.item);
+}
+
+function createSubtitleLayersFromText(text = "", options = {}) {
+  const duration = Math.max(0.5, Number(options.duration || 5));
+  const segments = splitSubtitleTextIntoSegments(text, duration);
+  const created = segments.map((segment) => createSubtitleLayer(segment, {
+    startTime: options.startTime || 0,
+    track: options.track,
+    source: options.source
+  })).filter(Boolean);
+  console.info(`[SUBTITLE] segments created count=${created.length}`);
+  focusCreatedSubtitleLayers(created);
+  canvas?.requestRenderAll();
+  updateLayers();
+  renderTimeline();
+  markCanvasChanged("subtitle-segments");
+  return created;
+}
+
+async function previewNarrationVoice() {
+  const samplePath = aiNarrationVoice?.selectedOptions?.[0]?.dataset?.samplePath || "";
+  if (!samplePath || !aiNarrationPreviewPlayer) return;
+  aiNarrationPreviewPlayer.src = resolveMediaSourceUrl(samplePath);
+  await aiNarrationPreviewPlayer.play().catch(() => {});
+}
+
+async function generateNarrationFromPanel() {
+  const text = aiNarrationText?.value?.trim() || "";
+  const voice = aiNarrationVoice?.value || "";
+  if (!text || !voice) {
+    setAiEngineStatus("narration", "erro", "Escolha uma voz e informe o texto da narracao.");
+    return null;
+  }
+  try {
+    console.info("[XTTS][PROGRESS] started");
+    aiEngineState.generating = true;
+    setAiEngineStatus("narration", "gerando", "Enviando texto ao XTTS...");
+    setTopbarGenerationStatus({
+      active: true,
+      type: "narration",
+      engine: "xtts",
+      phase: "running",
+      label: "Gerando narracao XTTS...",
+      progress: null,
+      indeterminate: true
+    });
+    updateAiGeneratorPanelState();
+    const result = await window.kitAPI?.generateXttsNarration?.({
+      text,
+      speaker: voice,
+      language: brandXttsLanguage?.value || "pt"
+    });
+    const audioPath = result?.file || result?.path || "";
+    if (!audioPath) {
+      throw new Error("XTTS nao retornou arquivo de audio.");
+    }
+    const audioDuration = Math.max(0.5, Number(result?.duration || await loadMediaDurationFromSource(audioPath, "audio")));
+    const waveform = await generateWaveformFromSource(audioPath, audioDuration).catch(() => createFallbackWaveform(audioDuration));
+    const item = addTimelineItem({
+      type: "audio",
+      source: audioPath,
+      label: `Narracao - ${voice}`,
+      duration: audioDuration,
+      startTime: timelinePlayhead,
+      waveform: waveform || createFallbackWaveform(audioDuration)
+    });
+    console.info(`[XTTS][TIMELINE] audio inserted duration=${audioDuration.toFixed(3)}`);
+    if (aiNarrationSubtitle?.checked) {
+      const srt = buildSimpleSrt(text, audioDuration);
+      const subtitle = await window.kitAPI?.saveXttsSubtitle?.({ text: srt });
+      createSubtitleLayersFromText(text, {
+        duration: audioDuration,
+        startTime: item?.startTime || timelinePlayhead,
+        source: subtitle?.file || ""
+      });
+    }
+    renderTimeline();
+    applyTimelineVisibilityAtTime(timelinePlayhead);
+    setTopbarGenerationStatus({
+      active: true,
+      type: "narration",
+      engine: "xtts",
+      phase: "completed",
+      label: "Narração gerada com sucesso",
+      progress: 1,
+      indeterminate: false
+    });
+    console.info("[XTTS][PROGRESS] completed");
+    setAiEngineStatus("narration", "pronto", `Narracao gerada e adicionada na timeline: ${audioPath}`);
+    return result;
+  } catch (err) {
+    console.error("[Gerar Narracao] Falha na geracao:", err);
+    console.info(`[XTTS][PROGRESS] error message=${err.message || err}`);
+    setTopbarGenerationStatus({
+      active: true,
+      type: "narration",
+      engine: "xtts",
+      phase: "error",
+      label: `Erro no XTTS: ${err.message || err}`,
+      progress: 0,
+      indeterminate: false
+    });
+    setAiEngineStatus("narration", "erro", `Erro no XTTS: ${err.message || err}`);
+    return null;
+  } finally {
+    aiEngineState.generating = false;
+    updateAiGeneratorPanelState();
+  }
+}
+
 async function deactivateCurrentAiEngine() {
-  const engineKey = getCurrentAiEngineKey();
+  const engineKey = "image";
+  return deactivateAiEngine(engineKey);
+}
+
+async function deactivateAiEngine(engineKey = "image") {
   try {
     if (engineKey === "image") {
       setAiEngineStatus("image", "carregando", "Desativando worker SD...");
@@ -8390,32 +10230,44 @@ async function deactivateCurrentAiEngine() {
       setAiEngineStatus("image", "desligado", "Motor de imagem desligado.");
       return;
     }
+    if (engineKey === "narration") {
+      setAiEngineStatus("narration", "carregando", "Desativando XTTS...");
+      await window.kitAPI?.controlService?.("xtts", "stop");
+      setAiEngineStatus("narration", "desligado", "Motor de narracao desligado.");
+      return;
+    }
+    setAiEngineStatus("video", "carregando", "Desativando ComfyUI...");
+    await window.kitAPI?.controlService?.("comfyui", "stop");
     globalVideoEngineReady = false;
     setAiEngineStatus("video", "desligado", "Motor de video desligado.");
   } catch (err) {
-    console.error("[Gerador IA] Falha ao desativar motor:", err);
+    console.error("[Painel IA] Falha ao desativar motor:", err);
     setAiEngineStatus(engineKey, "erro", `Falha ao desativar motor: ${err.message || err}`);
     throw err;
   }
 }
 
 async function activateCurrentAiEngine() {
-  const engineKey = getCurrentAiEngineKey();
+  return activateAiEngine("image");
+}
+
+async function activateAiEngine(engineKey = "image") {
   const state = getAiEngineStatus(engineKey);
   if (state.status === "pronto") {
-    await deactivateCurrentAiEngine();
+    await deactivateAiEngine(engineKey);
     return;
   }
-  if (engineKey === "video" && getAiEngineStatus("image").status === "pronto") {
-    await window.kitAPI?.controlService?.("sd", "stop").catch(() => null);
-    setAiEngineStatus("image", "desligado", "Motor de imagem desligado para liberar recursos.");
-  }
-  if (engineKey === "image" && getAiEngineStatus("video").status === "pronto") {
-    globalVideoEngineReady = false;
-    setAiEngineStatus("video", "desligado", "Motor de video desligado para liberar recursos.");
-  }
   if (engineKey === "video") {
+    setAiEngineStatus("video", "carregando", "Iniciando ComfyUI...");
+    await window.kitAPI?.controlService?.("comfyui", "start");
     await refreshGlobalVideoModels();
+    return;
+  }
+  if (engineKey === "narration") {
+    setAiEngineStatus("narration", "carregando", "Iniciando XTTS...");
+    await window.kitAPI?.controlService?.("xtts", "start");
+    await refreshNarrationVoices();
+    setAiEngineStatus("narration", "pronto", "XTTS online.");
     return;
   }
   await startStableDiffusionWorker();
@@ -8436,12 +10288,33 @@ function collectCanvasVideoPayload() {
     : "text_to_video";
   return {
     mode,
-    prompt: buildAiPromptWithStyle(sdPrompt?.value, aiStyle?.value),
+    prompt: aiVideoPrompt?.value?.trim() || "",
+    negativePrompt: aiVideoNegativePrompt?.value?.trim() || "",
+    workflowId: aiVideoWorkflow?.value || "wan2.2",
+    workflowParams: collectComfyWorkflowFieldValues(),
     model: aiVideoModel?.value || "",
     loras: collectSelectedVideoLoras(),
     durationSeconds: getWanDurationSeconds(),
+    fps: getWanFps(),
+    seed: getNumericValue(aiVideoSeed, -1),
     presetId: getSelectedWanPresetId()
   };
+}
+
+function collectComfyWorkflowFieldValues() {
+  const values = {};
+  values.positivePrompt = aiVideoPrompt?.value?.trim() || "";
+  values.negativePrompt = aiVideoNegativePrompt?.value?.trim() || "";
+  values.seconds = getWanDurationSeconds();
+  values.fps = getWanFps();
+  values.videoFps = getWanFps();
+  values.seed = getNumericValue(aiVideoSeed, -1);
+  values.mode = normalizeVideoModeValue(aiVideoMode?.value || "text_to_video") === "i2v" ? 2 : 1;
+  aiVideoWorkflowFields?.querySelectorAll("[data-workflow-field]")?.forEach((input) => {
+    const field = activeComfyWorkflowFields.find((item) => item.key === input.dataset.workflowField) || {};
+    values[input.dataset.workflowField] = field.type === "number" ? Number(input.value) : input.value;
+  });
+  return values;
 }
 
 function collectStableDiffusionPayload() {
@@ -8454,6 +10327,7 @@ function collectStableDiffusionPayload() {
     architecture: getSelectedCheckpointArchitecture(),
     lora: sdLora?.value || "",
     scheduler: sdScheduler?.value || "DPMSolverMultistepScheduler",
+    sampler: sdSampler?.value || "",
     steps: getNumericValue(sdSteps, 24),
     cfg_scale: getNumericValue(sdCfgScale, 7),
     width: sdWidth?.value ? getNumericValue(sdWidth, 0) : undefined,
@@ -8987,8 +10861,8 @@ const CanvasStableActions = {
   },
 
   openStablePanel() {
-    setInspectorAccordionVisible("sd", true);
-    setInspectorAccordionOpen("sd", true, { persist: false });
+    setInspectorAccordionVisible("ai-image", true);
+    setInspectorAccordionOpen("ai-image", true, { persist: false });
     updateAiGeneratorPanelState();
     return true;
   },
@@ -9001,12 +10875,7 @@ const CanvasStableActions = {
       }
     } else {
       if (sdMode) {
-        sdMode.value = "i2i";
-      }
-      if (sdI2IMode) {
-        sdI2IMode.value = ["img2img", "sketch", "inpaint", "inpaint-sketch"].includes(normalized)
-          ? normalized
-          : "img2img";
+        sdMode.value = normalized === "inpaint" || normalized === "inpaint-sketch" ? "inpaint" : "img2img";
       }
     }
     updateAiGeneratorPanelState();
@@ -9083,11 +10952,12 @@ const CanvasStableActions = {
       active: true,
       type: "image",
       engine: "stable",
-      phase: "sampling",
-      label: "Gerando imagem: sampling",
-      progress: null,
-      indeterminate: true
+      phase: "loading_model",
+      label: "Carregando modelo SD",
+      progress: 0.01,
+      indeterminate: false
     });
+    startStableDiffusionProgressPolling();
     const result = await window.kitAPI?.txt2imgStableDiffusionImage?.(payload);
     if (!result?.file) {
       throw new Error("Worker nao retornou arquivo de saida.");
@@ -9115,6 +10985,7 @@ const CanvasStableActions = {
       progress: 1,
       indeterminate: false
     });
+    stopStableDiffusionProgressPolling();
     return {
       file: result.file,
       metadata,
@@ -9126,16 +10997,34 @@ const CanvasStableActions = {
     const mode = ["img2img", "sketch", "inpaint", "inpaint-sketch"].includes(String(options.mode || "").trim())
       ? String(options.mode).trim()
       : getSelectedStableI2ISubmode();
-    const sourceObject = getStableSourceObject(options);
+    const sourceMode = options.sourceMode || getStableI2ISourceMode();
+    const sizeMode = options.sizeMode || getStableI2ISizeMode();
+    const sourceObject = sourceMode === "full-slide" ? null : getStableSourceObject(options);
     if (!sourceObject) {
-      throw new Error("I2I precisa de uma camada de imagem ativa.");
+      if (sourceMode !== "full-slide") {
+        throw new Error("I2I precisa de uma camada de imagem ativa.");
+      }
     }
 
     if (mode === "sketch") {
       throw new Error("Sketch ainda esta em stub claro. Base de I2I preparada para integrar sketch layer.");
     }
 
-    const sourceImageData = options.sourceImageData || await createObjectImageDataUrl(sourceObject);
+    const initRaster = options.initImagePath
+      ? {
+        initImagePath: options.initImagePath,
+        width: options.width ?? (sdWidth?.value ? getNumericValue(sdWidth, 0) : artboardWidth),
+        height: options.height ?? (sdHeight?.value ? getNumericValue(sdHeight, 0) : artboardHeight),
+        sourceMode,
+        sizeMode,
+        sourceLayerId: sourceObject?.layerId || null,
+        sourceLayerName: sourceObject ? makeObjectName(sourceObject) : "Slide inteiro"
+      }
+      : await createStableI2ITempImage({
+        ...options,
+        sourceMode,
+        sizeMode
+      });
     const payload = {
       ...collectStableDiffusionPayload(),
       ...options,
@@ -9149,14 +11038,17 @@ const CanvasStableActions = {
       scheduler: options.scheduler || options.sampler || sdScheduler?.value || "DPMSolverMultistepScheduler",
       steps: Number(options.steps ?? getNumericValue(sdSteps, 24)),
       cfg_scale: Number(options.cfgScale ?? options.cfg_scale ?? getNumericValue(sdCfgScale, 7)),
-      width: options.width ?? (sdWidth?.value ? getNumericValue(sdWidth, 0) : undefined),
-      height: options.height ?? (sdHeight?.value ? getNumericValue(sdHeight, 0) : undefined),
+      width: options.width ?? (sdWidth?.value ? getNumericValue(sdWidth, 0) : initRaster.width),
+      height: options.height ?? (sdHeight?.value ? getNumericValue(sdHeight, 0) : initRaster.height),
       seed: Number(options.seed ?? getNumericValue(sdSeed, -1)),
       denoising_strength: Number(options.denoiseStrength ?? options.denoising_strength ?? getNumericValue(sdDenoising, 0.55)),
       artboard: getCanvasStateSummary().artboard,
-      sourceLayerId: sourceObject.layerId,
-      image_data_url: sourceImageData,
-      base_image_data_url: sourceImageData
+      sourceLayerId: initRaster.sourceLayerId,
+      i2iSourceMode: initRaster.sourceMode,
+      i2iSizeMode: initRaster.sizeMode,
+      initImagePath: initRaster.initImagePath,
+      imagePath: initRaster.initImagePath,
+      image_path: initRaster.initImagePath
     };
 
     if (!payload.prompt) {
@@ -9180,8 +11072,10 @@ const CanvasStableActions = {
       if (mode === "inpaint-sketch") {
         throw new Error("Inpaint Sketch precisa de mascara + sketch. Stub preparado sem quebrar.");
       }
-      payload.mask_image_data_url = maskImageDataUrl;
-      payload.targetLayerId = sourceObject.layerId;
+      const maskPath = await saveStableMaskTempImage(maskImageDataUrl);
+      payload.maskPath = maskPath;
+      payload.mask_path = maskPath;
+      payload.targetLayerId = sourceObject?.layerId || null;
     }
 
     await this.ensureStableEnabled();
@@ -9189,10 +11083,18 @@ const CanvasStableActions = {
       active: true,
       type: "image",
       engine: "stable",
-      phase: "sampling",
-      label: "Gerando imagem: sampling",
-      progress: null,
-      indeterminate: true
+      phase: "loading_model",
+      label: "Carregando modelo SD",
+      progress: 0.01,
+      indeterminate: false
+    });
+    startStableDiffusionProgressPolling();
+    console.info("[Canvas I2I] endpoint img2img chamado", {
+      mode: payload.mode,
+      layer: initRaster.sourceLayerName,
+      initImagePath: initRaster.initImagePath,
+      width: payload.width,
+      height: payload.height
     });
     const result = mode === "inpaint"
       ? await window.kitAPI?.inpaintStableDiffusionImage?.(payload)
@@ -9209,7 +11111,7 @@ const CanvasStableActions = {
     }, {
       ...options,
       outputMode,
-      targetObject: sourceObject
+      targetObject: sourceObject || undefined
     });
 
     if (mode === "inpaint") {
@@ -9217,7 +11119,7 @@ const CanvasStableActions = {
         ...metadata,
         file: result.file,
         output_file: result.file,
-        targetLayerId: sourceObject.layerId,
+        targetLayerId: sourceObject?.layerId || null,
         insertMode: outputMode === "replaceSelected" ? "replace" : outputMode === "variation" ? "variation" : "new-layer"
       });
     } else {
@@ -9239,11 +11141,12 @@ const CanvasStableActions = {
       progress: 1,
       indeterminate: false
     });
+    stopStableDiffusionProgressPolling();
     return {
       file: result.file,
       metadata,
       insertedLayerId: inserted?.layerId || null,
-      sourceLayerId: sourceObject.layerId
+      sourceLayerId: sourceObject?.layerId || null
     };
   }
 };
@@ -9442,11 +11345,16 @@ const CanvasVideoActions = {
         saveToCanvasContext: true,
         attachToCanvas: true,
         prompt,
+        negativePrompt: videoOptions.negativePrompt || "",
+        workflowId: videoOptions.workflowId || "wan2.2",
+        workflowParams: videoOptions.workflowParams || {},
         inputImagePath: startImage,
         mode: videoOptions.mode || (startImage ? "i2v" : "t2v"),
         model: videoOptions.model || "",
         loras: Array.isArray(videoOptions.loras) ? videoOptions.loras : [],
         durationSeconds: Number(videoOptions.durationSeconds || 5),
+        fps: Number(videoOptions.fps || getWanFps()),
+        seed: Number(videoOptions.seed ?? getNumericValue(aiVideoSeed, -1)),
         presetId: videoOptions.presetId || "wan_wide_5s",
         outputDir,
         references: startImage
@@ -9602,7 +11510,8 @@ async function generateStableDiffusionImage() {
     setAiEngineStatus("image", "pronto", `Resultado ${i2iMode} inserido: ${result.file}`);
     return result;
   } catch (err) {
-    console.error("[Gerador IA] Falha na geracao de imagem:", err);
+    console.error("[Gerar Imagem] Falha na geracao de imagem:", err);
+    stopStableDiffusionProgressPolling();
     setTopbarGenerationStatus({
       active: true,
       type: "image",
@@ -9624,39 +11533,40 @@ async function generateStableDiffusionImage() {
 }
 
 async function generateAiPanelContent() {
-  if (getAiGeneratorTab() === "video") {
-    const payload = collectCanvasVideoPayload();
-    if (normalizeVideoModeValue(payload.mode) === "i2v") {
-      const sourceObject = getVideoSourceObject();
-      if (!sourceObject) {
-        setAiEngineStatus("video", "erro", "Selecione uma camada raster/imagem valida antes de gerar em I2V.");
-        return null;
-      }
-    }
-    try {
-      aiEngineState.generating = true;
-      setAiEngineStatus("video", "gerando", "Enviando geracao para o motor global de video...");
-      updateAiGeneratorPanelState();
-      if (!globalVideoEngineReady) {
-        await refreshGlobalVideoModels();
-      }
-      const result = await CanvasVideoActions.generateVideo({
-        ...payload,
-        fromSelection: normalizeVideoModeValue(payload.mode) === "i2v",
-        useSelectedLayer: normalizeVideoModeValue(payload.mode) === "i2v"
-      });
-      setAiEngineStatus("video", "pronto", `Video gerado e inserido: ${result?.job?.output?.path || result?.job?.id || "ok"}`);
-      return result;
-    } catch (err) {
-      console.error("[Gerador IA] Falha na geracao de video:", err);
-      setAiEngineStatus("video", "erro", `Erro no motor de video: ${err.message || err}`);
+  return generateStableDiffusionImage();
+}
+
+async function generateCanvasVideoFromPanel() {
+  const payload = collectCanvasVideoPayload();
+  if (normalizeVideoModeValue(payload.mode) === "i2v") {
+    const sourceObject = getVideoSourceObject();
+    if (!sourceObject) {
+      setAiEngineStatus("video", "erro", "Selecione uma camada raster/imagem valida antes de gerar em I2V.");
       return null;
-    } finally {
-      aiEngineState.generating = false;
-      updateAiGeneratorPanelState();
     }
   }
-  return generateStableDiffusionImage();
+  try {
+    aiEngineState.generating = true;
+    setAiEngineStatus("video", "gerando", "Enviando geracao para o ComfyUI...");
+    updateAiGeneratorPanelState();
+    if (!globalVideoEngineReady) {
+      await refreshGlobalVideoModels();
+    }
+    const result = await CanvasVideoActions.generateVideo({
+      ...payload,
+      fromSelection: normalizeVideoModeValue(payload.mode) === "i2v",
+      useSelectedLayer: normalizeVideoModeValue(payload.mode) === "i2v"
+    });
+    setAiEngineStatus("video", "pronto", `Video gerado e inserido: ${result?.job?.output?.path || result?.job?.id || "ok"}`);
+    return result;
+  } catch (err) {
+    console.error("[Gerador Video] Falha na geracao de video:", err);
+    setAiEngineStatus("video", "erro", `Erro no motor de video: ${err.message || err}`);
+    return null;
+  } finally {
+    aiEngineState.generating = false;
+    updateAiGeneratorPanelState();
+  }
 }
 
 async function generateStableDiffusionInpaint(options = {}) {
@@ -10208,8 +12118,28 @@ async function handleCanvasOperationalCommand(action, payload = {}) {
   }
 }
 
-function centerNewObject(object) {
-  centerOnCanvas(object);
+function placeObjectAtScenePoint(object, point) {
+  if (!object || !point) {
+    return null;
+  }
+
+  const size = getObjectLayoutSize(object);
+  object.set({
+    left: Number(point.x || 0) - size.width / 2,
+    top: Number(point.y || 0) - size.height / 2,
+    originX: "left",
+    originY: "top"
+  });
+  object.setCoords();
+  return object;
+}
+
+function centerNewObject(object, options = {}) {
+  if (options.position) {
+    placeObjectAtScenePoint(object, options.position);
+  } else {
+    centerOnCanvas(object);
+  }
   canvas.add(object);
   object.setCoords();
   canvas.setActiveObject(object);
@@ -10265,6 +12195,14 @@ function getEditableVectorPoints(object) {
     return [];
   }
 
+  if (isVectorPathObject(object)) {
+    return getVectorPoints(object).map((point, index) => ({
+      ...point,
+      index,
+      kind: "node"
+    }));
+  }
+
   if ((object.type === "polygon" || object.type === "polyline") && Array.isArray(object.points)) {
     return object.points.map((point, index) => ({ index, x: point.x, y: point.y, kind: "point" }));
   }
@@ -10295,21 +12233,28 @@ function getEditableVectorPoints(object) {
 }
 
 function localVectorPointToScene(object, point) {
+  if (isVectorPathObject(object)) {
+    return vectorLocalPointToScene(object, point);
+  }
   const Point = getFabricClass("Point");
   const transformPoint = fabricApi?.util?.transformPoint || fabricApi?.transformPoint;
   return transformPoint(new Point(point.x, point.y), object.calcTransformMatrix());
 }
 
 function scenePointToObjectLocal(object, point) {
+  if (isVectorPathObject(object)) {
+    return scenePointToVectorLocal(object, point);
+  }
   const Point = getFabricClass("Point");
   const invertTransform = fabricApi?.util?.invertTransform || fabricApi?.invertTransform;
   const transformPoint = fabricApi?.util?.transformPoint || fabricApi?.transformPoint;
   return transformPoint(new Point(point.x, point.y), invertTransform(object.calcTransformMatrix()));
 }
 
-function drawVectorEditHandles(object) {
-  clearVectorEditOverlays();
+function drawVectorEditHandles(object, selectedEdit = activeVectorEdit) {
+  clearVectorEditOverlays({ keepActive: true });
   const Circle = getFabricClass("Circle");
+  const Line = getFabricClass("Line");
   if (!Circle || !object) {
     return;
   }
@@ -10317,11 +12262,27 @@ function drawVectorEditHandles(object) {
   const points = getEditableVectorPoints(object);
   points.forEach((point) => {
     const scene = localVectorPointToScene(object, point);
+    if (point.type === "curve" && Line) {
+      [point.handleIn, point.handleOut].filter(Boolean).forEach((handle, handleIndex) => {
+        const handleScene = localVectorPointToScene(object, handle);
+        const line = new Line([scene.x, scene.y, handleScene.x, handleScene.y], {
+          stroke: "#5B6472",
+          strokeWidth: 1,
+          selectable: false,
+          evented: false,
+          isToolOverlay: true,
+          vectorRole: "edit-handle"
+        });
+        line.vectorPointIndex = point.index;
+        line.vectorHandleKind = handleIndex === 0 ? "handleIn-line" : "handleOut-line";
+        canvas.add(line);
+      });
+    }
     const handle = new Circle({
       left: scene.x - 5,
       top: scene.y - 5,
       radius: 5,
-      fill: "#F2B84B",
+      fill: selectedEdit?.point?.index === point.index ? "#FFFFFF" : "#F2B84B",
       stroke: "#20232A",
       strokeWidth: 1,
       selectable: false,
@@ -10332,28 +12293,76 @@ function drawVectorEditHandles(object) {
     handle.vectorPointIndex = point.index;
     handle.vectorPointKind = point.kind;
     canvas.add(handle);
+
+    if (point.type === "curve") {
+      [
+        ["handleIn", point.handleIn],
+        ["handleOut", point.handleOut]
+      ].forEach(([kind, vectorHandle]) => {
+        if (!vectorHandle) return;
+        const handleScene = localVectorPointToScene(object, vectorHandle);
+        const curveHandle = new Circle({
+          left: handleScene.x - 4,
+          top: handleScene.y - 4,
+          radius: 4,
+          fill: kind === "handleIn" ? "#55A7FF" : "#7CD992",
+          stroke: "#20232A",
+          strokeWidth: 1,
+          selectable: false,
+          evented: false,
+          isToolOverlay: true,
+          vectorRole: "edit-handle"
+        });
+        curveHandle.vectorPointIndex = point.index;
+        curveHandle.vectorPointKind = kind;
+        canvas.add(curveHandle);
+      });
+    }
   });
   canvas.requestRenderAll();
 }
 
-function getNearestVectorPoint(object, scenePoint, maxDistance = 14) {
+function getNearestVectorControl(object, scenePoint, maxDistance = 14, options = {}) {
   const points = getEditableVectorPoints(object);
   let best = null;
   points.forEach((point) => {
+    if (options.includeHandles && point.type === "curve") {
+      [
+        ["handleIn", point.handleIn],
+        ["handleOut", point.handleOut]
+      ].forEach(([kind, handle]) => {
+        if (!handle) return;
+        const scene = localVectorPointToScene(object, handle);
+        const distance = distanceBetweenPoints(scene, scenePoint);
+        if (distance <= maxDistance && (!best || distance < best.distance)) {
+          best = { ...handle, index: point.index, kind, scene, distance };
+        }
+      });
+    }
     const scene = localVectorPointToScene(object, point);
     const distance = distanceBetweenPoints(scene, scenePoint);
     if (distance <= maxDistance && (!best || distance < best.distance)) {
-      best = { ...point, scene, distance };
+      best = { ...point, kind: "node", scene, distance };
     }
   });
   return best;
 }
 
-function clearVectorEditOverlays() {
+function getNearestVectorPoint(object, scenePoint, maxDistance = 14) {
+  return getNearestVectorControl(object, scenePoint, maxDistance, { includeHandles: false });
+}
+
+function getVectorHitRadius(pixels = 14) {
+  return Number(pixels || 14) / Math.max(0.1, Number(canvas?.getZoom?.() || 1));
+}
+
+function clearVectorEditOverlays(options = {}) {
   canvas?.getObjects()
     .filter((object) => object.isToolOverlay && object.vectorRole === "edit-handle")
     .forEach((object) => canvas.remove(object));
-  activeVectorEdit = null;
+  if (!options.keepActive) {
+    activeVectorEdit = null;
+  }
 }
 
 function startVectorPointEdit(event) {
@@ -10371,14 +12380,103 @@ function startVectorPointEdit(event) {
 
   canvas.setActiveObject(object);
   drawVectorEditHandles(object);
-  const nearest = getNearestVectorPoint(object, point);
+  const nearest = getNearestVectorControl(object, point, getVectorHitRadius(14), { includeHandles: false });
   if (!nearest) {
     showToolNotice("Pontos exibidos. Arraste um no para editar.");
     return;
   }
 
-  activeVectorEdit = { object, point: nearest };
+  activeVectorEdit = { object, point: nearest, mode: "node", changed: false };
   event.e?.preventDefault?.();
+}
+
+function preserveVectorIndex(points = [], editedIndex = 0) {
+  if (points.length <= 1) {
+    return -1;
+  }
+  return editedIndex === 0 ? 1 : 0;
+}
+
+function setVectorNodePosition(object, pointIndex, nextLocal) {
+  const points = getVectorPoints(object);
+  const point = points[pointIndex];
+  if (!point) {
+    return;
+  }
+
+  const previous = { x: point.x, y: point.y };
+  const delta = {
+    x: Number(nextLocal.x || 0) - Number(point.x || 0),
+    y: Number(nextLocal.y || 0) - Number(point.y || 0)
+  };
+  point.x = Number(nextLocal.x || 0);
+  point.y = Number(nextLocal.y || 0);
+  if (point.handleIn) {
+    point.handleIn.x += delta.x;
+    point.handleIn.y += delta.y;
+  }
+  if (point.handleOut) {
+    point.handleOut.x += delta.x;
+    point.handleOut.y += delta.y;
+  }
+  refreshVectorPathObject(object, {
+    preserveIndex: preserveVectorIndex(points, pointIndex)
+  });
+  activeVectorEdit = {
+    ...(activeVectorEdit || {}),
+    point: {
+      ...(activeVectorEdit?.point || {}),
+      x: point.x,
+      y: point.y,
+      previous
+    },
+    changed: true
+  };
+}
+
+function mirrorVectorHandle(point, movedKind) {
+  const source = point?.[movedKind];
+  if (!point || !source) {
+    return;
+  }
+  const targetKind = movedKind === "handleIn" ? "handleOut" : "handleIn";
+  point[targetKind] = {
+    x: Number(point.x || 0) * 2 - Number(source.x || 0),
+    y: Number(point.y || 0) * 2 - Number(source.y || 0)
+  };
+}
+
+function setVectorHandlePosition(object, pointIndex, handleKind, nextLocal, options = {}) {
+  const points = getVectorPoints(object);
+  const point = points[pointIndex];
+  if (!point || !["handleIn", "handleOut"].includes(handleKind)) {
+    return;
+  }
+
+  point.type = "curve";
+  point.handleIn = point.handleIn || { x: Number(point.x || 0) - 40, y: Number(point.y || 0) };
+  point.handleOut = point.handleOut || { x: Number(point.x || 0) + 40, y: Number(point.y || 0) };
+  point[handleKind] = {
+    x: Number(nextLocal.x || 0),
+    y: Number(nextLocal.y || 0)
+  };
+
+  if (options.shiftKey && !options.altKey) {
+    mirrorVectorHandle(point, handleKind);
+  }
+
+  refreshVectorPathObject(object, {
+    preserveIndex: pointIndex
+  });
+  activeVectorEdit = {
+    ...(activeVectorEdit || {}),
+    point: {
+      ...(activeVectorEdit?.point || {}),
+      x: point[handleKind].x,
+      y: point[handleKind].y
+    },
+    changed: true
+  };
 }
 
 function moveVectorPointEdit(event) {
@@ -10392,8 +12490,18 @@ function moveVectorPointEdit(event) {
   }
 
   const { object, point } = activeVectorEdit;
+  const currentEdit = activeVectorEdit;
   const local = scenePointToObjectLocal(object, scenePoint);
-  if (Array.isArray(object.points) && object.points[point.index]) {
+  if (isVectorPathObject(object)) {
+    if (point.kind === "handleIn" || point.kind === "handleOut") {
+      setVectorHandlePosition(object, point.index, point.kind, local, {
+        shiftKey: Boolean(event.e?.shiftKey),
+        altKey: Boolean(event.e?.altKey)
+      });
+    } else {
+      setVectorNodePosition(object, point.index, local);
+    }
+  } else if (Array.isArray(object.points) && object.points[point.index]) {
     object.points[point.index].x = local.x;
     object.points[point.index].y = local.y;
     object.dirty = true;
@@ -10408,17 +12516,79 @@ function moveVectorPointEdit(event) {
   }
 
   object.setCoords();
-  drawVectorEditHandles(object);
-  activeVectorEdit = { object, point };
-  markCanvasChanged("vector-point");
+  activeVectorEdit = { ...currentEdit, object, point, changed: true };
+  drawVectorEditHandles(object, activeVectorEdit);
+  event.e?.preventDefault?.();
 }
 
 function finishVectorPointEdit() {
   if (activeVectorEdit?.object) {
     activeVectorEdit.object.setCoords();
     canvas?.requestRenderAll();
+    if (activeVectorEdit.changed) {
+      markCanvasChanged(activeVectorEdit.mode === "handle" ? "vector-handle" : "vector-point");
+    }
   }
   activeVectorEdit = null;
+}
+
+function convertVectorPointToCurve(object, pointIndex) {
+  const points = getVectorPoints(object);
+  const point = points[pointIndex];
+  if (!point) {
+    return null;
+  }
+  point.type = "curve";
+  point.handleIn = point.handleIn || { x: Number(point.x || 0) - 40, y: Number(point.y || 0) };
+  point.handleOut = point.handleOut || { x: Number(point.x || 0) + 40, y: Number(point.y || 0) };
+  refreshVectorPathObject(object, { preserveIndex: pointIndex });
+  return point;
+}
+
+function startVectorCurveEdit(event) {
+  const point = getScenePoint(event);
+  if (!point || !canvas) {
+    return;
+  }
+
+  const target = event.target && !event.target.isToolOverlay ? event.target : getCanvasObjectAtScenePoint(point);
+  const object = target && !target.isArtboard ? target : getActiveEditableObject();
+  if (!object) {
+    showToolNotice("Clique em uma forma vetorial existente para editar curva.");
+    return;
+  }
+  if (!isVectorPathObject(object)) {
+    showToolNotice("Vetor curva funciona em formas criadas pela Caneta Vetor.");
+    return;
+  }
+
+  canvas.setActiveObject(object);
+  drawVectorEditHandles(object);
+  const nearest = getNearestVectorControl(object, point, getVectorHitRadius(18), { includeHandles: true });
+  if (!nearest) {
+    showToolNotice("Pontos exibidos. Clique em um no para converter em curva.");
+    return;
+  }
+
+  if (nearest.kind === "handleIn" || nearest.kind === "handleOut") {
+    activeVectorEdit = { object, point: nearest, mode: "handle", changed: false };
+    event.e?.preventDefault?.();
+    return;
+  }
+
+  const curvePoint = convertVectorPointToCurve(object, nearest.index);
+  drawVectorEditHandles(object);
+  activeVectorEdit = {
+    object,
+    point: { ...nearest, kind: "node", type: "curve" },
+    mode: "node",
+    changed: false
+  };
+  if (curvePoint) {
+    showToolNotice("No convertido em curva. Arraste os handles para ajustar.");
+    markCanvasChanged("vector-curve");
+  }
+  event.e?.preventDefault?.();
 }
 
 function alignSelection(alignment = "center") {
@@ -10661,7 +12831,7 @@ function createVideoPreviewDataUrlFromSource(source = "", seekTime = 0) {
   });
 }
 
-async function addVideoFile(file) {
+async function addVideoFile(file, options = {}) {
   if (!file || !canvas) {
     return null;
   }
@@ -10683,7 +12853,7 @@ async function addVideoFile(file) {
     mediaDuration: preview.duration || 5,
     rasterSourceSrc: preview.dataUrl
   });
-  centerNewObject(image);
+  centerNewObject(image, options);
   const timelineItem = addTimelineItem({
     type: "video",
     layerId: image.layerId,
@@ -10697,6 +12867,44 @@ async function addVideoFile(file) {
     updateTimelineItem(timelineItem, { waveform });
   }
   primeVideoLayer(image);
+  return image;
+}
+
+async function addVideoSource(source, options = {}) {
+  if (!source || !canvas) {
+    return null;
+  }
+
+  const preview = await createVideoPreviewDataUrlFromSource(source, 0);
+  const image = await createFabricImageFromUrl(preview.dataUrl);
+  const maxSide = 520;
+  const width = preview.width || image.width || maxSide;
+  const height = preview.height || image.height || maxSide;
+  const scale = Math.min(maxSide / width, maxSide / height, 1);
+  const duration = Math.max(0.5, Number(options.duration || preview.duration || await loadMediaDurationFromSource(source, "video")));
+  image.set({
+    scaleX: scale,
+    scaleY: scale,
+    name: options.name || getFileName(source) || "Video",
+    layerName: options.name || getFileName(source) || "Video",
+    layerKind: "video",
+    mediaType: "video",
+    mediaSourceSrc: source,
+    mediaDuration: duration,
+    rasterSourceSrc: preview.dataUrl
+  });
+  centerNewObject(image, options);
+  const timelineItem = addTimelineItem({
+    type: "video",
+    layerId: image.layerId,
+    source,
+    label: options.name || makeObjectName(image),
+    duration,
+    startTime: options.startTime ?? timelinePlayhead
+  });
+  image.timelineItemId = timelineItem?.id || null;
+  primeVideoLayer(image);
+  console.info("[MEDIA] import selected type=video");
   return image;
 }
 
@@ -10740,9 +12948,9 @@ async function insertGeneratedVideoFromPath(filePath, metadata = {}) {
   };
 }
 
-async function addImageFile(file) {
+async function addImageFile(file, options = {}) {
   if (!file || !canvas) {
-    return;
+    return null;
   }
 
   const dataUrl = await new Promise((resolve, reject) => {
@@ -10760,16 +12968,48 @@ async function addImageFile(file) {
   image.set({
     scaleX: scale,
     scaleY: scale,
-    name: file.name || "Imagem"
+    name: file.name || "Imagem",
+    rasterSourceSrc: dataUrl
   });
-  centerNewObject(image);
+  centerNewObject(image, options);
   addTimelineItem({
     type: "image",
     layerId: image.layerId,
     source: file.path || file.name || image.layerId,
     label: file.name || makeObjectName(image),
-    duration: 5
+    duration: 5,
+    startTime: timelinePlayhead
   });
+  return image;
+}
+
+async function addImageSource(source, options = {}) {
+  if (!source || !canvas) {
+    return null;
+  }
+
+  const image = await createFabricImageFromUrl(toImageUrl(source, currentProjectFilePath || ""));
+  const maxSide = 520;
+  const width = image.width || maxSide;
+  const height = image.height || maxSide;
+  const scale = Math.min(maxSide / width, maxSide / height, 1);
+  image.set({
+    scaleX: scale,
+    scaleY: scale,
+    name: options.name || getFileName(source) || "Imagem",
+    rasterSourceSrc: source
+  });
+  centerNewObject(image, options);
+  addTimelineItem({
+    type: "image",
+    layerId: image.layerId,
+    source,
+    label: options.name || makeObjectName(image),
+    duration: 5,
+    startTime: options.startTime ?? timelinePlayhead
+  });
+  console.info("[MEDIA] import selected type=image");
+  return image;
 }
 
 function getMediaFileKind(file) {
@@ -10794,6 +13034,44 @@ function getMediaFileKind(file) {
     return "audio";
   }
   return "unknown";
+}
+
+function isSupportedMediaFile(file) {
+  return ["image", "video", "audio"].includes(getMediaFileKind(file));
+}
+
+function getNativeEventScenePoint(event) {
+  if (!event || !canvas) {
+    return null;
+  }
+
+  if (canvas.getScenePoint) {
+    const point = canvas.getScenePoint(event);
+    return point ? { x: Number(point.x || 0), y: Number(point.y || 0) } : null;
+  }
+
+  if (canvas.getPointer) {
+    const point = canvas.getPointer(event);
+    return point ? { x: Number(point.x || 0), y: Number(point.y || 0) } : null;
+  }
+
+  return null;
+}
+
+function getFilesFromTransfer(dataTransfer) {
+  return Array.from(dataTransfer?.files || []).filter(Boolean);
+}
+
+function makeOffsetPosition(position, index = 0) {
+  if (!position) {
+    return null;
+  }
+
+  const offset = index * 24;
+  return {
+    x: Number(position.x || 0) + offset,
+    y: Number(position.y || 0) + offset
+  };
 }
 
 function loadMediaDurationFromFile(file) {
@@ -10825,6 +13103,63 @@ function loadMediaDurationFromFile(file) {
   });
 }
 
+function loadMediaDurationFromSource(source = "", kind = "audio") {
+  if (!source || !["audio", "video"].includes(kind) || typeof document === "undefined") {
+    return Promise.resolve(5);
+  }
+
+  return new Promise((resolve) => {
+    const element = document.createElement(kind === "video" ? "video" : "audio");
+    let settled = false;
+
+    const finish = (duration = 5) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      element.removeAttribute("src");
+      element.load?.();
+      resolve(Math.max(0.5, Number.isFinite(duration) ? duration : 5));
+    };
+
+    element.preload = "metadata";
+    element.onloadedmetadata = () => finish(Number(element.duration || 5));
+    element.onerror = () => finish(5);
+    element.src = resolveMediaSourceUrl(source);
+  });
+}
+
+async function addTimelineMediaSource(source, options = {}) {
+  if (!source) {
+    return null;
+  }
+  const kind = options.kind || getMediaFileKind({ name: source, type: "" });
+  if (!["audio", "video"].includes(kind)) {
+    showToolNotice("Formato de midia ainda nao suportado.");
+    return null;
+  }
+
+  const duration = Math.max(0.5, Number(options.duration || await loadMediaDurationFromSource(source, kind)));
+  const waveform = kind === "audio"
+    ? await generateWaveformFromSource(source, duration).catch(() => createFallbackWaveform(duration))
+    : null;
+  const item = addTimelineItem({
+    type: kind,
+    source,
+    label: options.label || getFileName(source) || makeTimelineItemLabel(kind, source),
+    duration,
+    startTime: options.startTime ?? timelinePlayhead,
+    waveform: waveform || (kind === "audio" ? createFallbackWaveform(duration) : null)
+  });
+  if (item) {
+    console.info(`[MEDIA] import selected type=${kind}`);
+    if (item.waveform?.peaks?.length) {
+      console.info(`[MEDIA] waveform generated peaks=${item.waveform.peaks.length}`);
+    }
+  }
+  return item;
+}
+
 async function addTimelineMediaFile(file) {
   if (!file) {
     return;
@@ -10837,15 +13172,19 @@ async function addTimelineMediaFile(file) {
   }
 
   const duration = await loadMediaDurationFromFile(file);
+  const waveform = kind === "audio"
+    ? await generateWaveformFromFile(file).catch(() => null)
+    : null;
   const item = addTimelineItem({
     type: kind,
     source: file.path || file.name || "",
     label: file.name || makeTimelineItemLabel(kind, file.path || file.name || ""),
-    duration
+    duration,
+    startTime: timelinePlayhead,
+    waveform: waveform || (kind === "audio" ? createFallbackWaveform(duration) : null)
   });
-  const waveform = await generateWaveformFromFile(file).catch(() => null);
-  if (item && waveform) {
-    updateTimelineItem(item, { waveform });
+  if (item?.waveform?.peaks?.length) {
+    console.info(`[MEDIA] waveform generated peaks=${item.waveform.peaks.length}`);
   }
 
   if (timelinePlayhead < item.startTime) {
@@ -10855,30 +13194,184 @@ async function addTimelineMediaFile(file) {
   if (projectStatus) {
     projectStatus.textContent = `${kind === "video" ? "Video" : "Audio"} inserido na timeline`;
   }
+  return item;
 }
 
-async function addMediaFile(file) {
+async function addMediaFile(file, options = {}) {
   if (!file || !canvas) {
-    return;
+    return null;
   }
 
   const kind = getMediaFileKind(file);
+  if (!["image", "video", "audio"].includes(kind)) {
+    showToolNotice("Arquivo nao suportado.");
+    return null;
+  }
+
+  const sourcePath = String(file.path || file.filePath || "").trim();
+  if (sourcePath && !file.arrayBuffer) {
+    if (kind === "image") {
+      const image = await addImageSource(sourcePath, { ...options, name: file.name || getFileName(sourcePath) });
+      markCanvasChanged("media-import");
+      return image;
+    }
+    if (kind === "video") {
+      const video = await addVideoSource(sourcePath, { ...options, name: file.name || getFileName(sourcePath) });
+      markCanvasChanged("media-import");
+      return video;
+    }
+    if (kind === "audio") {
+      const item = await addTimelineMediaSource(sourcePath, {
+        kind: "audio",
+        label: file.name || getFileName(sourcePath),
+        startTime: timelinePlayhead
+      });
+      renderTimeline();
+      markCanvasChanged("media-import");
+      return item;
+    }
+  }
+
   if (kind === "image") {
-    await addImageFile(file);
-    return;
+    console.info("[MEDIA] import selected type=image");
+    const image = await addImageFile(file, options);
+    markCanvasChanged("media-import");
+    return image;
   }
 
   if (kind === "video") {
-    await addVideoFile(file);
-    return;
+    console.info("[MEDIA] import selected type=video");
+    const video = await addVideoFile(file, options);
+    markCanvasChanged("media-import");
+    return video;
   }
 
   if (kind === "audio") {
-    await addTimelineMediaFile(file);
+    console.info("[MEDIA] import selected type=audio");
+    const item = await addTimelineMediaFile(file);
+    markCanvasChanged("media-import");
+    return item;
+  }
+
+  return null;
+}
+
+async function importMediaFiles(files = [], options = {}) {
+  const mediaFiles = Array.from(files || []).filter(Boolean);
+  if (!mediaFiles.length) {
+    return 0;
+  }
+
+  const supported = mediaFiles.filter(isSupportedMediaFile);
+  const unsupportedCount = mediaFiles.length - supported.length;
+  if (!supported.length) {
+    showToolNotice("Arquivo nao suportado.");
+    return 0;
+  }
+
+  let importedCount = 0;
+  for (const [index, file] of supported.entries()) {
+    try {
+      const imported = await addMediaFile(file, {
+        ...options,
+        position: makeOffsetPosition(options.position, index)
+      });
+      if (imported) {
+        importedCount += 1;
+      }
+    } catch (err) {
+      console.error("[MEDIA] Falha ao importar arquivo:", err);
+      showToolNotice(`Falha ao importar midia: ${err.message || err}`);
+    }
+  }
+
+  if (unsupportedCount > 0) {
+    showToolNotice(`${unsupportedCount} arquivo(s) nao suportado(s).`);
+  } else if (importedCount > 0) {
+    showToolNotice(importedCount === 1 ? "Midia inserida no Canvas." : `${importedCount} midias inseridas no Canvas.`);
+  }
+
+  return importedCount;
+}
+
+function isEditableInputTarget(target) {
+  const targetElement = target instanceof Element ? target : null;
+  return Boolean(targetElement?.closest("input, textarea, select, [contenteditable='true'], [contenteditable='']"));
+}
+
+function getClipboardImageFiles(clipboardData) {
+  const files = getFilesFromTransfer(clipboardData).filter((file) => getMediaFileKind(file) === "image");
+  const itemFiles = Array.from(clipboardData?.items || [])
+    .filter((item) => String(item?.type || "").toLowerCase().startsWith("image/"))
+    .map((item, index) => {
+      const file = item.getAsFile?.();
+      if (!file) {
+        return null;
+      }
+      if (file.name) {
+        return file;
+      }
+      const extension = String(file.type || "image/png").split("/")[1] || "png";
+      return new File([file], `clipboard-image-${index + 1}.${extension}`, { type: file.type || "image/png" });
+    })
+    .filter(Boolean);
+
+  return itemFiles.length ? itemFiles : files;
+}
+
+async function handleCanvasPaste(event) {
+  if (!canvas || isEditableInputTarget(event.target)) {
     return;
   }
 
-  showToolNotice("Selecione um arquivo de imagem, audio ou video suportado.");
+  const imageFiles = getClipboardImageFiles(event.clipboardData);
+  if (!imageFiles.length) {
+    if (rasterClipboard) {
+      event.preventDefault();
+      await pasteRasterClipboard();
+    }
+    return;
+  }
+
+  event.preventDefault();
+  await importMediaFiles(imageFiles);
+}
+
+function hasTransferFiles(dataTransfer) {
+  return getFilesFromTransfer(dataTransfer).length > 0;
+}
+
+async function handleCanvasDrop(event) {
+  if (!canvas || !hasTransferFiles(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  board?.classList.remove("is-drag-over");
+
+  const position = getNativeEventScenePoint(event);
+  await importMediaFiles(getFilesFromTransfer(event.dataTransfer), { position });
+}
+
+function handleCanvasDragOver(event) {
+  if (!hasTransferFiles(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  if (event.dataTransfer) {
+    const files = getFilesFromTransfer(event.dataTransfer);
+    event.dataTransfer.dropEffect = files.some(isSupportedMediaFile) ? "copy" : "none";
+  }
+  board?.classList.add("is-drag-over");
+}
+
+function handleCanvasDragLeave(event) {
+  if (!board || event.relatedTarget instanceof Node && board.contains(event.relatedTarget)) {
+    return;
+  }
+  board?.classList.remove("is-drag-over");
 }
 
 function handleWheel(event) {
@@ -11041,6 +13534,7 @@ function initFabricCanvas() {
       }
     }
     updateSelectionInfo();
+    recordAutoKeyframeForObject(getPrimaryLayerObject(activeObject) || activeObject);
     markCanvasChanged("object-modified");
   });
   canvas.on("object:stacking", () => {
@@ -11084,7 +13578,7 @@ function applyToolbarItemSettings(item = {}) {
     brushMode.value = settings.brushMode;
   }
 
-  if (settings.hardness && brushHardness) {
+  if (settings.hardness !== undefined && brushHardness) {
     brushHardness.value = String(settings.hardness);
   }
 
@@ -11106,14 +13600,13 @@ function executeToolbarAction(action, item = {}) {
       addText();
       break;
     case "add-image":
-      openMediaPanel();
+      void openMediaExplorer();
       break;
     case "color-picker":
       toggleColorPanel();
       break;
     case "focus-brand-kit":
-      brandKitName?.focus();
-      updateAutosaveStatus("Kit do cliente aberto no painel lateral.");
+      void openClientKitFolder();
       break;
     case "open-sticks":
       openStickersPanel();
@@ -11490,6 +13983,35 @@ document.querySelector('[data-timeline-action="next-marker"]')?.addEventListener
   seekTimelineMarker(1);
 });
 
+document.querySelector('[data-timeline-action="toggle-snap"]')?.addEventListener("click", () => {
+  timelineSnapEnabled = !timelineSnapEnabled;
+  clearTimelineSnapGuide();
+  renderTimeline();
+  showToolNotice(timelineSnapEnabled ? "Ima da timeline ligado." : "Ima da timeline desligado.");
+});
+
+document.querySelector('[data-timeline-action="toggle-auto-keyframe"]')?.addEventListener("click", () => {
+  timelineAutoKeyframeEnabled = !timelineAutoKeyframeEnabled;
+  renderTimeline();
+  showToolNotice(timelineAutoKeyframeEnabled ? "Keyframe automatico ligado." : "Keyframe automatico desligado.");
+});
+
+document.querySelector('[data-timeline-action="add-keyframe"]')?.addEventListener("click", () => {
+  addKeyframeAtPlayhead();
+});
+
+document.querySelector('[data-timeline-action="remove-keyframe"]')?.addEventListener("click", () => {
+  removeSelectedKeyframe();
+});
+
+document.querySelector('[data-timeline-action="link-items"]')?.addEventListener("click", () => {
+  linkSelectedTimelineItem();
+});
+
+document.querySelector('[data-timeline-action="unlink-items"]')?.addEventListener("click", () => {
+  unlinkSelectedTimelineItem();
+});
+
 document.querySelector('[data-timeline-action="add-slide"]')?.addEventListener("click", () => {
   void addTimelineSlide();
 });
@@ -11498,27 +14020,71 @@ document.querySelector('[data-timeline-action="remove-slide"]')?.addEventListene
   void removeTimelineSlide();
 });
 
-aiEngineToggleButton?.addEventListener("click", () => {
-  void activateCurrentAiEngine().catch((error) => {
-    console.error("[Gerador IA] Falha no botao de ativacao:", error);
-    const engineKey = getCurrentAiEngineKey();
-    setAiEngineStatus(engineKey, "erro", error.message || String(error));
+[keyframeTimeInput, keyframeXInput, keyframeYInput, keyframeScaleInput, keyframeRotationInput, keyframeOpacityInput, keyframeVolumeInput, keyframeEasingInput]
+  .filter(Boolean)
+  .forEach((input) => {
+    input.addEventListener("change", applyKeyframeEditorValues);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        applyKeyframeEditorValues();
+      }
+    });
+  });
+
+document.querySelectorAll("[data-keyframe-preset]").forEach((button) => {
+  button.addEventListener("click", () => {
+    applyKeyframeVolumePreset(button.dataset.keyframePreset || "");
   });
 });
 
-document.querySelector('[data-sd-action="refresh-models"]')?.addEventListener("click", () => {
-  if (getAiGeneratorTab() === "video") {
-    void refreshGlobalVideoModels().catch(() => {});
-    return;
-  }
+aiImageEngineToggleButton?.addEventListener("click", () => {
+  void activateAiEngine("image").catch((error) => {
+    console.error("[Gerar Imagem] Falha no botao de ativacao:", error);
+    setAiEngineStatus("image", "erro", error.message || String(error));
+  });
+});
+
+aiVideoEngineToggleButton?.addEventListener("click", () => {
+  void activateAiEngine("video").catch((error) => {
+    console.error("[Gerar Video] Falha no botao de ativacao:", error);
+    setAiEngineStatus("video", "erro", error.message || String(error));
+  });
+});
+
+aiNarrationEngineToggleButton?.addEventListener("click", () => {
+  void activateAiEngine("narration").catch((error) => {
+    console.error("[Gerar Narracao] Falha no botao de ativacao:", error);
+    setAiEngineStatus("narration", "erro", error.message || String(error));
+  });
+});
+
+document.querySelector('[data-ai-image-action="refresh-models"]')?.addEventListener("click", () => {
   void refreshStableDiffusionModels().catch(() => {});
 });
 
-document.querySelector('[data-sd-action="generate"]')?.addEventListener("click", () => {
+document.querySelector('[data-ai-image-action="generate"]')?.addEventListener("click", () => {
   void generateAiPanelContent().catch((error) => {
-    console.error("[Gerador IA] Falha no botao gerar:", error);
-    const engineKey = getCurrentAiEngineKey();
-    setAiEngineStatus(engineKey, "erro", error.message || String(error));
+    console.error("[Gerar Imagem] Falha no botao gerar:", error);
+    setAiEngineStatus("image", "erro", error.message || String(error));
+  });
+});
+
+document.querySelector('[data-ai-video-action="generate"]')?.addEventListener("click", () => {
+  void generateCanvasVideoFromPanel().catch((error) => {
+    console.error("[Gerar Video] Falha no botao gerar:", error);
+    setAiEngineStatus("video", "erro", error.message || String(error));
+  });
+});
+
+document.querySelector('[data-ai-narration-action="preview"]')?.addEventListener("click", () => {
+  void previewNarrationVoice();
+});
+
+document.querySelector('[data-ai-narration-action="generate"]')?.addEventListener("click", () => {
+  void generateNarrationFromPanel().catch((error) => {
+    console.error("[Gerar Narracao] Falha no botao gerar:", error);
+    setAiEngineStatus("narration", "erro", error.message || String(error));
   });
 });
 
@@ -11532,23 +14098,18 @@ aiVideoAbortButton?.addEventListener("click", () => {
   });
 });
 
-[aiGeneratorTabImage, aiGeneratorTabVideo]
-  .filter(Boolean)
-  .forEach((button) => {
-    button.addEventListener("click", () => {
-      setAiGeneratorTab(button.dataset.aiTab || "image");
-      if ((button.dataset.aiTab || "image") === "video" && !aiVideoModel?.options?.length) {
-        void refreshGlobalVideoModels().catch(() => {});
-      }
-    });
-  });
-
-[sdMode, sdI2IMode, sdPrompt, sdNegativePrompt, aiStyle, aiPreset, sdCheckpoint, sdArchitecture, sdLora, sdScheduler, sdSteps, sdCfgScale, sdWidth, sdHeight, sdSeed, sdDenoising, sdInpaintInsertMode, aiVideoMode, aiVideoPreset, aiVideoModel, aiVideoDuration]
+[sdMode, sdI2IMode, sdI2ISizeMode, sdPrompt, sdNegativePrompt, aiStyle, aiPreset, sdCheckpoint, sdArchitecture, sdLora, sdSampler, sdScheduler, sdSteps, sdCfgScale, sdWidth, sdHeight, sdSeed, sdDenoising, sdInpaintInsertMode, aiVideoMode, aiVideoPreset, aiVideoModel, aiVideoDuration, aiVideoFps, aiVideoSeed, aiVideoPrompt, aiVideoNegativePrompt, aiVideoWorkflow, aiNarrationVoice, aiNarrationText, aiNarrationSubtitle]
   .filter(Boolean)
   .forEach((input) => {
     input.addEventListener("input", updateAiGeneratorPanelState);
     input.addEventListener("change", updateAiGeneratorPanelState);
   });
+
+aiVideoWorkflow?.addEventListener("change", () => {
+  void refreshSelectedComfyWorkflowFields().catch(() => {});
+});
+
+aiVideoWorkflowFields?.addEventListener("input", updateAiGeneratorPanelState);
 
 aiVideoLoraList?.addEventListener("input", updateAiGeneratorPanelState);
 aiVideoLoraList?.addEventListener("change", (event) => {
@@ -11597,20 +14158,30 @@ customHeightInput?.addEventListener("keydown", (event) => {
 
 imageInput?.addEventListener("change", async () => {
   const file = imageInput.files?.[0];
-  await addMediaFile(file);
+  await importMediaFiles(file ? [file] : []);
   imageInput.value = "";
+});
+
+document.addEventListener("paste", (event) => {
+  void handleCanvasPaste(event);
+});
+
+stageScroll?.addEventListener("dragover", handleCanvasDragOver);
+stageScroll?.addEventListener("dragleave", handleCanvasDragLeave);
+stageScroll?.addEventListener("drop", (event) => {
+  void handleCanvasDrop(event);
 });
 
 window.addEventListener("keydown", (event) => {
   const key = String(event.key || "").toLowerCase();
-  const editingField = ["input", "textarea", "select"].includes(String(event.target?.tagName || "").toLowerCase());
-  if ((event.ctrlKey || event.metaKey) && key === "z" && !event.shiftKey) {
+  const editingField = isEditableInputTarget(event.target);
+  if (!editingField && (event.ctrlKey || event.metaKey) && key === "z" && !event.shiftKey) {
     event.preventDefault();
     void undoCanvasChange();
     return;
   }
 
-  if ((event.ctrlKey || event.metaKey) && (key === "y" || (key === "z" && event.shiftKey))) {
+  if (!editingField && (event.ctrlKey || event.metaKey) && (key === "y" || (key === "z" && event.shiftKey))) {
     event.preventDefault();
     void redoCanvasChange();
     return;
@@ -11625,12 +14196,6 @@ window.addEventListener("keydown", (event) => {
   if (!editingField && (event.ctrlKey || event.metaKey) && key === "x" && hasSelection()) {
     event.preventDefault();
     void cutSelectionPixels();
-    return;
-  }
-
-  if (!editingField && (event.ctrlKey || event.metaKey) && key === "v" && rasterClipboard) {
-    event.preventDefault();
-    void pasteRasterClipboard();
     return;
   }
 
@@ -11664,7 +14229,7 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (event.code === "Space") {
+  if (!editingField && event.code === "Space") {
     event.preventDefault();
     spacePressed = true;
   }
@@ -11728,9 +14293,10 @@ async function bootstrapCanvasModule() {
   setSelectOptions(sdLora, [], { placeholder: "Sem LoRA" });
   setSelectOptions(aiVideoModel, [], { placeholder: "Ative o motor de video" });
   renderVideoLoraSlots([]);
+  renderNarrationVoices([]);
   setAiEngineStatus("image", "desligado", "Motor de imagem desligado.");
   setAiEngineStatus("video", "desligado", "Motor de video desligado.");
-  setAiGeneratorTab("image");
+  setAiEngineStatus("narration", "desligado", "Motor de narracao desligado.");
   syncInspectorContext(null);
 
   const restored = await restoreLastCanvasSession();

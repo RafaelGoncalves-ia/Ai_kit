@@ -1,5 +1,6 @@
 {
-  "pythonPath": "F:\\AI\\Ai_kit\\venv\\Scripts\\python.exe",
+  "pythonPath": "F:\\AI\\forge-webui\\venv\\Scripts\\python.exe",
+  "forgeVenv": "F:\\AI\\forge-webui\\venv",
   "modelsRoot": "models",
   "checkpointsPath": "models/stable-diffusion",
   "lorasPath": "models/lora",

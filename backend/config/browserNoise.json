@@ -1,9 +1,9 @@
 {
   "google.com": {
-    "noiseScore": 30,
-    "lastIssue": "popup",
-    "blockedCount": 30,
-    "lastSeen": "2026-04-27T18:30:07.535Z"
+    "noiseScore": 32,
+    "lastIssue": "modal",
+    "blockedCount": 31,
+    "lastSeen": "2026-05-16T02:26:41.314Z"
   },
   "lista.mercadolivre.com.br": {
     "noiseScore": 20,

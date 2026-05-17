@@ -7,6 +7,16 @@ export function getVideoEngine(context = null) {
   if (!videoEngineSingleton) {
     videoEngineContext = context || {};
     videoEngineSingleton = createVideoEngine(videoEngineContext);
+  } else if (context && videoEngineContext && context !== videoEngineContext) {
+    Object.assign(videoEngineContext, context);
+    videoEngineContext.core = {
+      ...(videoEngineContext.core || {}),
+      ...(context.core || {})
+    };
+    videoEngineContext.services = {
+      ...(videoEngineContext.services || {}),
+      ...(context.services || {})
+    };
   }
   return videoEngineSingleton;
 }

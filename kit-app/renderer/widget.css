@@ -66,7 +66,7 @@ textarea {
 
 button {
   background: #2a2a2a;
-  border: none;
+  border: 1px solid transparent;
   color: #ccc;
   font-size: 18px;
   cursor: pointer;
@@ -81,6 +81,16 @@ button {
   -webkit-app-region: no-drag;
   border-radius: 999px;
   align-self: flex-end;
+}
+
+button:disabled {
+  cursor: default;
+  transform: none;
+}
+
+button:disabled:hover {
+  color: #9a9a9a;
+  transform: none;
 }
 
 button:hover {
@@ -130,13 +140,34 @@ button:active {
   align-self: center;
 }
 
+#mic.loading {
+  background: #3a3a3a;
+  border-color: #555;
+  color: #9a9a9a;
+  opacity: 0.9;
+}
+
+#mic.loading img {
+  filter: brightness(0) invert(62%);
+}
+
+#mic.listening,
 #mic.recording {
-  color: #ff4444;
+  border-color: #8b5cf6;
+  box-shadow:
+    0 0 0 1px rgba(0, 120, 212, 0.75),
+    0 0 12px rgba(139, 92, 246, 0.55);
+  color: #c9d7ff;
   animation: pulse 1.5s infinite;
 }
 
+#mic.listening img,
+#mic.recording img {
+  filter: brightness(0) saturate(100%) invert(64%) sepia(67%) saturate(1384%) hue-rotate(196deg) brightness(104%) contrast(99%);
+}
+
 @keyframes pulse {
-  0% { opacity: 1; text-shadow: 0 0 0 red; }
-  50% { opacity: 0.6; text-shadow: 0 0 10px red; }
-  100% { opacity: 1; text-shadow: 0 0 0 red; }
+  0% { opacity: 1; }
+  50% { opacity: 0.72; }
+  100% { opacity: 1; }
 }

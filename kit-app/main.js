@@ -55,6 +55,9 @@ const CANVAS_AUTOSAVE_FILE = "canvas-autosave.json";
 const CANVAS_BRIDGE_PORT = Number(process.env.KIT_CANVAS_BRIDGE_PORT || 31977);
 const KIT_USER_DATA_PATH = path.join(ROOT_DIR, "temp", "electron-user-data");
 const KIT_STARTUP_LOG = path.join(ROOT_DIR, "logs", "kit-app-startup.log");
+const CANVAS_I2I_TEMP_DIR = path.join(ROOT_DIR, "output", "temp", "i2i");
+const BACKEND_URL = process.env.KIT_BACKEND_URL || "http://localhost:3001";
+const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 
 let widgetWindow = null;
 let chatWindow = null;
@@ -130,13 +133,103 @@ async function notifyBackendActivity(source = "unknown") {
   } catch {}
 }
 
-async function unloadBackendLLM() {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    await fetch("http://localhost:3001/llm/unload", {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function unloadOllamaDirect(reason = "app_close") {
+  try {
+    const psResponse = await fetchWithTimeout(`${OLLAMA_URL}/api/ps`, { method: "GET" }, 5000);
+    const psData = await psResponse.json().catch(() => ({}));
+    const models = Array.isArray(psData?.models) ? psData.models : [];
+
+    if (!models.length) {
+      console.log(`[OLLAMA UNLOAD] nenhum modelo ativo no fechamento reason=${reason}`);
+      return { ok: true, unloaded: 0 };
+    }
+
+    let unloaded = 0;
+    for (const item of models) {
+      const model = item?.model || item?.name;
+      if (!model) {
+        continue;
+      }
+
+      const response = await fetchWithTimeout(
+        `${OLLAMA_URL}/api/generate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            prompt: "",
+            stream: false,
+            keep_alive: 0
+          })
+        },
+        10000
+      );
+      await response.json().catch(() => ({}));
+      if (response.ok) {
+        unloaded += 1;
+        console.log(`[OLLAMA UNLOAD] modelo descarregado no fechamento model=${model} reason=${reason}`);
+      } else {
+        console.warn(`[OLLAMA UNLOAD] falha HTTP ${response.status} ao descarregar model=${model} reason=${reason}`);
+      }
+    }
+
+    return { ok: true, unloaded };
+  } catch (err) {
+    console.warn(`[OLLAMA UNLOAD] fallback direto falhou reason=${reason} error=${err.message}`);
+    return { ok: false, error: err.message };
+  }
+}
+
+async function unloadBackendLLM(reason = "manual_selection") {
+  try {
+    const response = await fetchWithTimeout(`${BACKEND_URL}/llm/unload`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" }
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason })
+    }, 12000);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.success === false) {
+      throw new Error(data?.error || `HTTP ${response.status}`);
+    }
+    console.log(`[OLLAMA UNLOAD] backend confirmou unload reason=${reason}`);
+    return { ok: true, data };
+  } catch (err) {
+    console.warn(`[OLLAMA UNLOAD] backend indisponivel, tentando direto reason=${reason} error=${err.message}`);
+    return unloadOllamaDirect(reason);
+  }
+}
+
+async function setBackendLLMMode(mode = "fast", reason = "manual_selection") {
+  try {
+    await fetch("http://localhost:3001/llm/mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode, reason })
     });
   } catch {}
+}
+
+function ensureSmartLLMForStudio() {
+  void (async () => {
+    await notifyBackendActivity("studio-required");
+    await processManager.startForIntent("llm-request", { timeoutMs: 180000 });
+    await setBackendLLMMode("smart", "studio_required");
+    scheduleIdlePowerDown();
+  })();
 }
 
 function scheduleIdlePowerDown() {
@@ -473,6 +566,34 @@ function readCanvasAutosave() {
     ...data,
     inheritedBrandKit: loadInheritedBrandKit(data.project, data.filePath || "")
   };
+}
+
+function cleanupOldI2ITempFiles(maxAgeMs = 24 * 60 * 60 * 1000) {
+  try {
+    fs.mkdirSync(CANVAS_I2I_TEMP_DIR, { recursive: true });
+    const now = Date.now();
+    for (const entry of fs.readdirSync(CANVAS_I2I_TEMP_DIR, { withFileTypes: true })) {
+      if (!entry.isFile() || !/\.(png|jpe?g|webp)$/i.test(entry.name)) {
+        continue;
+      }
+      const filePath = path.join(CANVAS_I2I_TEMP_DIR, entry.name);
+      const stat = fs.statSync(filePath);
+      if (now - stat.mtimeMs > maxAgeMs) {
+        fs.rmSync(filePath, { force: true });
+      }
+    }
+  } catch (err) {
+    console.warn("[Canvas I2I] Falha ao limpar temporarios antigos:", err.message);
+  }
+}
+
+function makeSafeTempName(value = "layer") {
+  return String(value || "layer")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9_-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "layer";
 }
 
 function isInternalAppUrl(url = "") {
@@ -872,6 +993,8 @@ function createPresetManager() {
 }
 
 function createCanvas() {
+  void setBackendLLMMode("off", "canvas_default");
+
   if (canvasWindow && !canvasWindow.isDestroyed()) {
     canvasWindow.show();
     canvasWindow.focus();
@@ -900,6 +1023,8 @@ function createCanvas() {
 }
 
 function createStudio(initialState = null) {
+  ensureSmartLLMForStudio();
+
   if (initialState && typeof initialState === "object") {
     pendingStudioInitialState = initialState;
   }
@@ -1361,6 +1486,7 @@ async function shutdownAllAndQuit() {
       await new Promise((resolve) => canvasBridgeServer.close(resolve));
       canvasBridgeServer = null;
     }
+    await unloadBackendLLM("app_close");
     await processManager.shutdownAll();
   } finally {
     globalShortcut.unregisterAll();
@@ -1648,6 +1774,12 @@ ipcMain.handle("open-file-dialog", async (event, options = {}) => {
     ],
     video: [
       { name: "Video", extensions: ["mp4", "webm", "mov", "mkv", "avi"] }
+    ],
+    media: [
+      { name: "Midia", extensions: ["png", "jpg", "jpeg", "webp", "mp4", "webm", "mov", "mp3", "wav", "ogg", "m4a"] },
+      { name: "Imagens", extensions: ["png", "jpg", "jpeg", "webp"] },
+      { name: "Videos", extensions: ["mp4", "webm", "mov"] },
+      { name: "Audio", extensions: ["mp3", "wav", "ogg", "m4a"] }
     ]
   };
 
@@ -1668,6 +1800,32 @@ ipcMain.handle("open-file-dialog", async (event, options = {}) => {
     : null;
   event.sender.send("file-selected", payload);
   return payload;
+});
+
+ipcMain.handle("shell:open-path", async (event, targetPath = "") => {
+  const normalizedPath = String(targetPath || "").trim();
+  if (!normalizedPath) {
+    return { success: false, error: "Caminho vazio." };
+  }
+  const error = await shell.openPath(normalizedPath);
+  return {
+    success: !error,
+    error
+  };
+});
+
+ipcMain.handle("canvas:client-folder:select", async (event) => {
+  const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+    title: "Selecionar pasta do cliente",
+    properties: ["openDirectory", "createDirectory"]
+  });
+  if (result.canceled || !result.filePaths[0]) {
+    return null;
+  }
+  return {
+    path: result.filePaths[0],
+    name: path.basename(result.filePaths[0])
+  };
 });
 
 ipcMain.handle("canvas:brand-kit:new", async () => {
@@ -1890,6 +2048,235 @@ ipcMain.handle("canvas:image:save", async (event, payload = {}) => {
   };
 });
 
+ipcMain.handle("canvas:i2i:save-temp-png", async (event, payload = {}) => {
+  const dataUrl = String(payload.dataUrl || "");
+  const match = dataUrl.match(/^data:image\/png;base64,(.+)$/);
+  if (!match?.[1]) {
+    throw new Error("PNG temporario de I2I invalido.");
+  }
+
+  cleanupOldI2ITempFiles();
+  fs.mkdirSync(CANVAS_I2I_TEMP_DIR, { recursive: true });
+  const layerName = makeSafeTempName(payload.layerId || payload.name || "layer");
+  const filePath = path.join(
+    CANVAS_I2I_TEMP_DIR,
+    `${layerName}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`
+  );
+  fs.writeFileSync(filePath, Buffer.from(match[1], "base64"));
+  console.info("[Canvas I2I] PNG temporario salvo", {
+    layer: payload.layerId || payload.name || "",
+    filePath,
+    width: payload.width || null,
+    height: payload.height || null
+  });
+  return {
+    filePath,
+    width: payload.width || null,
+    height: payload.height || null
+  };
+});
+
+function runFfmpeg(args = []) {
+  return new Promise((resolve, reject) => {
+    const ffmpeg = spawn("ffmpeg", args, { windowsHide: true });
+    let stderr = "";
+    ffmpeg.stderr.on("data", (chunk) => {
+      stderr += String(chunk || "");
+    });
+    ffmpeg.on("error", reject);
+    ffmpeg.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(stderr.trim() || `ffmpeg retornou codigo ${code}.`));
+    });
+  });
+}
+
+function resolveCanvasAudioSourcePath(source = "") {
+  const raw = String(source || "").trim();
+  if (!raw) {
+    return "";
+  }
+  if (/^file:\/\//i.test(raw)) {
+    try {
+      return decodeURIComponent(new URL(raw).pathname).replace(/^\/([A-Za-z]:\/)/, "$1");
+    } catch {
+      return "";
+    }
+  }
+  if (path.isAbsolute(raw) && fs.existsSync(raw)) {
+    return raw;
+  }
+  const candidates = [
+    path.resolve(ROOT_DIR, raw),
+    path.resolve(__dirname, raw)
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) || "";
+}
+
+function clampNumber(value, min, max, fallback = min) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.min(max, Math.max(min, numeric)) : fallback;
+}
+
+function volumeAtKeyframeTime(keyframes = [], time = 0) {
+  const frames = keyframes
+    .map((keyframe) => ({
+      time: Math.max(0, Number(keyframe.time || 0)),
+      volume: clampNumber(keyframe.volume, 0, 2, 1),
+      easing: String(keyframe.easing || "linear")
+    }))
+    .sort((a, b) => a.time - b.time);
+  if (!frames.length) {
+    return 1;
+  }
+  if (time <= frames[0].time) {
+    return frames[0].volume;
+  }
+  for (let index = 0; index < frames.length - 1; index += 1) {
+    const current = frames[index];
+    const next = frames[index + 1];
+    if (time <= next.time) {
+      if (current.easing === "hold" || next.time <= current.time) {
+        return current.volume;
+      }
+      const t = (time - current.time) / (next.time - current.time);
+      const eased = current.easing === "easeIn"
+        ? t * t
+        : current.easing === "easeOut"
+          ? 1 - (1 - t) * (1 - t)
+          : current.easing === "easeInOut"
+            ? (t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2)
+            : t;
+      return current.volume + (next.volume - current.volume) * eased;
+    }
+  }
+  return frames[frames.length - 1].volume;
+}
+
+function escapeFfmpegExpression(expression = "") {
+  return String(expression).replace(/\\/g, "\\\\").replace(/,/g, "\\,");
+}
+
+function buildVolumeInterpolationExpression(points = []) {
+  const safePoints = points
+    .filter((point) => Number.isFinite(point.time) && Number.isFinite(point.volume))
+    .sort((a, b) => a.time - b.time);
+  if (!safePoints.length) {
+    return "1";
+  }
+  if (safePoints.length === 1) {
+    return String(clampNumber(safePoints[0].volume, 0, 2, 1));
+  }
+
+  const fmt = (value) => Number(value).toFixed(6).replace(/\.?0+$/, "") || "0";
+  let expression = fmt(safePoints[safePoints.length - 1].volume);
+  for (let index = safePoints.length - 2; index >= 0; index -= 1) {
+    const a = safePoints[index];
+    const b = safePoints[index + 1];
+    const duration = Math.max(0.0001, b.time - a.time);
+    const progress = `((t-${fmt(a.time)})/${fmt(duration)})`;
+    const eased = a.easing === "hold"
+      ? "0"
+      : a.easing === "easeIn"
+        ? `pow(${progress},2)`
+        : a.easing === "easeOut"
+          ? `(1-pow(1-${progress},2))`
+          : a.easing === "easeInOut"
+            ? `if(lt(${progress},0.5),2*pow(${progress},2),1-pow(-2*${progress}+2,2)/2)`
+            : progress;
+    const interpolated = a.easing === "hold"
+      ? fmt(a.volume)
+      : `${fmt(a.volume)}+(${fmt(b.volume)}-${fmt(a.volume)})*${eased}`;
+    expression = `if(lte(t,${fmt(b.time)}),${interpolated},${expression})`;
+  }
+  return expression;
+}
+
+function normalizeAudioAutomationEntries(payload = {}, videoDuration = 0) {
+  const timelineStart = Number(payload.timelineStart || 0);
+  return (Array.isArray(payload.audioAutomation) ? payload.audioAutomation : [])
+    .map((entry) => {
+      const sourcePath = resolveCanvasAudioSourcePath(entry.source);
+      if (!sourcePath) {
+        return null;
+      }
+      const itemStartTime = Number(entry.itemStartTime ?? entry.startTime ?? 0);
+      const startTime = Math.max(timelineStart, Number(entry.startTime || 0));
+      const endTime = Math.min(timelineStart + videoDuration, Number(entry.endTime || startTime));
+      const outputStart = Math.max(0, startTime - timelineStart);
+      const duration = Math.max(0, endTime - startTime);
+      const segmentLocalStart = Math.max(0, startTime - itemStartTime);
+      const sourceStart = Math.max(0, Number(entry.sourceStartTime || 0) + segmentLocalStart);
+      const defaultVolume = entry.muted ? 0 : clampNumber(entry.volume, 0, 2, 1);
+      const keyframes = entry.muted ? [] : (Array.isArray(entry.keyframes) ? entry.keyframes : [])
+        .map((keyframe) => ({
+          time: Number(keyframe.time || 0),
+          volume: clampNumber(keyframe.volume, 0, 2, 1),
+          easing: String(keyframe.easing || "linear")
+        }))
+        .filter((keyframe) => Number.isFinite(keyframe.time));
+      if (duration <= 0) {
+        return null;
+      }
+      const points = [
+        {
+          time: 0,
+          volume: keyframes.length ? volumeAtKeyframeTime(keyframes, segmentLocalStart) : defaultVolume,
+          easing: "linear"
+        },
+        ...keyframes
+          .filter((keyframe) => keyframe.time > segmentLocalStart && keyframe.time < segmentLocalStart + duration)
+          .map((keyframe) => ({
+            ...keyframe,
+            time: keyframe.time - segmentLocalStart
+          })),
+        {
+          time: duration,
+          volume: keyframes.length ? volumeAtKeyframeTime(keyframes, segmentLocalStart + duration) : defaultVolume,
+          easing: "linear"
+        }
+      ];
+      return { sourcePath, outputStart, duration, sourceStart, points };
+    })
+    .filter(Boolean);
+}
+
+async function createCanvasMixedAudioFile(payload = {}, tempDir = "", videoDuration = 0) {
+  const entries = normalizeAudioAutomationEntries(payload, videoDuration);
+  if (!entries.length) {
+    return "";
+  }
+
+  const audioPath = path.join(tempDir, "mixed-audio.m4a");
+  const args = ["-y"];
+  entries.forEach((entry) => {
+    args.push("-i", entry.sourcePath);
+  });
+
+  const filters = entries.map((entry, index) => {
+    const delayMs = Math.max(0, Math.round(entry.outputStart * 1000));
+    const volumeExpression = escapeFfmpegExpression(buildVolumeInterpolationExpression(entry.points));
+    return `[${index}:a]atrim=start=${entry.sourceStart.toFixed(6)}:duration=${entry.duration.toFixed(6)},asetpts=PTS-STARTPTS,volume=${volumeExpression}:eval=frame,adelay=${delayMs}:all=1[a${index}]`;
+  });
+  const inputs = entries.map((_, index) => `[a${index}]`).join("");
+  filters.push(`${inputs}amix=inputs=${entries.length}:duration=longest:dropout_transition=0,atrim=0:${videoDuration.toFixed(6)},asetpts=PTS-STARTPTS[mix]`);
+
+  args.push(
+    "-filter_complex", filters.join(";"),
+    "-map", "[mix]",
+    "-c:a", "aac",
+    "-ar", "48000",
+    "-ac", "2",
+    audioPath
+  );
+
+  await runFfmpeg(args);
+  return audioPath;
+}
+
 ipcMain.handle("canvas:video:save-mp4", async (event, payload = {}) => {
   const parentWindow = BrowserWindow.fromWebContents(event.sender);
   const frames = Array.isArray(payload.frames) ? payload.frames.filter((item) => typeof item === "string" && item.startsWith("data:image/png;base64,")) : [];
@@ -1929,36 +2316,40 @@ ipcMain.handle("canvas:video:save-mp4", async (event, payload = {}) => {
       fs.writeFileSync(framePath, Buffer.from(match[1], "base64"));
     });
 
-    await new Promise((resolve, reject) => {
-      const ffmpeg = spawn("ffmpeg", [
-        "-y",
-        "-framerate", String(fps),
-        "-i", path.join(tempDir, "frame-%05d.png"),
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
-        "-r", String(fps),
-        targetPath
-      ], {
-        windowsHide: true
-      });
+    const videoDuration = frames.length / fps;
+    const videoOnlyPath = path.join(tempDir, "video-only.mp4");
+    await runFfmpeg([
+      "-y",
+      "-framerate", String(fps),
+      "-i", path.join(tempDir, "frame-%05d.png"),
+      "-c:v", "libx264",
+      "-pix_fmt", "yuv420p",
+      "-movflags", "+faststart",
+      "-r", String(fps),
+      videoOnlyPath
+    ]);
 
-      let stderr = "";
-      ffmpeg.stderr.on("data", (chunk) => {
-        stderr += String(chunk || "");
-      });
-      ffmpeg.on("error", reject);
-      ffmpeg.on("close", (code) => {
-        if (code === 0) {
-          resolve();
-          return;
-        }
-        reject(new Error(stderr.trim() || `ffmpeg retornou codigo ${code}.`));
-      });
-    });
+    const mixedAudioPath = await createCanvasMixedAudioFile(payload, tempDir, videoDuration);
+    if (mixedAudioPath) {
+      await runFfmpeg([
+        "-y",
+        "-i", videoOnlyPath,
+        "-i", mixedAudioPath,
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-shortest",
+        "-movflags", "+faststart",
+        targetPath
+      ]);
+    } else {
+      fs.copyFileSync(videoOnlyPath, targetPath);
+    }
 
     return {
-      filePath: targetPath
+      filePath: targetPath,
+      audioMuxed: Boolean(mixedAudioPath)
     };
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -2054,6 +2445,61 @@ ipcMain.handle("monitor:get-state", async () => {
   return processManager.getSnapshot();
 });
 
+ipcMain.handle("xtts:voices:list", async () => {
+  const voicesDir = path.join(ROOT_DIR, "voz", "catalogo_vozes");
+  const catalogPath = path.join(ROOT_DIR, "backend", "config", "vozesxtts.json");
+  if (!fs.existsSync(voicesDir) && !fs.existsSync(catalogPath)) {
+    return { voices: [] };
+  }
+  const sampleFiles = fs.existsSync(voicesDir)
+    ? fs.readdirSync(voicesDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && /\.(wav|mp3|ogg|m4a)$/i.test(entry.name))
+      .map((entry) => ({
+        name: path.basename(entry.name, path.extname(entry.name)),
+        samplePath: path.join(voicesDir, entry.name)
+      }))
+    : [];
+  const normalizeVoiceKey = (value = "") => String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  const sampleByName = new Map(sampleFiles.map((item) => [normalizeVoiceKey(item.name), item.samplePath]));
+  let internalVoices = [];
+  if (fs.existsSync(catalogPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+      internalVoices = Array.isArray(parsed) ? parsed : [];
+    } catch (err) {
+      console.warn(`[XTTS] Falha ao ler catalogo interno de vozes: ${err.message}`);
+    }
+  }
+  const voices = (internalVoices.length ? internalVoices : sampleFiles.map((item) => ({ voice: item.name })))
+    .map((entry) => {
+      const name = String(entry.voice || entry.name || "").trim();
+      return {
+        id: name,
+        name,
+        label: name,
+        genre: entry.genre || "",
+        function: entry.function || "",
+        samplePath: sampleByName.get(normalizeVoiceKey(name)) || ""
+      };
+    })
+    .filter((entry, index, list) => entry.name && list.findIndex((item) => item.name === entry.name) === index);
+  return { voices };
+});
+
+ipcMain.handle("xtts:subtitle:save", async (event, payload = {}) => {
+  const outputDir = path.join(ROOT_DIR, "output");
+  fs.mkdirSync(outputDir, { recursive: true });
+  const file = path.join(outputDir, `legenda_${Date.now().toString(36)}.srt`);
+  fs.writeFileSync(file, String(payload.text || ""), "utf8");
+  return { file };
+});
+
 ipcMain.handle("service:control", async (event, service, action) => {
   if (action === "start") {
     return processManager.ensureStarted(service, { trigger: "manual" });
@@ -2140,7 +2586,6 @@ app.whenReady().then(async () => {
   startCanvasBridgeServer();
   createTray();
   createWidget();
-  createChat();
   logStartup("app:created-initial-windows");
   createWakeListeningWindow();
   registerShortcuts();

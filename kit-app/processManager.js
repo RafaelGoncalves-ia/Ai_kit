@@ -15,9 +15,10 @@ const {
 
 const LOG_LIMIT = 400;
 const HEALTH_CHECK_INTERVAL_MS = 3000;
-const HEALTH_CHECK_TIMEOUT_MS = 1500;
-const DEFAULT_XTTS_IDLE_STOP_MS = Math.max(60000, Number(process.env.KIT_IDLE_XTTS_TIMEOUT_MS || 10 * 60 * 1000));
-const DEFAULT_STT_IDLE_STOP_MS = Math.max(30000, Number(process.env.KIT_IDLE_STT_TIMEOUT_MS || 5 * 60 * 1000));
+const HEALTH_CHECK_TIMEOUT_MS = 5000;
+const DEFAULT_VOICE_IDLE_STOP_MS = 30 * 60 * 1000;
+const DEFAULT_XTTS_IDLE_STOP_MS = Math.max(0, Number(process.env.KIT_IDLE_XTTS_TIMEOUT_MS || 0));
+const DEFAULT_STT_IDLE_STOP_MS = Math.max(60000, Number(process.env.KIT_IDLE_STT_TIMEOUT_MS || DEFAULT_VOICE_IDLE_STOP_MS));
 
 const SERVICE_POLICIES = {
   backend: {
@@ -32,7 +33,7 @@ const SERVICE_POLICIES = {
     enabled: true,
     autoStart: false,
     lazyStart: true,
-    startTriggers: ["chat_open", "widget_open", "llm_request"],
+    startTriggers: ["chat_open", "llm_request"],
     idleStopMs: Number(process.env.KIT_IDLE_OLLAMA_TIMEOUT_MS || 0),
     warmupOnFirstUse: true
   },
@@ -40,7 +41,7 @@ const SERVICE_POLICIES = {
     enabled: true,
     autoStart: false,
     lazyStart: true,
-    startTriggers: ["chat_open", "widget_open", "tts_request"],
+    startTriggers: ["tts_request"],
     idleStopMs: DEFAULT_XTTS_IDLE_STOP_MS,
     warmupOnFirstUse: false
   },
@@ -48,7 +49,7 @@ const SERVICE_POLICIES = {
     enabled: true,
     autoStart: false,
     lazyStart: true,
-    startTriggers: ["widget_open", "mic_request", "stt_request"],
+    startTriggers: ["mic_request", "stt_request"],
     idleStopMs: DEFAULT_STT_IDLE_STOP_MS,
     warmupOnFirstUse: false
   },
@@ -58,6 +59,14 @@ const SERVICE_POLICIES = {
     lazyStart: true,
     startTriggers: ["sd_request"],
     idleStopMs: Number(process.env.KIT_IDLE_SD_TIMEOUT_MS || 0),
+    warmupOnFirstUse: false
+  },
+  comfyui: {
+    enabled: true,
+    autoStart: false,
+    lazyStart: true,
+    startTriggers: ["video_request", "comfyui_request"],
+    idleStopMs: Number(process.env.COMFYUI_IDLE_STOP_MS || 900000),
     warmupOnFirstUse: false
   }
 };
@@ -99,7 +108,10 @@ function shouldIgnoreLogLine(line) {
   const text = String(line || "").trim();
   if (!text) return true;
 
-  return /"GET \/health HTTP\/1\.[01]" 200 -$/i.test(text);
+  return (
+    /"GET \/health HTTP\/1\.[01]" 200 -$/i.test(text) ||
+    /^\[GIN\]\s+\d{4}\/\d{2}\/\d{2}\s+-\s+\d{2}:\d{2}:\d{2}\s+\|\s+200\s+\|.*\|\s+GET\s+"\/api\/tags"\s*$/i.test(text)
+  );
 }
 
 function withTimeout(url) {
@@ -133,6 +145,10 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
   const sdPort = String(process.env.SD_PORT || "5010");
   const sdConfig = loadStableDiffusionConfig();
   const sdEnv = buildStableDiffusionWorkerEnv(sdConfig);
+  const comfyConfigPath = path.join(rootDir, "backend", "config", "comfyui.json");
+  const comfyConfig = fs.existsSync(comfyConfigPath)
+    ? JSON.parse(fs.readFileSync(comfyConfigPath, "utf8"))
+    : {};
   const nodeCommand = process.env.KIT_NODE_COMMAND || "node";
   const ollamaUrl = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
   const ollamaCommand = process.env.KIT_OLLAMA_COMMAND || process.env.OLLAMA_COMMAND || "ollama";
@@ -228,6 +244,32 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
         PYTHONIOENCODING: "utf-8"
       },
       healthUrl: `http://127.0.0.1:${sdPort}/health`,
+      child: null,
+      pid: null,
+      status: "stopped",
+      health: "offline",
+      logs: [],
+      lastStartedAt: null,
+      lastExitedAt: null,
+      lastExitCode: null
+    },
+    comfyui: {
+      key: "comfyui",
+      name: "ComfyUI",
+      command: process.env.COMFYUI_PYTHON || comfyConfig.pythonExe || "C:\\GitHub\\ComfyUI\\venv\\Scripts\\python.exe",
+      args: [
+        process.env.COMFYUI_MAIN_SCRIPT || comfyConfig.mainScript || "C:\\GitHub\\ComfyUI\\main.py",
+        "--listen",
+        "127.0.0.1",
+        "--port",
+        "8188"
+      ],
+      cwd: process.env.COMFYUI_ROOT || comfyConfig.root || "C:\\GitHub\\ComfyUI",
+      env: {
+        PYTHONUNBUFFERED: "1",
+        PYTHONIOENCODING: "utf-8"
+      },
+      healthUrl: `${String(process.env.COMFYUI_URL || comfyConfig.url || "http://127.0.0.1:8188").replace(/\/+$/, "")}/system_stats`,
       child: null,
       pid: null,
       status: "stopped",
@@ -388,10 +430,6 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
 
   async function warmupOllama() {
     const service = getService("ollama");
-    if (service.warmed) {
-      return snapshotService(service);
-    }
-
     pushLog("ollama", "system", "[host] aquecendo LLM sob demanda");
     try {
       const response = await fetch("http://127.0.0.1:3001/llm/warmup", {
@@ -425,6 +463,55 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
     try {
       process.kill(pid, "SIGTERM");
     } catch {}
+  }
+
+  async function stopProcessesByPort(port) {
+    const numericPort = Number(port || 0);
+    if (!numericPort || process.platform !== "win32") {
+      return;
+    }
+
+    const psCommand = [
+      "$ErrorActionPreference = 'SilentlyContinue';",
+      `$ownerPids = Get-NetTCPConnection -LocalPort ${numericPort} -State Listen | Select-Object -ExpandProperty OwningProcess -Unique;`,
+      "foreach ($ownerPid in $ownerPids) {",
+      "  if ($ownerPid -and $ownerPid -ne $PID) {",
+      "    Stop-Process -Id $ownerPid -Force;",
+      "  }",
+      "}"
+    ].join(" ");
+
+    await new Promise((resolve) => {
+      const killer = spawn("powershell.exe", [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        psCommand
+      ], {
+        windowsHide: true
+      });
+
+      killer.on("error", resolve);
+      killer.on("exit", resolve);
+    });
+  }
+
+  function getServicePort(key) {
+    const serviceKey = normalizeServiceName(key);
+    if (serviceKey === "ollama") {
+      try {
+        return Number(new URL(ollamaUrl).port || 11434);
+      } catch {
+        return 11434;
+      }
+    }
+    if (serviceKey === "xtts") return Number(xttsPort);
+    if (serviceKey === "stt") return Number(sttPort);
+    if (serviceKey === "sd") return Number(sdPort);
+    if (serviceKey === "comfyui") return 8188;
+    if (serviceKey === "backend") return 3001;
+    return 0;
   }
 
   async function checkHealth(key) {
@@ -510,7 +597,7 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
     const service = getService(key);
 
     if (isBlockedByWanLock(key)) {
-      pushLog(key, "system", "[WAN][EXCLUSIVE] inicio bloqueado: wan_generation lock ativo");
+      pushLog(key, "system", "[COMFYUI][EXCLUSIVE] inicio bloqueado: wan_generation lock ativo");
       service.status = "stopped";
       service.health = "offline";
       emitStatus(key);
@@ -523,6 +610,12 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
       emitStatus(key);
       await checkHealth(key);
       return snapshotService(service);
+    }
+
+    if (key === "sd" || key === "comfyui") {
+      pushLog(key, "system", `[host] liberando voz antes de iniciar ${service.name}`);
+      await stopService("xtts");
+      await stopService("stt");
     }
 
     if (service.child) {
@@ -618,6 +711,11 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
     }
 
     if (!service.child || !service.pid) {
+      const port = getServicePort(key);
+      if (port && (service.status !== "stopped" || service.health !== "offline")) {
+        pushLog(key, "system", `[host] encerrando processo externo em porta ${port}`);
+        await stopProcessesByPort(port);
+      }
       if (service.status !== "stopped") {
         service.status = "stopped";
         service.health = "offline";
@@ -655,7 +753,7 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
     const serviceKey = normalizeServiceName(key);
     if (isBlockedByWanLock(serviceKey)) {
       const service = getService(serviceKey);
-      pushLog(serviceKey, "system", "[WAN][EXCLUSIVE] ensureStarted bloqueado: Wan em GPU exclusive mode");
+      pushLog(serviceKey, "system", "[COMFYUI][EXCLUSIVE] ensureStarted bloqueado: ComfyUI em GPU exclusive mode");
       service.status = "stopped";
       service.health = "offline";
       emitStatus(serviceKey);
@@ -756,7 +854,9 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
       "stt-request": "stt_request",
       "tts-request": "tts_request",
       "llm-request": "llm_request",
-      "sd-request": "sd_request"
+      "sd-request": "sd_request",
+      "video-request": "video_request",
+      "comfyui-request": "comfyui_request"
     };
     const trigger = triggerMap[String(intent || "").trim()] || String(intent || "").trim();
     if (!trigger) {
@@ -769,8 +869,10 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
     stopHealthPolling();
 
     await stopService("sd");
+    await stopService("comfyui");
     await stopService("xtts");
     await stopService("stt");
+    await stopService("ollama");
     await stopService("backend");
   }
 

@@ -185,6 +185,11 @@ function expandBrazilianCurrency(text = "") {
   });
 }
 
+function normalizeSpeechPauses(text = "") {
+  return String(text || "")
+    .replace(/\s*\.+\s*/g, ", ");
+}
+
 export function sanitizeSpeechText(text = "") {
   let sanitized = String(text || "");
   sanitized = stripCodeBlocks(sanitized);
@@ -192,9 +197,9 @@ export function sanitizeSpeechText(text = "") {
   sanitized = stripUrls(sanitized);
   sanitized = stripEmojiArtifacts(sanitized);
   sanitized = expandBrazilianCurrency(sanitized);
-  sanitized = sanitized.replace(/\./g, " ");
+  sanitized = normalizeSpeechPauses(sanitized);
   sanitized = normalizeWhitespace(sanitized);
-  return sanitized.trim();
+  return sanitized.trim().replace(/,\s*$/, "");
 }
 
 export function buildSpeechPayload({

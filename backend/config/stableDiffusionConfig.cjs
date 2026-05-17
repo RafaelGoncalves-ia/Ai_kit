@@ -5,10 +5,12 @@ const ROOT_DIR = path.resolve(__dirname, "..", "..");
 const CONFIG_DIR = __dirname;
 const LOCAL_CONFIG_PATH = path.join(CONFIG_DIR, "stable-diffusion.local.json");
 const EXAMPLE_CONFIG_PATH = path.join(CONFIG_DIR, "stable-diffusion.example.json");
-const KIT_PYTHON_PATH = path.join(ROOT_DIR, "venv", "Scripts", "python.exe");
+const FORGE_ROOT = "F:\\AI\\forge-webui";
+const FORGE_PYTHON_PATH = path.join(FORGE_ROOT, "venv", "Scripts", "python.exe");
 
 const DEFAULT_CONFIG = {
-  pythonPath: KIT_PYTHON_PATH,
+  pythonPath: FORGE_PYTHON_PATH,
+  forgeVenv: path.join(FORGE_ROOT, "venv"),
   modelsRoot: "models",
   checkpointsPath: path.join("models", "stable-diffusion"),
   lorasPath: path.join("models", "lora"),
@@ -66,6 +68,14 @@ function resolveExecutablePath(value, fallback) {
   }
 
   return selected;
+}
+
+function rejectInternalKitVenvForStableDiffusion(value, fallback) {
+  const selected = String(value || "").trim();
+  if (/Ai_kit[\\/]venv[\\/]Scripts[\\/]python\.exe$/i.test(selected)) {
+    return fallback;
+  }
+  return selected || fallback;
 }
 
 function pathStatus(filePath) {
@@ -145,7 +155,14 @@ function normalizeStableDiffusionConfig(rawConfig = {}) {
   };
 
   const config = {
-    pythonPath: resolveExecutablePath(KIT_PYTHON_PATH, DEFAULT_CONFIG.pythonPath),
+    pythonPath: resolveExecutablePath(
+      rejectInternalKitVenvForStableDiffusion(
+        process.env.FORGE_PYTHON || merged.pythonPath || process.env.SD_PYTHON_PATH,
+        DEFAULT_CONFIG.pythonPath
+      ),
+      DEFAULT_CONFIG.pythonPath
+    ),
+    forgeVenv: resolveExecutablePath(process.env.FORGE_VENV || merged.forgeVenv, DEFAULT_CONFIG.forgeVenv),
     modelsRoot: resolveProjectPath(process.env.SD_MODELS_ROOT || merged.modelsRoot, DEFAULT_CONFIG.modelsRoot),
     checkpointsPath: resolveProjectPath(process.env.SD_CHECKPOINTS_PATH || merged.checkpointsPath, DEFAULT_CONFIG.checkpointsPath),
     lorasPath: resolveProjectPath(process.env.SD_LORAS_PATH || merged.lorasPath, DEFAULT_CONFIG.lorasPath),
@@ -233,6 +250,8 @@ function loadStableDiffusionConfig() {
 function buildStableDiffusionWorkerEnv(config = loadStableDiffusionConfig()) {
   return {
     SD_PYTHON_PATH: config.pythonPath,
+    FORGE_PYTHON: config.pythonPath,
+    FORGE_VENV: config.forgeVenv,
     SD_MODELS_ROOT: config.modelsRoot,
     SD_CHECKPOINTS_PATH: config.checkpointsPath,
     SD_LORAS_PATH: config.lorasPath,

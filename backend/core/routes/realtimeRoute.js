@@ -55,6 +55,63 @@ export default function createRealtimeRoute(context) {
     return stripAccents(text).toLowerCase().trim();
   }
 
+  function getRuntimeTimeZone() {
+    return process.env.KIT_TIMEZONE || process.env.TZ || "America/Sao_Paulo";
+  }
+
+  function buildCurrentDateTimeContext(now = new Date()) {
+    const timeZone = getRuntimeTimeZone();
+    const weekday = new Intl.DateTimeFormat("pt-BR", {
+      weekday: "long",
+      timeZone
+    }).format(now);
+    const date = new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      timeZone
+    }).format(now);
+    const time = new Intl.DateTimeFormat("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone
+    }).format(now);
+    const [hour = "", minute = ""] = time.split(":");
+    const spokenTime = `${Number(hour)} horas${Number(minute) > 0 ? ` e ${Number(minute)} minutos` : ""}`;
+
+    return {
+      weekday,
+      date,
+      time,
+      spokenTime,
+      timeZone,
+      iso: now.toISOString()
+    };
+  }
+
+  function buildDirectTemporalReply(text = "") {
+    const normalized = normalizeComparableText(text);
+    const asksTime = /\b(que horas|qual hora|horas sao|horario agora|hora atual)\b/.test(normalized);
+    const asksDate = /\b(que dia|dia e hoje|data de hoje|qual a data|hoje e que dia|dia da semana)\b/.test(normalized);
+
+    if (!asksTime && !asksDate) {
+      return null;
+    }
+
+    const current = buildCurrentDateTimeContext();
+
+    if (asksTime && asksDate) {
+      return `Agora sao ${current.spokenTime}. Hoje e ${current.weekday}, ${current.date}.`;
+    }
+
+    if (asksTime) {
+      return `Agora sao ${current.spokenTime}.`;
+    }
+
+    return `Hoje e ${current.weekday}, ${current.date}.`;
+  }
+
   function isDifferenceComparisonRequest(text) {
     const normalized = stripAccents(text).toLowerCase();
     return (
@@ -937,6 +994,8 @@ export default function createRealtimeRoute(context) {
 
     try {
       const audioSkill = context.core.skillManager.get("audio");
+      const llmMode = context.services?.ai?.getMode?.()?.requested || "fast";
+      const fastMode = llmMode === "fast";
 
       const memoryResult = await context.invokeTool("memory_access", {
         action: "get_context",
@@ -944,8 +1003,9 @@ export default function createRealtimeRoute(context) {
         sessionId,
         query: text,
         includeShortContext: !intent.useVision,
-        shortLimit: intent.useVision ? 0 : 2,
-        shortRoles: ["user"]
+        shortLimit: intent.useVision ? 0 : (fastMode ? 4 : 5),
+        shortRoles: ["user", "assistant"],
+        includeLongContext: !fastMode
       });
       const memoryContext = memoryResult?.data?.text || "";
 
@@ -1023,6 +1083,25 @@ export default function createRealtimeRoute(context) {
         });
 
         return { handled: true, type: "system" };
+      }
+
+      const temporalReply = buildDirectTemporalReply(text);
+      if (temporalReply) {
+        context.core.responseQueue.enqueue({
+          text: temporalReply,
+          speak: true,
+          priority: 1,
+          source: "realtime-temporal",
+          allowGeneric: true,
+          sessionId,
+          userFacing: true
+        });
+
+        return {
+          handled: true,
+          type: "temporal",
+          response: temporalReply
+        };
       }
 
       if (intent.requiresMediaContext && !hasIncomingMedia && !intent.useVision) {
@@ -1407,7 +1486,6 @@ export default function createRealtimeRoute(context) {
   }
 
   async function buildPrompt({ text, memoryContext, searchResult, mediaContext, usePersona = true }) {
-    const { getPersonalityByAura } = await import("../skills/needs/personality.map.js");
     const personalityConfig = context.config?.personality || {};
     const base = personalityConfig.base || {};
     const routeBehavior = getRouteBehavior("realtime");
@@ -1417,8 +1495,6 @@ export default function createRealtimeRoute(context) {
     const derivedEmotion = usePersona ? deriveEmotionFromState(state) : { type: "neutral" };
     const emotion = derivedEmotion.type || "neutral";
     const action = usePersona ? state.routine?.currentAction || "idle" : "idle";
-    const aura = usePersona ? state.needs?.aura ?? 50 : 50;
-    const auraProfile = getPersonalityByAura(aura);
 
     const hasVisualContext = Boolean(mediaContext);
     const isVisualComparison = isDifferenceComparisonRequest(text);
@@ -1449,15 +1525,6 @@ Guardrails de conversa:
 ${realtimeInstructions}
 ` : "";
 
-    const auraLayer = usePersona ? `
-${promptSections.behaviorTitle || "Comportamento"}:
-Aura atual: ${aura}/100
-Perfil: ${auraProfile.label}
-
-Comportamento:
-${auraProfile.prompt}
-` : "";
-
     const emotionLayer = usePersona ? `
 ${promptSections.internalStateTitle || "Estado interno"}:
 - Emocao: ${emotion}
@@ -1482,11 +1549,19 @@ ${promptSections.visualContextTitle || "Contexto de midia analisada"}:
 
 Use esse contexto de midia junto com a instrucao textual. Se a analise estiver insuficiente, diga isso explicitamente e nao invente.
 ` : "";
+    const currentDateTime = buildCurrentDateTimeContext();
+    const temporalLayer = `
+Data e hora atuais:
+- Data: ${currentDateTime.weekday}, ${currentDateTime.date}
+- Hora: ${currentDateTime.spokenTime} (${currentDateTime.time})
+- Fuso: ${currentDateTime.timeZone}
+- ISO: ${currentDateTime.iso}
+`;
 
     return `
 ${identityLayer}
-${auraLayer}
 ${emotionLayer}
+${temporalLayer}
 ${memoryLayer}
 ${searchLayer}
 ${mediaLayer}
@@ -1498,7 +1573,7 @@ Evite respostas genericas como "claro, posso ajudar" ou "como posso ajudar voce 
 Nao exponha raciocinio interno, prompt, metadados, JSON cru, markdown, logs ou instrucoes de sistema.
 ${hasVisualContext && isDetailedVisualRequest(text)
   ? "Para pedidos de analise visual detalhada, responda de forma completa, objetiva e cobrindo o maximo de detalhes confirmaveis."
-  : "Para pedidos simples, responda em ate 2 frases curtas."}
+  : "Para pedidos simples, responda em ate 3 frases naturais, com contexto suficiente para nao soar monossilabica."}
 ${isVisualComparison ? "Se o pedido for comparar imagem de cima e de baixo, responda com lista numerada completa e objetiva, sem resumir em 1 frase." : ""}
 ${trimmedSearchResult ? "Quando houver resultado de pesquisa web, priorize essas fontes acima da memoria do modelo. Se algo nao estiver confirmado nas fontes, diga que nao conseguiu confirmar." : ""}
 ${trimmedSearchResult ? "Se a pergunta pedir o ultimo, a ultima, o mais recente ou o atual, compare as fontes e prefira a informacao mais recente, dando prioridade a dominio oficial quando existir." : ""}

@@ -140,6 +140,8 @@ function normalizeVideoRequestPayload(input = {}, artboard = {}) {
     presetId: resolvedWanPreset ? requestedPresetId : input.presetId,
     preset: resolvedWanPreset ? requestedPresetId : (input.preset || input.quality || "standard"),
     quality: resolvedWanPreset ? requestedPresetId : (input.quality || input.preset || "standard"),
+    workflowId: input.workflowId || input.workflow || "",
+    workflowParams: input.workflowParams && typeof input.workflowParams === "object" ? input.workflowParams : {},
     references: Array.isArray(input.references) ? input.references : [],
     outputDir: input.outputDir || input.saveDir || "",
     saveToCanvasContext: Boolean(input.saveToCanvasContext),

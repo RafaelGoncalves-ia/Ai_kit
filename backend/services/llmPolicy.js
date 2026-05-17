@@ -37,6 +37,9 @@ function detectProfile(source = "", context = {}, options = {}, prompt = "") {
 
   if (
     normalizedSource.includes("agent-engine") ||
+    normalizedSource.includes("agent-exec") ||
+    normalizedSource.includes("agent-tool-loop") ||
+    normalizedSource.includes("agent-route") ||
     normalizedSource.startsWith("task") ||
     normalizedSource.includes("task-route")
   ) {
@@ -90,7 +93,7 @@ function createProfiles() {
     assistant: {
       mode: "assistant",
       numCtx: 4096,
-      numPredict: 220,
+      numPredict: 360,
       temperature: 1,
       topP: 0.95,
       topK: 64,
@@ -100,14 +103,14 @@ function createProfiles() {
     },
     agent: {
       mode: "agent",
-      numCtx: 8192,
-      numPredict: 420,
+      numCtx: 12288,
+      numPredict: 1600,
       temperature: 1,
       topP: 0.95,
       topK: 64,
       repeatPenalty: 1.05,
-      keepAlive: "20m",
-      maxPromptRatio: 0.74
+      keepAlive: "30m",
+      maxPromptRatio: 0.68
     },
     vision: {
       mode: "vision",
@@ -223,12 +226,12 @@ export function resolveLLMRequestPolicy({
     numCtx += 512;
   }
 
-  numCtx = clamp(numCtx, 1024, 12288);
+  numCtx = clamp(numCtx, 1024, 24576);
 
   const numPredict = clamp(
     Number(options.num_predict ?? options.numPredict ?? baseProfile.numPredict),
     32,
-    profileId === "agent" ? 700 : profileId === "vision" ? 700 : 320
+    profileId === "agent" ? 4096 : profileId === "vision" ? 1400 : 900
   );
 
   const maxPromptTokens = clamp(
