@@ -351,6 +351,52 @@ export function getRecentMemory(limit = 10) {
   }));
 }
 
+export function getMemoryById(id) {
+  const numericId = Number(id);
+  if (!Number.isFinite(numericId) || numericId <= 0) {
+    return null;
+  }
+
+  const row = db().prepare(`
+    SELECT id, category, key, content, weight, confidence, created_at, updated_at
+    FROM memory
+    WHERE id = ?
+    LIMIT 1
+  `).get(numericId);
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: Number(row.id),
+    type: row.category,
+    key: row.key,
+    content: row.content,
+    source: null,
+    confidence: Number(row.confidence || 0),
+    relevance: Number(row.weight || 0),
+    groupId: null,
+    createdAt: Number(row.created_at || 0),
+    updatedAt: Number(row.updated_at || 0)
+  };
+}
+
+export function listLongTermMemories(limit = 50) {
+  return getLongTermRepository().listRecentMemories(limit).map((row) => ({
+    id: row.id,
+    type: row.category,
+    key: row.key,
+    content: row.content,
+    source: null,
+    confidence: row.confidence,
+    relevance: row.weight,
+    groupId: null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  }));
+}
+
 export function getMemoryByType(type, limit = 10, options = {}) {
   const category = normalizeText(type).toUpperCase();
   const repository = getLongTermRepository();
@@ -385,6 +431,16 @@ export function getRelevantMemory({ groupId = null, query = "", limit = 8 } = {}
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   }));
+}
+
+export function deleteMemoryById(id) {
+  const memory = getMemoryById(id);
+  if (!memory) {
+    return null;
+  }
+
+  db().prepare(`DELETE FROM memory WHERE id = ?`).run(Number(memory.id));
+  return memory;
 }
 
 export function getVocabulary(limit = 10, options = {}) {

@@ -11,6 +11,7 @@ import studioProjectStore from "../skills/studio/studioProjectStore.js";
 import { createStableDiffusionClient } from "../services/sdClient.js";
 import stableDiffusionConfigModule from "../config/stableDiffusionConfig.cjs";
 import workspaceLayout from "../services/workspaceLayout.cjs";
+import { handleStudioChat } from "../services/studio/studioChatService.js";
 
 const { createStudioProjectFromCommand, detectStudioIntent } = studioLaunchService;
 const { buildStudioBriefingFromCommand } = studioBriefingBuilder;
@@ -410,6 +411,21 @@ function updateSceneGeneratedMedia(project = {}, sceneId = "", generatedMedia = 
 export default function createStudioRoutes(context = {}) {
   const router = express.Router();
   const sdClient = createStableDiffusionClient();
+
+  router.post("/chat", async (req, res) => {
+    try {
+      const result = await handleStudioChat(req.body || {}, context);
+      return res.json({
+        success: true,
+        ...result
+      });
+    } catch (err) {
+      return res.status(err.statusCode || 500).json({
+        success: false,
+        error: err.message || "Falha ao processar chat do Studio."
+      });
+    }
+  });
 
   router.post("/launch", async (req, res) => {
     try {

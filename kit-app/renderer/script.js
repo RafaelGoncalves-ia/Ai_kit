@@ -13,9 +13,9 @@ const fileInput = document.getElementById("fileInput");
 const configBtn = document.getElementById("configBtn");
 const appMenuBtn = document.getElementById("appMenuBtn");
 const appMenu = document.getElementById("appMenu");
-const presetManagerBtn = document.getElementById("presetManagerBtn");
 const studioBtn = document.getElementById("studioBtn");
 const canvasBtn = document.getElementById("canvasBtn");
+const productionPlannerBtn = document.getElementById("productionPlannerBtn");
 const thinkingBtn = document.getElementById("thinkingBtn");
 const internetBtn = document.getElementById("internetBtn");
 const llmModeSelector = document.getElementById("llmModeSelector");
@@ -1354,17 +1354,6 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-if (presetManagerBtn) {
-  presetManagerBtn.addEventListener("click", () => {
-    if (window.kitAPI?.openPresetManager) {
-      window.kitAPI.openPresetManager();
-      return;
-    }
-
-    window.open("./windows/preset-manager/preset-manager.html", "_blank");
-  });
-}
-
 if (canvasBtn) {
   canvasBtn.addEventListener("click", () => {
     if (window.kitAPI?.openCanvas) {
@@ -1384,6 +1373,17 @@ if (studioBtn) {
     }
 
     window.open("./studio/studio.html", "_blank");
+  });
+}
+
+if (productionPlannerBtn) {
+  productionPlannerBtn.addEventListener("click", () => {
+    if (window.kitAPI?.openProductionPlanner) {
+      window.kitAPI.openProductionPlanner();
+      return;
+    }
+
+    window.open("./production/production.html", "_blank");
   });
 }
 

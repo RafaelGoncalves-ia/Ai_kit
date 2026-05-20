@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Production Planner</title>
+  <link rel="stylesheet" href="./production.css">
+</head>
+<body>
+  <div class="planner-shell">
+    <header class="planner-topbar">
+      <div class="planner-title">
+        <span class="planner-mark" aria-hidden="true">PK</span>
+        <div>
+          <h1>Production Planner</h1>
+          <p>Planner Kanban</p>
+        </div>
+      </div>
+      <div class="planner-actions">
+        <button id="refreshBtn" class="icon-button" type="button" title="Atualizar">R</button>
+        <button id="newDemandBtn" class="primary-button" type="button">Nova demanda</button>
+      </div>
+    </header>
+
+    <section class="filter-bar" aria-label="Filtros do planner">
+      <label>
+        <span>Cliente</span>
+        <select id="clientFilter"></select>
+      </label>
+      <label>
+        <span>Tipo</span>
+        <select id="typeFilter"></select>
+      </label>
+      <label>
+        <span>Status</span>
+        <select id="statusFilter"></select>
+      </label>
+      <label>
+        <span>Responsavel</span>
+        <input id="responsibleFilter" type="text" placeholder="Todos">
+      </label>
+      <label>
+        <span>Plataforma</span>
+        <input id="platformFilter" type="text" placeholder="Todas">
+      </label>
+      <label>
+        <span>Mes</span>
+        <input id="monthFilter" type="month">
+      </label>
+      <label class="search-field">
+        <span>Busca</span>
+        <input id="searchFilter" type="search" placeholder="Titulo, cliente, descricao">
+      </label>
+    </section>
+
+    <main class="planner-main">
+      <section class="calendar-panel" aria-label="Calendario de demandas">
+        <div class="section-head">
+          <div>
+            <h2 id="monthLabel">--/----</h2>
+            <p>Calendario operacional por cliente</p>
+          </div>
+          <div class="week-nav">
+            <button id="prevWeekBtn" class="icon-button" type="button" title="Semana anterior">&lt;</button>
+            <div id="weekDays" class="week-days"></div>
+            <button id="nextWeekBtn" class="icon-button" type="button" title="Proxima semana">&gt;</button>
+          </div>
+        </div>
+        <div id="calendarGrid" class="calendar-grid"></div>
+      </section>
+
+      <section class="kanban-panel" aria-label="Kanban de producao">
+        <div class="section-head compact">
+          <div>
+            <h2>Kanban</h2>
+            <p>Arraste entre etapas para atualizar status</p>
+          </div>
+        </div>
+        <div id="kanbanBoard" class="kanban-board"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="demandDialog" class="demand-dialog">
+    <form id="demandForm" method="dialog">
+      <header>
+        <h2 id="dialogTitle">Nova demanda</h2>
+        <button id="closeDialogBtn" class="icon-button" type="button" title="Fechar">X</button>
+      </header>
+      <input id="demandId" type="hidden">
+      <div class="form-grid">
+        <label class="wide">
+          <span>Titulo</span>
+          <input id="titleInput" type="text" required placeholder="Ex: Reels oferta da semana">
+        </label>
+        <label>
+          <span>Cliente</span>
+          <select id="clientInput"></select>
+        </label>
+        <label>
+          <span>Cliente manual</span>
+          <input id="clientNameInput" type="text" placeholder="Quando nao estiver nos presets">
+        </label>
+        <label>
+          <span>Tipo</span>
+          <select id="typeInput"></select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="statusInput"></select>
+        </label>
+        <label>
+          <span>Data planejada</span>
+          <input id="plannedDateInput" type="date">
+        </label>
+        <label>
+          <span>Publicacao</span>
+          <input id="publishDateInput" type="date">
+        </label>
+        <label>
+          <span>Plataforma</span>
+          <input id="platformInput" type="text" placeholder="Instagram, Meta Ads...">
+        </label>
+        <label>
+          <span>Responsavel</span>
+          <input id="responsibleInput" type="text" placeholder="Pessoa ou equipe">
+        </label>
+        <label>
+          <span>Prioridade</span>
+          <select id="priorityInput">
+            <option value="low">Baixa</option>
+            <option value="normal" selected>Normal</option>
+            <option value="high">Alta</option>
+            <option value="urgent">Urgente</option>
+          </select>
+        </label>
+        <label class="wide">
+          <span>Descricao</span>
+          <textarea id="descriptionInput" rows="3" placeholder="Contexto, objetivo, oferta, observacoes"></textarea>
+        </label>
+        <label class="wide">
+          <span>Referencias</span>
+          <textarea id="referencesInput" rows="2" placeholder="Uma URL ou anotacao por linha"></textarea>
+        </label>
+      </div>
+      <footer>
+        <button id="deleteDemandBtn" class="danger-button" type="button">Excluir</button>
+        <div class="dialog-actions">
+          <button id="cancelDialogBtn" class="ghost-button" type="button">Cancelar</button>
+          <button class="primary-button" type="submit">Salvar</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+
+  <script src="./production.js"></script>
+</body>
+</html>

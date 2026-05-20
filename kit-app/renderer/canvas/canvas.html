@@ -369,37 +369,37 @@
             <div class="ai-engine-label">Motor: Forge / Stable Diffusion</div>
             <div id="sdStatus" class="sd-status">Status: offline</div>
             <div id="aiImageSection" class="ai-generator-section">
-              <div class="ai-section-title">Opcoes basicas</div>
-            <label>
-              Prompt positivo
-              <textarea id="sdPrompt" rows="3" placeholder="Descreva o que deseja gerar"></textarea>
-            </label>
-            <label>
-              Prompt negativo
-              <textarea id="sdNegativePrompt" rows="3" placeholder="Itens a evitar"></textarea>
-            </label>
               <label>
-                Modelo/checkpoint
+                Tipo
+                <select id="aiImageGenerationType">
+                  <option value="sd15">SD15</option>
+                  <option value="sdxl">SDXL</option>
+                  <option value="zit">ZIT/ZIB</option>
+                  <option value="flux">FLUX</option>
+                  <option value="animatediff">AnimateDiff</option>
+                  <option value="batch-img2img">img2img em lote</option>
+                </select>
+              </label>
+              <label>
+                Modelo
                 <select id="sdCheckpoint"></select>
               </label>
               <div class="ai-preview-card" id="aiImageModelPreviewCard" hidden>
                 <img id="aiImageModelPreview" alt="Preview do modelo de imagem">
               </div>
               <label>
-                Tipo do modelo
-                <select id="sdArchitecture">
-                  <option value="auto">Auto</option>
-                  <option value="sd15">SD 1.5</option>
-                  <option value="sdxl">SDXL</option>
-                </select>
+                Prompt positivo
+                <textarea id="sdPrompt" rows="3" placeholder="Descreva o que deseja gerar"></textarea>
               </label>
-              <label>
-                LoRA
-                <select id="sdLora"></select>
+              <label id="sdNegativePromptRow">
+                Prompt negativo
+                <textarea id="sdNegativePrompt" rows="3" placeholder="Itens a evitar"></textarea>
               </label>
-              <div class="ai-preview-card" id="aiImageLoraPreviewCard" hidden>
-                <img id="aiImageLoraPreview" alt="Preview da LoRA de imagem">
-              </div>
+              <div id="aiImageCompatibilityNote" class="inspector-note"></div>
+              <button id="sdGenerateButton" type="button" class="ai-generate-button" data-ai-image-action="generate">
+                Gerar imagem
+              </button>
+              <div class="ai-section-title">Configuracoes basicas</div>
               <label>
                 Width
                 <input id="sdWidth" type="number" min="64" max="2048" step="8" placeholder="auto">
@@ -443,7 +443,20 @@
                 <div id="sdInpaintMaskContext" class="inspector-note">Quando o modo for inpaint, o SD usara a mascara de inpaint do canvas. Essa mascara e separada da mascara de layer.</div>
               </div>
               <details class="ai-advanced-details">
-                <summary>Opcoes avancadas</summary>
+                <summary>Configuracoes avancadas</summary>
+                <label id="sdLoraRow">
+                  LoRA
+                  <select id="sdLora"></select>
+                </label>
+                <div class="ai-preview-card" id="aiImageLoraPreviewCard" hidden>
+                  <img id="aiImageLoraPreview" alt="Preview da LoRA de imagem">
+                </div>
+                <label>
+                  Output
+                  <select id="aiImageOutput">
+                    <option value="image" selected>Imagem</option>
+                  </select>
+                </label>
                 <label>
                   Sampler
                   <select id="sdSampler">
@@ -506,10 +519,28 @@
                     </select>
                   </label>
                 </div>
+                <div id="aiImageAnimateParamsRow" class="ai-animate-section" hidden>
+                  <div class="ai-section-title">Animate</div>
+                  <label id="sdVaeRow">
+                    VAE
+                    <select id="sdVae"></select>
+                  </label>
+                  <label id="aiImageMotionModuleRow" hidden>
+                    Motion module
+                    <select id="aiImageMotionModule"></select>
+                  </label>
+                  <div class="sd-grid">
+                    <label>
+                      Frames
+                      <input id="aiImageFrames" type="number" min="1" max="240" step="1" value="16">
+                    </label>
+                    <label>
+                      FPS
+                      <input id="aiImageFps" type="number" min="1" max="60" step="1" value="8">
+                    </label>
+                  </div>
+                </div>
               </details>
-              <button id="sdGenerateButton" type="button" class="ai-generate-button" data-ai-image-action="generate">
-                Gerar imagem
-              </button>
             </div>
           </div>
         </section>
@@ -528,6 +559,31 @@
             <div id="aiVideoStatus" class="sd-status">Status: offline</div>
             <div id="aiVideoSection" class="ai-generator-section">
               <div class="ai-section-title">Opcoes basicas</div>
+              <label>
+                Tipo
+                <select id="aiVideoEngineType">
+                  <option value="wan">WAN2.2</option>
+                  <option value="svd">SVD</option>
+                  <option value="hunyuan">Hunyuan</option>
+                </select>
+              </label>
+              <label>
+                Filtro
+                <select id="aiVideoModelFilter">
+                  <option value="all">Todos</option>
+                  <option value="wan">WAN</option>
+                  <option value="svd">SVD</option>
+                  <option value="hunyuan">Hunyuan</option>
+                </select>
+              </label>
+              <label>
+                Modelo de video
+                <select id="aiVideoModel"></select>
+              </label>
+              <div class="ai-preview-card" id="aiVideoModelPreviewCard" hidden>
+                <img id="aiVideoModelPreview" alt="Preview do modelo de video">
+              </div>
+              <div id="aiVideoEngineNote" class="inspector-note"></div>
               <label>
                 Workflow
                 <select id="aiVideoWorkflow"></select>
@@ -562,6 +618,21 @@
               </label>
               <details class="ai-advanced-details">
                 <summary>Opcoes avancadas</summary>
+                <label>
+                  Preset
+                  <select id="aiVideoPreset">
+                    <option value="wan_wide_5s">WAN wide 5s</option>
+                    <option value="wan_tiny_test">WAN tiny test</option>
+                  </select>
+                </label>
+                <div class="inspector-note">
+                  Saida: <span id="aiVideoFinalResolution">-</span> / <span id="aiVideoFinalDuration">-</span> / carga <span id="aiVideoEstimate">-</span>
+                </div>
+                <div id="aiVideoLoraList" class="video-lora-panel"></div>
+                <div id="aiVideoLoraWarning" class="inspector-note" hidden>Multiplas LoRAs podem aumentar uso de VRAM.</div>
+                <div class="ai-preview-card" id="aiVideoLoraPreviewCard" hidden>
+                  <img id="aiVideoLoraPreview" alt="Preview da LoRA de video">
+                </div>
                 <div id="aiVideoWorkflowFields" class="video-lora-panel"></div>
               </details>
               <button id="aiVideoGenerateButton" type="button" class="ai-generate-button" data-ai-video-action="generate">
@@ -750,6 +821,26 @@ Escuro #20232A</textarea>
   </div>
 
   <script src="../../node_modules/fabric/dist/index.min.js"></script>
+  <script src="./selection/selectionMask.js"></script>
+  <script src="./selection/selectionOps.js"></script>
+  <script src="./selection/selectionManager.js"></script>
+  <script src="./selection/floodFillSelection.js"></script>
+  <script src="./selection/maskRefiner.js"></script>
+  <script src="./selection/selectionOverlay.js"></script>
+  <script src="./selection/marchingAntsRenderer.js"></script>
+  <script src="./selection/selectionBrushClipper.js"></script>
+  <script src="./effects/aiSelectionEffectsRenderer.js"></script>
+  <script src="./ai/segmentation/samService.js"></script>
+  <script src="./ai/segmentation/mobileSamService.js"></script>
+  <script src="./ai/segmentation/clipsegService.js"></script>
+  <script src="./ai/inpaint/maskExporter.js"></script>
+  <script src="./ai/inpaint/promptPopup.js"></script>
+  <script src="./tools/magicWandTool.js"></script>
+  <script src="./tools/aiBrushTool.js"></script>
+  <script src="./tools/brushTool.js"></script>
+  <script src="./tools/eraserTool.js"></script>
+  <script src="./tools/fillTool.js"></script>
+  <script src="./tools/inpaintTool.js"></script>
   <script src="./canvas.js"></script>
 </body>
 </html>

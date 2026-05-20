@@ -31,6 +31,8 @@ import { loadWakeListeningConfig } from "./core/audio/WakeListeningConfig.js";
 import kitState, { persistStateNow } from "./core/stateManager.js";
 import createAIService from "./services/ai.js";
 import createTTSService from "./services/tts.js";
+import ModelRegistryService from "./services/modelRegistryService.js";
+import createAnimateDiffService from "./services/animatediffService.js";
 import { loadConfig } from "./core/configLoader.js";
 import { normalizeVisionDetailTokenBudget } from "./core/visionDetail.js";
 import { loadPersonalityConfig, syncEmotionFromState } from "./core/personalityConfig.js";
@@ -52,6 +54,10 @@ import createStableDiffusionRoutes from "./routes/stableDiffusion.js";
 import createComfyRoutes from "./routes/comfy.js";
 import createWorkflowRoutes from "./routes/workflow.js";
 import createCacheRoutes from "./routes/cacheRoutes.js";
+import createModelRoutes from "./routes/models.js";
+import createAnimateDiffRoutes from "./routes/animatediff.js";
+import createProductionRoutes from "./routes/production.js";
+import createStudioOpsRoutes from "./routes/studioOps.js";
 import vocabularyRouter from "./routes/vocabulary.js";
 import sttRoute from "./routes/stt.js";
 import createCacheManager from "./services/cache/cacheManager.js";
@@ -142,8 +148,12 @@ context.scheduler = context.core.scheduler;
 
 context.rawServices.ai = createAIService(context);
 context.rawServices.tts = createTTSService(context);
+context.rawServices.modelRegistry = new ModelRegistryService({ logger });
+context.rawServices.animatediff = createAnimateDiffService(context);
 context.services.ai = context.rawServices.ai;
 context.services.tts = context.rawServices.tts;
+context.services.modelRegistry = context.rawServices.modelRegistry;
+context.services.animatediff = context.rawServices.animatediff;
 context.tools = createTools(context);
 context.invokeTool = async (toolName, input = {}) => {
   const tool = context.tools?.[toolName];
@@ -225,6 +235,18 @@ context.core.eventBus.on("user:message", (data) => {
 
 context.core.eventBus.on("execution:status", (data) => {
   sendSSE({ type: "execution:status", payload: data });
+});
+
+context.core.eventBus.on("batch-img2img:queued", (data) => {
+  sendSSE({ type: "batch-img2img:queued", payload: data });
+});
+
+context.core.eventBus.on("batch-img2img:progress", (data) => {
+  sendSSE({ type: "batch-img2img:progress", payload: data });
+});
+
+context.core.eventBus.on("batch-img2img:completed", (data) => {
+  sendSSE({ type: "batch-img2img:completed", payload: data });
 });
 
 context.core.eventBus.on("action:status", (data) => {
@@ -437,8 +459,12 @@ app.use("/config", createConfigRoutes(context));
 app.use("/tasks", createTasksRoutes(context));
 app.use("/api/studio", createStudioRoutes(context));
 app.use("/api/studio", createStudioVideoAdapterRoutes(context));
+app.use("/api/studio/ops", createStudioOpsRoutes(context));
 app.use("/api/media", createMediaVideoRoutes(context));
 app.use("/api/video", createMediaVideoRoutes(context));
+app.use("/api/models", createModelRoutes(context));
+app.use("/api/animatediff", createAnimateDiffRoutes(context));
+app.use("/api/production", createProductionRoutes(context));
 app.use("/sd", createStableDiffusionRoutes(context));
 app.use("/api/comfy", createComfyRoutes(context));
 app.use("/workflow", createWorkflowRoutes(context));

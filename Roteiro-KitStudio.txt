@@ -1,489 +1,400 @@
-Implementar no Studio da KIT o módulo “Studio Planner”, um sistema visual/documental para planejamento estratégico mensal de posts, cards e roteiros de conteúdo por cliente.
-
-IMPORTANTE:
-- Mexer principalmente na tela do Studio.
-- Não alterar outras telas neste momento.
-- Não misturar com o Canvas Editor, exceto na última fase de automação para abrir/criar arquivos .kia no Canvas.
-- O chat da KIT no Studio deve ficar sempre no canto direito.
-- A KIT no chat do Studio deve atuar como especialista em marketing, estratégia de conteúdo e produção editorial.
-- Não usar a persona streamer/irritante do chat comum.
-- A parte central da tela deve exibir o conteúdo da aba selecionada.
-
-==================================================
-OBJETIVO GERAL
-==================================================
-
-Criar uma experiência estilo “documento vivo” dentro do Studio, onde o usuário consiga:
-
-1. Selecionar/editar um cliente.
-2. Editar os dados do arquivo .kit do cliente.
-3. Gerar um planejamento mensal estratégico.
-4. Visualizar o calendário mensal.
-5. Refinar os cards de cada item/post/anúncio.
-6. Abrir o roteiro detalhado de cada item.
-7. Solicitar à KIT a geração dos arquivos .kia para edição posterior no Canvas.
-
-O fluxo principal será:
-
-Cliente (.kit)
-→ Planner mensal
-→ Cards dos itens
-→ Roteiro do item selecionado
-→ Automação no Canvas para gerar .kia
-
-==================================================
-LAYOUT PRINCIPAL DO STUDIO
-==================================================
-
-Criar layout fixo com:
-
-1. Topo:
-   - Cliente selecionado
-   - Mês selecionado
-   - Status do planejamento
-   - Botões principais:
-     - Novo planejamento mensal
-     - Salvar
-     - Exportar PDF
-     - Gerar cards
-     - Gerar arquivos .kia
-
-2. Abas centrais:
-   - Cliente
-   - Planner
-   - Cards
-   - Roteiro do Item
-
-3. Chat lateral direito:
-   - Sempre visível.
-   - Contextual à aba aberta.
-   - Especialista em marketing.
-   - Deve receber contexto do cliente, mês, plano, cards e item selecionado.
-
-4. Área central:
-   - Exibe o conteúdo da aba ativa.
-   - Deve parecer um documento/editor visual limpo.
-   - Estrutura com títulos, subtítulos, tabelas, cards, blocos de funil e listas.
-   - Os blocos devem ser clicáveis/editáveis.
-   - Ao clicar em campos estratégicos, exibir controles flutuantes como editar, regenerar, trocar opção, aplicar no mês.
-
-==================================================
-ABA 1 — CLIENTE
-==================================================
-
-Criar aba “Cliente” para edição do arquivo .kit.
-
-O .kit deve salvar dados como:
-
-- Nome do cliente
-- Logo
-- Segmento
-- Nicho específico
-- Subnicho
-- Plano contratado
-- Redes sociais
-- Tom de comunicação
-- Público-alvo
-- Produtos/serviços principais
-- Produtos que dependem de informação externa
-- Restrições de linguagem
-- Objetivos comerciais recorrentes
-- Histórico de planejamentos mensais
-- Campanhas ativas
-- Observações estratégicas
-
-Exemplo importante:
-Segmento: Imobiliária
-Nicho específico:
-- Casas novas e usadas
-- Apartamentos
-- Loteamentos
-- Alto padrão
-- Minha casa minha vida
-- Locação
-- Imóveis comerciais
-
-Essas informações devem influenciar o planejamento.
-
-Exemplo:
-Uma imobiliária de loteamentos não deve receber os mesmos posts de uma imobiliária de alto padrão.
-
-==================================================
-ABA 2 — PLANNER MENSAL
-==================================================
-
-Criar aba “Planner” como documento visual estilo PDF.
-
-Regras:
-
-- Cada cliente só pode ter 1 calendário por mês.
-- Não permitir criar dois planners para o mesmo cliente no mesmo mês.
-- Se já existir, abrir o planner existente.
-- Se não existir, permitir gerar um novo.
-
-O Planner deve conter:
-
-1. Diagnóstico estratégico do mês
-2. Objetivo macro
-3. Objetivos secundários
-4. Funil de conteúdo
-5. Distribuição de formatos
-6. Campanhas do mês
-7. Anúncios ADS do mês
-8. Calendário mensal de posts
-9. Itens que aguardam informação de produto
-10. Resumo de status de produção
-
-O calendário deve ser mensal e visual, mas minimalista.
-
-Cada item no calendário deve exibir apenas o essencial:
-
-- Data
-- Tipo: Post, Reel, Story, Carrossel, Anúncio
-- Objetivo
-- Funil
-- Status
-- Plataforma
-
-Não colocar briefing completo no calendário.
-
-==================================================
-DIFERENÇA ENTRE POST E ANÚNCIO
-==================================================
-
-Implementar separação clara entre:
-
-POST:
-- Conteúdo orgânico.
-- Normalmente publicado em uma data.
-- Pode ser imagem, vídeo, carrossel, story ou reel.
-
-ANÚNCIO ADS:
-- Conteúdo de campanha paga.
-- Pode durar 7, 15 ou 30 dias, dependendo do plano.
-- Pode ter mais de um anúncio ativo no mesmo mês.
-- Pode ter objetivos diferentes.
-
-Campos de anúncio:
-
-- Nome da campanha
-- Objetivo do anúncio
-- Plataforma
-- Duração
-- Data de início
-- Data de fim
-- Público
-- CTA
-- Oferta
-- Status
-- Criativo vinculado
-- Observações
-
-==================================================
-POSTS DE PRODUTO
-==================================================
-
-Post de produto deve ter status especial quando depender de informação externa.
-
-Exemplo para imobiliária:
-Post de imóvel precisa aguardar dados como:
-
-- Nome do imóvel
-- Bairro
-- Valor
-- Fotos
-- Características
-- Condições de venda
-- Código do imóvel
-
-Criar status:
-
-- Aguardando informação do produto
-
-Esse status deve impedir geração final automática do .kia até os dados mínimos serem preenchidos.
-
-==================================================
-ABA 3 — CARDS
-==================================================
-
-Criar aba “Cards” para refinar os itens planejados.
-
-Essa aba deve listar todos os itens do mês em formato de cards.
-
-Cada card deve conter:
-
-- Data
-- Tipo de conteúdo
-- Plataforma
-- Objetivo
-- Funil
-- CTA
-- Tema
-- Legenda inicial
-- Formato
-- Status de produção
-- Se depende de produto
-- Se tem roteiro
-- Se tem arquivo .kia gerado
-
-Status de produção:
-
-- Em branco
-- Rascunho
-- Aguardando informação do produto
-- Em produção
-- Aguardando aprovação
-- Concluído
-
-Regras:
-
-- “Em branco” significa que só foi agendado.
-- “Rascunho” significa que já tem briefing, roteiro ou legenda, mas ainda não tem arte final.
-- “Aguardando aprovação” significa que já está pronto, mas ainda não foi aprovado/postado.
-- “Concluído” significa finalizado.
-- Status de produção não deve ser confundido com status de publicação.
-
-Criar campos separados:
-
-productionStatus
-publicationStatus
-
-publicationStatus:
-- Não agendado
-- Agendado
-- Postado
-- Cancelado
-
-==================================================
-VARIÁVEIS INTERNAS DE MARKETING
-==================================================
-
-Criar listas internas editáveis para dropdowns.
-
-Campos como objetivo, CTA, funil, formato e plataforma devem ter opções pré-definidas.
-
-Exemplo:
-
-Objetivos:
-- Autoridade
-- Reconhecimento de marca
-- Geração de leads
-- Engajamento
-- Conversão
-- Prova social
-- Educação
-- Relacionamento
-- Tráfego
-- Venda direta
-- Captação de direct
-
-Funil:
-- Topo
-- Meio
-- Fundo
-- Pós-venda
-- Reativação
-
-CTA:
-- Chamar no direct
-- Clicar no link da bio
-- Pedir orçamento
-- Agendar visita
-- Solicitar catálogo
-- Salvar o post
-- Compartilhar
-- Comentar
-- Entrar em contato pelo WhatsApp
-
-Formatos:
-- Imagem única
-- Carrossel
-- Reel
-- Story
-- Vídeo curto
-- Anúncio estático
-- Anúncio em vídeo
-
-Plataformas:
-- Instagram Feed
-- Instagram Reels
-- Instagram Stories
-- Facebook
-- TikTok
-- YouTube Shorts
-- Google Ads
-- Meta Ads
-
-Ao clicar em um campo desses, exibir dropdown.
-Permitir edição manual.
-Permitir “regenerar com IA”.
-
-==================================================
-ABA 4 — ROTEIRO DO ITEM
-==================================================
-
-Criar aba “Roteiro do Item” para edição detalhada do item selecionado.
-
-Essa aba deve abrir o item selecionado nos Cards ou no Planner.
-
-Estrutura do roteiro:
-
-- Título interno
-- Tema
-- Objetivo
-- Funil
-- CTA
-- Plataforma
-- Formato
-- Briefing
-- Legenda do post
-- Hashtags
-- Direção visual
-- Referências
-- Roteiro de vídeo, quando aplicável
-- Narração, quando aplicável
-- Texto na tela
-- Cenas/slides
-- Prompt positivo
-- Prompt negativo
-- Observações de produção
-- Template sugerido
-- Status
-
-A tela deve parecer um documento editável.
-
-Cada bloco deve ter ações:
-
-- Editar
-- Regenerar
-- Melhorar
-- Encurtar
-- Expandir
-- Tornar mais técnico
-- Tornar mais emocional
-- Aplicar tom da marca
-- Gerar versão para outro formato
-
-==================================================
-GERAÇÃO COM IA
-==================================================
-
-A KIT no chat lateral deve conseguir executar comandos contextuais, como:
-
-- Gere o planejamento de junho para este cliente.
-- Refaça esse planejamento focando em leads.
-- Transforme esse post em carrossel.
-- Crie roteiro para esse reel.
-- Gere legendas para todos os posts em rascunho.
-- Deixe os CTAs mais fortes.
-- Ajuste esse planejamento para uma imobiliária focada em loteamentos.
-- Crie anúncios de 15 dias para captação de leads.
-- Gere arquivos .kia dos posts aprovados.
-
-A IA deve trabalhar por etapas:
-
-1. Analisar .kit do cliente.
-2. Analisar histórico.
-3. Analisar mês.
-4. Gerar estratégia macro.
-5. Gerar calendário.
-6. Gerar cards.
-7. Gerar roteiro por item.
-8. Aguardar aprovação do usuário.
-9. Só depois gerar arquivos .kia.
-
-==================================================
-EXPORTAÇÃO PDF
-==================================================
-
-A aba Planner deve ser exportável em PDF.
-
-O PDF deve ocultar:
-- botões internos
-- controles técnicos
-- status operacionais avançados
-- chat lateral
-
-O PDF deve mostrar:
-- cliente
-- mês
-- objetivo
-- estratégia
-- funil
-- campanhas
+Implementar no KIT Studio uma camada forte de LLM chamada Operational Intelligence Engine.
+
+Objetivo:
+Transformar o chat do Studio em uma IA operacional estratégica que usa intensamente o LLM para analisar, conduzir, sugerir e priorizar o trabalho da ADSune.
+
+A estrutura rígida atual já funciona e NÃO deve ser removida.
+O LLM deve entrar como camada inteligente acima da estrutura atual.
+
+==================================================================
+CONCEITO
+==================================================================
+
+O Studio não deve funcionar como:
+- formulário
+- wizard
+- chatbot de menu
+- “digite 1 para...”
+
+O Studio deve funcionar como:
+- diretora estratégica operacional
+- planner de marketing
+- coordenadora de produção
+- analista de qualidade
+- assistente com iniciativa
+
+A IA deve conduzir o ritmo.
+O usuário valida, responde, ajusta e aprova.
+
+==================================================================
+FLUXO DE FUNCIONAMENTO
+==================================================================
+
+Usuário envia mensagem
+↓
+Sistema carrega contexto atual:
+- cliente ativo
+- .kit
+- projeto mensal
 - calendário
-- resumo editorial
-- anúncios planejados
-- observações relevantes
+- planner
+- demanda selecionada
+- último estado da conversa
+↓
+Operational Intelligence Engine usa LLM para:
+- interpretar intenção
+- extrair informações
+- analisar qualidade
+- detectar erros
+- sugerir melhorias
+- decidir próximo passo lógico
+- compor resposta natural
+↓
+Sistema rígido valida e executa ações
+↓
+UI atualiza
+↓
+KIT responde de forma humana, estratégica e objetiva
 
-O visual deve ser limpo, moderno e apresentável para cliente.
+==================================================================
+ARQUITETURA SUGERIDA
+==================================================================
 
-==================================================
-AUTOMAÇÃO FINAL COM CANVAS
-==================================================
+Criar:
 
-Somente nesta etapa integrar com Canvas.
+backend/studio/operationalIntelligenceEngine.js
+backend/studio/studioContextBuilder.js
+backend/studio/studioQualityAnalyzer.js
+backend/studio/studioNextStepPlanner.js
+backend/studio/studioNaturalResponseComposer.js
+backend/studio/studioActionExecutor.js
 
-Ao clicar em “Gerar arquivos .kia”:
+Funções:
 
-1. Selecionar itens elegíveis.
-2. Ignorar itens aguardando informação de produto.
-3. Criar um arquivo .kia por item.
-4. Usar dados do .kit do cliente.
-5. Aplicar logo, cores, fontes e identidade.
-6. Escolher template sugerido.
-7. Criar estrutura inicial:
-   - artboard
-   - textos
-   - cenas/slides
-   - legenda
-   - roteiro
-   - placeholders de imagem/vídeo
-8. Se for vídeo:
-   - preparar timeline
-   - inserir roteiro
-   - preparar narração
-   - preparar legenda
-9. Salvar caminho do .kia no item.
-10. Atualizar productionStatus para “Em produção”.
+1. studioContextBuilder
+Monta contexto real para o LLM:
+- cliente ativo
+- resumo do .kit
+- campos faltantes
+- projeto mensal
+- status do calendário
+- status do kanban
+- demanda selecionada
+- última pergunta
+- última resposta
+- ação pendente
 
-Não abrir o Canvas automaticamente para todos os itens.
-Permitir abrir item por item no Canvas depois.
+2. studioQualityAnalyzer
+Usa LLM para avaliar tecnicamente:
+- .kit
+- projeto mensal
+- calendário
+- planner kanban
+- demanda selecionada
 
-==================================================
-CRITÉRIOS DE ACEITE
-==================================================
+3. studioNextStepPlanner
+Decide próximo passo mais útil.
 
-A implementação será considerada correta se:
+Critério:
+"O que mais destrava resultado agora?"
 
-1. O Studio tiver as abas:
-   - Cliente
-   - Planner
-   - Cards
-   - Roteiro do Item
+4. studioNaturalResponseComposer
+Transforma análise e decisão em resposta natural, sem parecer menu.
 
-2. O chat ficar fixo à direita.
+5. studioActionExecutor
+Executa apenas ações validadas:
+- criar cliente
+- editar .kit
+- criar projeto mensal
+- editar calendário
+- aprovar calendário
+- criar cards
+- mover cards
+- alterar prazos
+- atualizar UI
 
-3. O .kit do cliente puder ser editado na aba Cliente.
+==================================================================
+REGRAS DO LLM
+==================================================================
 
-4. O sistema impedir dois planners do mesmo mês para o mesmo cliente.
+O LLM deve ser usado para:
 
-5. O Planner mensal for visual, estilo documento/PDF.
+- entender frases naturais
+- extrair múltiplos campos de uma mensagem
+- evitar perguntas repetidas
+- encontrar inconsistências
+- avaliar força estratégica
+- sugerir melhorias
+- priorizar próximo passo
+- compor resposta natural
 
-6. O calendário mensal listar os posts com informação mínima.
+Exemplo:
+Usuário:
+"segmento é marketing, público alvo são pequenos empresários e quero foco em venda"
 
-7. Posts e anúncios ADS forem tratados como entidades diferentes.
+A KIT deve salvar:
+- segmento: Agência de Marketing / Publicidade
+- público-alvo: pequenos empresários
+- objetivo: vendas / geração de leads
 
-8. Posts de produto puderem ficar aguardando informação.
+E NÃO perguntar depois:
+"qual o público alvo?"
 
-9. Cards permitirem refinar cada item.
+==================================================================
+AVALIAÇÃO DO .KIT
+==================================================================
 
-10. Roteiro do Item permitir edição detalhada.
+Sempre que abrir um cliente, o LLM deve avaliar o .kit.
 
-11. Campos de marketing usarem dropdowns internos editáveis.
+Avaliar:
+- campos vazios
+- campos genéricos
+- inconsistências
+- falta de posicionamento
+- público fraco
+- diferencial fraco
+- objetivos vagos
+- tom incoerente
+- ausência de funil
+- identidade visual incompleta
 
-12. O PDF puder ser exportado a partir do Planner.
+Exemplo de inconsistência:
+- marca quer parecer premium
+- tom está popular/agressivo
+- ticket é alto
+- visual está genérico
 
-13. A geração .kia existir apenas como etapa final de automação para o Canvas.
+Resposta esperada:
+"Tem uma inconsistência aqui. A marca quer parecer premium, mas o tom cadastrado está muito popular. Isso pode atrair público desalinhado. Antes de montar o calendário, recomendo ajustar o posicionamento."
 
-14. A persona da KIT no Studio for especialista em marketing, sem usar a personalidade do chat comum.
+==================================================================
+AVALIAÇÃO DO PROJETO MENSAL
+==================================================================
+
+Avaliar:
+- objetivo do mês
+- campanha principal
+- distribuição de funil
+- excesso de venda
+- falta de autoridade
+- falta de relacionamento
+- coerência com .kit
+- repetição de temas
+
+==================================================================
+AVALIAÇÃO DO CALENDÁRIO
+==================================================================
+
+Avaliar:
+- equilíbrio entre topo, meio e fundo
+- repetição de conteúdo
+- excesso de CTA
+- ausência de autoridade
+- ausência de posts educativos
+- excesso de posts promocionais
+- coerência com público
+- coerência com segmento
+- sequência semanal
+
+==================================================================
+AVALIAÇÃO DO PLANNER KANBAN
+==================================================================
+
+Avaliar:
+- cards atrasados
+- gargalos
+- cards sem prazo
+- cards sem responsável
+- cards parados
+- excesso em execução
+- demandas sem origem
+- demandas sem etapa clara
+
+==================================================================
+AVALIAÇÃO DA DEMANDA SELECIONADA
+==================================================================
+
+Avaliar:
+- brief completo?
+- legenda pronta?
+- roteiro pronto?
+- prompt visual pronto?
+- arquivos necessários?
+- prazo coerente?
+- etapa correta?
+- falta aprovação?
+- falta agendamento?
+
+==================================================================
+CONDUÇÃO NATURAL
+==================================================================
+
+A KIT deve evitar:
+
+Errado:
+"Escolha uma opção:
+1. Completar cadastro
+2. Criar planejamento
+3. Abrir planner"
+
+Certo:
+"Analisei a ADSune. O cadastro já tem uma boa base, mas o público-alvo ainda está amplo e os diferenciais estão fracos. Antes de montar o mês, eu recomendo ajustar isso, porque vai influenciar diretamente nos conteúdos e campanhas.
+
+Hoje vocês querem focar mais em pequenos empresários locais, empresas em crescimento ou marcas que querem se posicionar melhor?"
+
+==================================================================
+PRÓXIMO PASSO INTELIGENTE
+==================================================================
+
+A KIT sempre deve sugerir o próximo passo lógico, não listar funções.
+
+Ela deve considerar:
+- etapa atual
+- qualidade das informações
+- urgência
+- impacto no resultado
+- dependências
+
+Exemplos:
+
+Se .kit está incompleto:
+conduzir para completar .kit.
+
+Se .kit está bom e não existe projeto mensal:
+sugerir criar projeto mensal.
+
+Se calendário está rascunho:
+sugerir revisar/aprovar.
+
+Se calendário aprovado e kanban vazio:
+sugerir transformar posts em demandas.
+
+Se kanban tem atrasados:
+sugerir revisar gargalos.
+
+==================================================================
+SEM MENU NUMÉRICO
+==================================================================
+
+Nunca usar:
+- “digite 1”
+- “opção 1”
+- listas longas de comando
+
+Permitido:
+- oferecer 2 ou 3 caminhos em linguagem natural
+
+Exemplo:
+"Podemos ajustar o público agora, revisar os diferenciais ou seguir para o planejamento mensal — mas minha recomendação é começar pelo público."
+
+==================================================================
+RESPOSTA COM INICIATIVA
+==================================================================
+
+A KIT deve justificar por que está perguntando.
+
+Exemplo:
+"Estou perguntando isso porque, sem um recorte claro de público, os posts podem ficar genéricos e atrair curiosos em vez de clientes."
+
+==================================================================
+STATE DA CONVERSA
+==================================================================
+
+Manter:
+
+studioState = {
+  activeClientId,
+  activeClientName,
+  activeProjectMonth,
+  activeTab,
+  currentMode,
+  lastIntent,
+  lastField,
+  lastQuestion,
+  lastSuggestion,
+  pendingAction,
+  lastQualityAnalysis,
+  lastNextStep,
+  conversationGoal
+}
+
+==================================================================
+SAÍDA DO LLM
+==================================================================
+
+O LLM deve retornar JSON estruturado para o sistema executar.
+
+Schema:
+
+{
+  "intent": "",
+  "confidence": 0,
+  "analysis": {
+    "summary": "",
+    "problems": [],
+    "opportunities": [],
+    "risks": [],
+    "priority": ""
+  },
+  "updates": {},
+  "actions": [],
+  "nextStep": {
+    "type": "",
+    "reason": "",
+    "question": ""
+  },
+  "naturalResponse": ""
+}
+
+O sistema rígido deve validar actions e updates antes de executar.
+
+==================================================================
+IMPORTANTE
+==================================================================
+
+O LLM não salva arquivos diretamente.
+O LLM interpreta, analisa e sugere.
+O sistema atual executa com validação.
+
+==================================================================
+MODELO
+==================================================================
+
+Usar o modelo configurado do Studio:
+Gemma4 e4b ou modelo definido como Smart.
+
+Registrar logs:
+
+[StudioAI]
+llm=true
+model=...
+intent=...
+activeClient=...
+mode=...
+actions=...
+qualityScore=...
+
+==================================================================
+CRITÉRIO DE SUCESSO
+==================================================================
+
+Ao abrir o Studio:
+
+KIT:
+"Qual cliente vamos trabalhar hoje?"
+
+Usuário:
+"ADSune"
+
+KIT:
+"Abri a ADSune e analisei o cadastro. A base está boa, mas o público-alvo ainda está amplo e os diferenciais precisam ficar mais fortes. Antes de montar o planejamento do mês, recomendo ajustar isso.
+
+Hoje a ADSune quer focar mais em pequenos empresários locais, empresas em crescimento ou marcas que precisam melhorar posicionamento?"
+
+Usuário:
+"pequenos empresários locais, mas quero vender estratégia, não só post"
+
+KIT:
+"Perfeito. Atualizei o público para pequenos empresários locais e ajustei a leitura estratégica: a ADSune não deve se posicionar como produtora de posts, mas como parceira de crescimento e posicionamento.
+
+Agora precisamos transformar isso em diferenciais claros. O principal diferencial de vocês é estratégia, IA aplicada, criatividade comercial ou execução completa?"

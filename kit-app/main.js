@@ -44,13 +44,20 @@ const {
   loadStudioProject
 } = require("../backend/skills/studio/studioProjectStore");
 const workspaceLayout = require("../backend/services/workspaceLayout.cjs");
-const { createPresetManagerWindow } = require("./main/presetManagerWindow");
+
+app.commandLine.appendSwitch("enable-gpu-rasterization");
+app.commandLine.appendSwitch("enable-zero-copy");
+app.commandLine.appendSwitch("ignore-gpu-blocklist");
+app.commandLine.appendSwitch("enable-accelerated-2d-canvas");
+app.commandLine.appendSwitch("enable-features", "CanvasOopRasterization,VaapiVideoDecoder,VaapiVideoEncoder");
+console.log("[CANVAS_GPU] hardware acceleration enabled");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const PRELOAD_PATH = path.join(__dirname, "preload.js");
 const TRAY_ICON_PATH = path.join(__dirname, "renderer", "assets", "icone.ico");
 const CHAT_HTML_PATH = path.join(__dirname, "renderer", "index.html");
 const CANVAS_HTML_PATH = path.join(__dirname, "renderer", "canvas", "canvas.html");
+const PRODUCTION_HTML_PATH = path.join(__dirname, "renderer", "production", "production.html");
 const CANVAS_AUTOSAVE_FILE = "canvas-autosave.json";
 const CANVAS_BRIDGE_PORT = Number(process.env.KIT_CANVAS_BRIDGE_PORT || 31977);
 const KIT_USER_DATA_PATH = path.join(ROOT_DIR, "temp", "electron-user-data");
@@ -65,7 +72,7 @@ let configWindow = null;
 let monitorWindow = null;
 let canvasWindow = null;
 let studioWindow = null;
-let presetManagerWindow = null;
+let productionWindow = null;
 let notifyWindow = null;
 let wakeWindow = null;
 let tray = null;
@@ -75,7 +82,6 @@ let isShuttingDown = false;
 let activeConversationId = null;
 let wakeListeningConfig = null;
 let wakeConfigModulePromise = null;
-let presetManagerModulePromise = null;
 let llmIdleTimer = null;
 let webSearchBridge = null;
 let canvasBridgeServer = null;
@@ -474,7 +480,7 @@ function attachSpellcheckContextMenu(windowRef) {
 }
 
 function getPreferredParentWindow() {
-  const windows = [presetManagerWindow, studioWindow, canvasWindow, chatWindow, configWindow, monitorWindow, widgetWindow, wakeWindow];
+  const windows = [productionWindow, studioWindow, canvasWindow, chatWindow, configWindow, monitorWindow, widgetWindow, wakeWindow];
   return windows.find((windowRef) => windowRef && !windowRef.isDestroyed()) || null;
 }
 
@@ -648,17 +654,6 @@ async function loadWakeConfigModule() {
   }
 
   return wakeConfigModulePromise;
-}
-
-async function getPresetManagerModule() {
-  if (!presetManagerModulePromise) {
-    const moduleUrl = pathToFileURL(
-      path.join(ROOT_DIR, "backend", "services", "presetManager", "index.js")
-    ).href;
-    presetManagerModulePromise = import(moduleUrl);
-  }
-
-  return presetManagerModulePromise;
 }
 
 async function ensureWakeListeningConfigLoaded() {
@@ -973,25 +968,6 @@ function createMonitor() {
   return monitorWindow;
 }
 
-function createPresetManager() {
-  if (presetManagerWindow && !presetManagerWindow.isDestroyed()) {
-    presetManagerWindow.show();
-    presetManagerWindow.focus();
-    return presetManagerWindow;
-  }
-
-  presetManagerWindow = createPresetManagerWindow({
-    existingWindow: presetManagerWindow,
-    createBaseWindow,
-    screen,
-    onClosed: () => {
-      presetManagerWindow = null;
-    }
-  });
-
-  return presetManagerWindow;
-}
-
 function createCanvas() {
   void setBackendLLMMode("off", "canvas_default");
 
@@ -1006,7 +982,15 @@ function createCanvas() {
     height: 820,
     minWidth: 980,
     minHeight: 640,
-    title: "Canvas KIT IA"
+    title: "Canvas KIT IA",
+    webPreferences: {
+      preload: PRELOAD_PATH,
+      nodeIntegration: false,
+      contextIsolation: true,
+      spellcheck: true,
+      offscreen: false,
+      backgroundThrottling: false
+    }
   });
 
   canvasWindow.loadFile(CANVAS_HTML_PATH);
@@ -1051,6 +1035,37 @@ function createStudio(initialState = null) {
   }
 
   return studioWindow;
+}
+
+function createProductionPlanner() {
+  ensureServicesForIntent("production-planner-open");
+
+  if (productionWindow && !productionWindow.isDestroyed()) {
+    productionWindow.show();
+    productionWindow.focus();
+    return productionWindow;
+  }
+
+  productionWindow = createBaseWindow({
+    width: 1320,
+    height: 860,
+    minWidth: 1040,
+    minHeight: 680,
+    title: "Production Planner KIT IA"
+  });
+
+  attachExternalLinkGuard(productionWindow);
+  productionWindow.loadFile(PRODUCTION_HTML_PATH);
+  attachHideOnClose(productionWindow);
+  productionWindow.on("closed", () => {
+    productionWindow = null;
+  });
+
+  productionWindow.once("ready-to-show", () => {
+    productionWindow.show();
+  });
+
+  return productionWindow;
 }
 
 function focusStudioWindow() {
@@ -1261,8 +1276,8 @@ function buildTrayMenu() {
       click: () => createStudio()
     },
     {
-      label: "Gerador de Presets",
-      click: () => createPresetManager()
+      label: "Planner Kanban",
+      click: () => createProductionPlanner()
     },
     {
       label: "Widget",
@@ -1520,8 +1535,8 @@ ipcMain.on("open-studio", () => {
   createStudio();
 });
 
-ipcMain.on("open-preset-manager", () => {
-  createPresetManager();
+ipcMain.on("open-production-planner", () => {
+  createProductionPlanner();
 });
 
 ipcMain.handle("studio:initial-state:get", () => {
@@ -1533,142 +1548,6 @@ ipcMain.handle("studio:initial-state:get", () => {
 ipcMain.handle("studio:window:open", async (event, initialState = null) => {
   createStudio(initialState && typeof initialState === "object" ? initialState : null);
   return { success: true };
-});
-
-ipcMain.handle("preset-manager:meta", async () => {
-  const { ensurePresetDirectories, getPresetManagerMeta } = await getPresetManagerModule();
-  ensurePresetDirectories();
-  return getPresetManagerMeta();
-});
-
-ipcMain.handle("preset-manager:list", async (event, type = "client") => {
-  const { ensurePresetDirectories, listPresets } = await getPresetManagerModule();
-  ensurePresetDirectories();
-  return {
-    type,
-    items: listPresets(type)
-  };
-});
-
-ipcMain.handle("preset-manager:new", async (event, type = "client") => {
-  const { ensurePresetDirectories, createEmptyPreset } = await getPresetManagerModule();
-  ensurePresetDirectories();
-  return {
-    type,
-    preset: createEmptyPreset(type),
-    filePath: null
-  };
-});
-
-ipcMain.handle("preset-manager:open", async (event, payload = {}) => {
-  const { ensurePresetDirectories, readPresetFile, TYPE_CONFIGS } = await getPresetManagerModule();
-  ensurePresetDirectories();
-  const expectedType = String(payload?.type || "").trim();
-  let targetPath = String(payload?.filePath || "").trim();
-
-  if (!targetPath) {
-    const filters = Object.values(TYPE_CONFIGS).map((config) => config.filters[0]);
-    const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
-      title: "Carregar preset",
-      properties: ["openFile"],
-      filters
-    });
-
-    if (result.canceled || !result.filePaths[0]) {
-      return null;
-    }
-
-    targetPath = result.filePaths[0];
-  }
-
-  const loaded = readPresetFile(targetPath, expectedType);
-  return loaded;
-});
-
-ipcMain.handle("preset-manager:validate", async (event, payload = {}) => {
-  const { validatePreset } = await getPresetManagerModule();
-  const type = String(payload?.type || "").trim();
-  return validatePreset(type, payload?.preset || {});
-});
-
-ipcMain.handle("preset-manager:save", async (event, payload = {}) => {
-  const { ensurePresetDirectories, makeManagedFilePath, savePresetToPath } = await getPresetManagerModule();
-  ensurePresetDirectories();
-  const type = String(payload?.type || "").trim();
-  const preset = payload?.preset || {};
-  let targetPath = String(payload?.filePath || "").trim();
-
-  if (!targetPath) {
-    targetPath = makeManagedFilePath(type, preset, preset?.name || preset?.id || "");
-  }
-
-  return savePresetToPath(type, preset, targetPath);
-});
-
-ipcMain.handle("preset-manager:save-as", async (event, payload = {}) => {
-  const { ensurePresetDirectories, makeManagedFilePath, savePresetToPath, TYPE_CONFIGS } = await getPresetManagerModule();
-  ensurePresetDirectories();
-  const type = String(payload?.type || "").trim();
-  const config = TYPE_CONFIGS[type];
-  if (!config) {
-    throw new Error("Tipo de preset invalido.");
-  }
-
-  const preset = payload?.preset || {};
-  const defaultPath = makeManagedFilePath(type, preset, payload?.suggestedName || preset?.name || preset?.id || "");
-  const result = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), {
-    title: "Salvar preset como",
-    defaultPath,
-    filters: config.filters
-  });
-
-  if (result.canceled || !result.filePath) {
-    return null;
-  }
-
-  return savePresetToPath(type, preset, result.filePath);
-});
-
-ipcMain.handle("preset-manager:duplicate", async (event, payload = {}) => {
-  const { ensurePresetDirectories, duplicatePreset } = await getPresetManagerModule();
-  ensurePresetDirectories();
-  const type = String(payload?.type || "").trim();
-  const filePath = String(payload?.filePath || "").trim();
-  if (!filePath) {
-    throw new Error("Nenhum arquivo foi selecionado para duplicar.");
-  }
-  return duplicatePreset(type, filePath);
-});
-
-ipcMain.handle("preset-manager:delete", async (event, payload = {}) => {
-  const { ensurePresetDirectories, deletePreset } = await getPresetManagerModule();
-  ensurePresetDirectories();
-  const type = String(payload?.type || "").trim();
-  const filePath = String(payload?.filePath || "").trim();
-  if (!filePath) {
-    throw new Error("Nenhum arquivo foi selecionado para excluir.");
-  }
-  return deletePreset(type, filePath);
-});
-
-ipcMain.handle("preset-manager:select-asset", async (event, options = {}) => {
-  const selection = String(options?.selection || "file").toLowerCase();
-  const filtersBySelection = {
-    image: [{ name: "Imagens", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"] }],
-    file: [{ name: "Arquivos", extensions: ["png", "jpg", "jpeg", "webp", "gif", "bmp", "svg", "pdf", "ai", "psd", "cdr", "zip", "json", "txt", "doc", "docx"] }]
-  };
-
-  const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
-    title: "Selecionar arquivo",
-    properties: options?.multiple ? ["openFile", "multiSelections"] : ["openFile"],
-    filters: filtersBySelection[selection] || filtersBySelection.file
-  });
-
-  if (result.canceled) {
-    return options?.multiple ? [] : null;
-  }
-
-  return options?.multiple ? result.filePaths : result.filePaths[0] || null;
 });
 
 ipcMain.handle("studio:launch", async (event, payload = {}) => {

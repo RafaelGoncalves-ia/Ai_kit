@@ -18,18 +18,8 @@ const kitAPI = {
   openMonitor: () => ipcRenderer.send("open-monitor"),
   openCanvas: () => ipcRenderer.send("open-canvas"),
   openStudio: () => ipcRenderer.send("open-studio"),
-  openPresetManager: () => ipcRenderer.send("open-preset-manager"),
+  openProductionPlanner: () => ipcRenderer.send("open-production-planner"),
   openStudioWindow: (initialState) => ipcRenderer.invoke("studio:window:open", initialState || null),
-  getPresetManagerMeta: () => ipcRenderer.invoke("preset-manager:meta"),
-  listPresets: (type) => ipcRenderer.invoke("preset-manager:list", type),
-  createPreset: (type) => ipcRenderer.invoke("preset-manager:new", type),
-  openPreset: (payload) => ipcRenderer.invoke("preset-manager:open", payload || {}),
-  validatePreset: (payload) => ipcRenderer.invoke("preset-manager:validate", payload || {}),
-  savePreset: (payload) => ipcRenderer.invoke("preset-manager:save", payload || {}),
-  savePresetAs: (payload) => ipcRenderer.invoke("preset-manager:save-as", payload || {}),
-  duplicatePreset: (payload) => ipcRenderer.invoke("preset-manager:duplicate", payload || {}),
-  deletePreset: (payload) => ipcRenderer.invoke("preset-manager:delete", payload || {}),
-  selectPresetAsset: (options) => ipcRenderer.invoke("preset-manager:select-asset", options || {}),
   launchStudioFromCommand: (payload) => ipcRenderer.invoke("studio:launch", payload || {}),
   openWidget: () => ipcRenderer.send("open-widget"),
   minimizeStudioWindow: () => ipcRenderer.send("studio:window:minimize"),
@@ -65,6 +55,33 @@ const kitAPI = {
   openStudioProject: (filePath) => ipcRenderer.invoke("studio:project:open", filePath || ""),
   getStudioInitialState: () => ipcRenderer.invoke("studio:initial-state:get"),
   getStudioSystemStats: () => ipcRenderer.invoke("studio:system-stats"),
+  loadStudioOps: async ({ clientName = "", month = "" } = {}) => {
+    const query = new URLSearchParams();
+    if (clientName) query.set("clientName", clientName);
+    if (month) query.set("month", month);
+    const response = await fetch(`${BACKEND}/api/studio/ops/load?${query.toString()}`);
+    return parseJson(response);
+  },
+  listStudioOpsClients: async () => {
+    const response = await fetch(`${BACKEND}/api/studio/ops/clients`);
+    return parseJson(response);
+  },
+  saveStudioOps: async (payload) => {
+    const response = await fetch(`${BACKEND}/api/studio/ops/save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
+  sendStudioChatMessage: async (payload) => {
+    const response = await fetch(`${BACKEND}/api/studio/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
   generateStudioScript: async (payload) => {
     const response = await fetch(`${BACKEND}/api/studio/script/generate`, {
       method: "POST",
@@ -134,6 +151,41 @@ const kitAPI = {
   },
   getGlobalVideoModels: async () => {
     const response = await fetch(`${BACKEND}/api/media/video-models`);
+    return parseJson(response);
+  },
+  getModelRegistry: async (query = {}) => {
+    const params = new URLSearchParams();
+    Object.entries(query || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
+    });
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    const response = await fetch(`${BACKEND}/api/models${suffix}`);
+    return parseJson(response);
+  },
+  refreshModelRegistry: async () => {
+    const response = await fetch(`${BACKEND}/api/models/refresh`);
+    return parseJson(response);
+  },
+  getImageModels: async () => {
+    const response = await fetch(`${BACKEND}/api/models/image`);
+    return parseJson(response);
+  },
+  getVideoModels: async () => {
+    const response = await fetch(`${BACKEND}/api/models/video`);
+    return parseJson(response);
+  },
+  getCompatibleModels: async (engine = "") => {
+    const response = await fetch(`${BACKEND}/api/models/compatible/${encodeURIComponent(engine)}`);
+    return parseJson(response);
+  },
+  getLorasForEngine: async (engine = "") => {
+    const query = engine ? `?engine=${encodeURIComponent(engine)}` : "";
+    const response = await fetch(`${BACKEND}/api/models/loras${query}`);
+    return parseJson(response);
+  },
+  getVaeForEngine: async (engine = "") => {
+    const query = engine ? `?engine=${encodeURIComponent(engine)}` : "";
+    const response = await fetch(`${BACKEND}/api/models/vae${query}`);
     return parseJson(response);
   },
   listComfyWorkflows: async () => {
@@ -210,6 +262,14 @@ const kitAPI = {
   },
   img2imgStableDiffusionImage: async (payload) => {
     const response = await fetch(`${BACKEND}/sd/img2img`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {})
+    });
+    return parseJson(response);
+  },
+  batchImg2ImgStableDiffusion: async (payload) => {
+    const response = await fetch(`${BACKEND}/sd/batch-img2img`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload || {})

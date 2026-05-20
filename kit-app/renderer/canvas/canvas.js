@@ -76,7 +76,8 @@ const TOOLBAR_CONFIG = [
   makeToolbarItem("move", "Mover", "mover.svg", "move"),
   makeToolbarGroup("selection", "Selecao", "Selecao-retangular.svg", "selectRect", [
     makeToolbarItem("selection-rect", "Selecao retangular", "Selecao-retangular.svg", "selectRect", null, { shape: "rect" }),
-    makeToolbarItem("selection-ellipse", "Selecao eliptica", "Selecao-elipitico.svg", "selectEllipse", null, { shape: "ellipse" })
+    makeToolbarItem("selection-ellipse", "Selecao eliptica", "Selecao-elipitico.svg", "selectEllipse", null, { shape: "ellipse" }),
+    makeToolbarItem("selection-lasso", "Laco", "corte-de-ferramenta.svg", "selectLasso", null, { shape: "lasso" })
   ]),
   makeToolbarGroup("advanced-selection", "Selecao avancada", "varinha-magica.svg", "magicWand", [
     makeToolbarItem("magic-wand", "Varinha magica", "varinha-magica.svg", "magicWand")
@@ -89,9 +90,9 @@ const TOOLBAR_CONFIG = [
   makeToolbarGroup("brushes", "Pinceis", "pincel.svg", "brush", [
     makeToolbarItem("brush", "Pincel", "pincel.svg", "brush", null, { brushMode: "paint", brushKind: "brush" }),
     makeToolbarItem("pencil", "Lapis", "lapis.svg", "pencil", null, { brushMode: "paint", brushKind: "pencil", hardness: 100 }),
-    makeToolbarItem("mask-brush", "Pincel de mascara", "pincel-de-mascara.svg", "maskBrush", null, { brushMode: "mask", brushKind: "mask" }),
-    makeToolbarItem("pen", "Pena IA", "pena.svg", "penAI", null, { aiReady: false })
+    makeToolbarItem("mask-brush", "Pincel de mascara", "pincel-de-mascara.svg", "maskBrush", null, { brushMode: "mask", brushKind: "mask" })
   ]),
+  makeToolbarItem("pen", "Pena IA", "pena.svg", "aiBrush", null, { aiReady: true }),
   makeToolbarItem("eraser", "Borracha", "apagador.svg", "eraser"),
   makeToolbarGroup("vector", "Caneta / Vetor / Curvas", "vector-caneta.svg", "vectorPen", [
     makeToolbarItem("vector-pen", "Caneta vetor", "vector-caneta.svg", "vectorPen"),
@@ -99,6 +100,7 @@ const TOOLBAR_CONFIG = [
     makeToolbarItem("vector-curve", "Vetor curva", "vector-curva.svg", "vectorCurve")
   ]),
   makeToolbarItem("eyedropper", "Conta-gotas", "pipeta.svg", "eyedropper"),
+  makeToolbarItem("fill", "Balde", "paleta.svg", "fill"),
   makeToolbarAction("color", "Cor primaria/secundaria", "paleta.svg", "color-picker"),
   makeToolbarGroup("text-group", "Texto", "texto.svg", "text", [
     makeToolbarItem("text", "Texto", "texto.svg", "text"),
@@ -247,9 +249,20 @@ const aiImageModelPreviewCard = document.getElementById("aiImageModelPreviewCard
 const aiImageModelPreview = document.getElementById("aiImageModelPreview");
 const aiImageLoraPreviewCard = document.getElementById("aiImageLoraPreviewCard");
 const aiImageLoraPreview = document.getElementById("aiImageLoraPreview");
+const aiImageGenerationType = document.getElementById("aiImageGenerationType");
+const aiImageCompatibilityNote = document.getElementById("aiImageCompatibilityNote");
+const sdNegativePromptRow = document.getElementById("sdNegativePromptRow");
+const sdLoraRow = document.getElementById("sdLoraRow");
+const sdVaeRow = document.getElementById("sdVaeRow");
+const aiImageMotionModuleRow = document.getElementById("aiImageMotionModuleRow");
+const aiImageMotionModule = document.getElementById("aiImageMotionModule");
+const aiImageAnimateParamsRow = document.getElementById("aiImageAnimateParamsRow");
+const aiImageFrames = document.getElementById("aiImageFrames");
+const aiImageFps = document.getElementById("aiImageFps");
+const aiImageOutput = document.getElementById("aiImageOutput");
 const sdCheckpoint = document.getElementById("sdCheckpoint");
-const sdArchitecture = document.getElementById("sdArchitecture");
 const sdLora = document.getElementById("sdLora");
+const sdVae = document.getElementById("sdVae");
 const sdMode = document.getElementById("sdMode");
 const sdI2IMode = document.getElementById("sdI2IMode");
 const sdI2ISizeMode = document.getElementById("sdI2ISizeMode");
@@ -287,6 +300,9 @@ const aiVideoSeed = document.getElementById("aiVideoSeed");
 const aiVideoFinalResolution = document.getElementById("aiVideoFinalResolution");
 const aiVideoFinalDuration = document.getElementById("aiVideoFinalDuration");
 const aiVideoEstimate = document.getElementById("aiVideoEstimate");
+const aiVideoEngineType = document.getElementById("aiVideoEngineType");
+const aiVideoModelFilter = document.getElementById("aiVideoModelFilter");
+const aiVideoEngineNote = document.getElementById("aiVideoEngineNote");
 const sdGenerateButton = document.getElementById("sdGenerateButton");
 const aiVideoGenerateButton = document.getElementById("aiVideoGenerateButton");
 const aiVideoAbortButton = document.getElementById("aiVideoAbortButton");
@@ -344,6 +360,12 @@ let artboardWidth = DEFAULT_ARTBOARD_WIDTH;
 let artboardHeight = DEFAULT_ARTBOARD_HEIGHT;
 let currentArtboardPreset = "instagram-post";
 let currentProject = null;
+let modelRegistrySnapshot = null;
+let availableImageModels = [];
+let availableLoras = [];
+let availableVaes = [];
+let availableMotionModules = [];
+let availableVideoModels = [];
 let availableVideoLoras = [];
 let availableComfyWorkflows = [];
 let activeComfyWorkflowFields = [];
@@ -399,6 +421,10 @@ let loadedFontFamilies = new Set();
 let layerIdCounter = 0;
 let activeBrushMode = "paint";
 let activeRasterEdit = null;
+let activeAiBrushSession = null;
+let aiBrushPromptPopup = null;
+let aiBrushEffectsRenderer = null;
+let aiBrushToolRegistered = false;
 let maskPreviewVisible = false;
 let activeToolPointerState = null;
 let selectionTargetLayerId = null;
@@ -409,6 +435,18 @@ let selectionState = {
   bounds: null,
   overlay: null,
   active: false
+};
+let selectionAntsRenderer = null;
+let selectionOverlayCanvas = null;
+let selectionOverlayRaf = null;
+let selectionOverlayDash = 0;
+const editor = window.editor || {};
+window.editor = editor;
+const canvasGpuRuntime = {
+  pixelWorker: null,
+  pixelWorkerId: 0,
+  pixelWorkerPending: new Map(),
+  workerPipelineEnabled: false
 };
 let rasterClipboard = null;
 let vectorDraft = {
@@ -944,6 +982,8 @@ function resizeCanvasViewport({ keepCamera = true } = {}) {
   }
 
   canvas.requestRenderAll();
+  syncOverlayCanvases();
+  renderSelectionVisualMask();
 }
 
 function fitArtboardInViewport() {
@@ -996,6 +1036,8 @@ function applyArtboardSize(width, height, options = {}) {
       centerArtboardInViewport();
     }
 
+    syncSelectionManagerGeometry();
+    syncOverlayCanvases();
     canvas.requestRenderAll();
   }
 
@@ -1031,12 +1073,15 @@ function normalizeToolId(toolId = "move") {
     select: "move",
     "selection-rect": "selectRect",
     "selection-ellipse": "selectEllipse",
+    "selection-lasso": "selectLasso",
     "magic-wand": "magicWand",
     "mask-brush": "maskBrush",
+    "ai-brush": "aiBrush",
+    pen: "aiBrush",
+    fill: "fill",
     "text-box": "textBox",
     "rounded-rect": "roundedRect",
     "pie-shape": "pieShape",
-    pen: "penAI",
     "vector-pen": "vectorPen",
     "vector-move-points": "vectorMovePoints",
     "vector-curve": "vectorCurve",
@@ -1078,9 +1123,15 @@ const ToolRegistry = {
     onPointerMove: updateBoxTool,
     onPointerUp: finishSelectionAreaTool
   }),
+  selectLasso: makeToolHandler("selectLasso", "Laco", "crosshair", {
+    onActivate: activateNonSelectingTool,
+    onPointerDown: startLassoSelectionTool,
+    onPointerMove: updateLassoSelectionTool,
+    onPointerUp: finishLassoSelectionTool
+  }),
   magicWand: makeToolHandler("magicWand", "Varinha magica", "crosshair", {
     onActivate: activateNonSelectingTool,
-    onPointerDown: () => showToolNotice("Varinha magica ainda em implementacao")
+    onPointerDown: applyMagicWandSelection
   }),
   brush: makeToolHandler("brush", "Pincel", "crosshair", {
     onActivate: activateRasterTool,
@@ -1106,9 +1157,12 @@ const ToolRegistry = {
     onPointerMove: continueRasterEdit,
     onPointerUp: finishRasterEdit
   }),
-  penAI: makeToolHandler("penAI", "Pena IA", "crosshair", {
-    onActivate: activateNonSelectingTool,
-    onPointerDown: () => showToolNotice("Pena IA ainda em implementacao")
+  aiBrush: makeToolHandler("aiBrush", "Pena IA", "crosshair", {
+    onActivate: activateAiBrushTool,
+    onDeactivate: deactivateAiBrushTool,
+    onPointerDown: startAiBrushGesture,
+    onPointerMove: updateAiBrushGesture,
+    onPointerUp: finishAiBrushGesture
   }),
   vectorPen: makeToolHandler("vectorPen", "Caneta vetor", "crosshair", {
     onActivate: activateVectorPenTool,
@@ -1132,6 +1186,10 @@ const ToolRegistry = {
   eyedropper: makeToolHandler("eyedropper", "Pipeta", "copy", {
     onActivate: activateNonSelectingTool,
     onPointerDown: pickColorAtPointer
+  }),
+  fill: makeToolHandler("fill", "Balde", "crosshair", {
+    onActivate: activateNonSelectingTool,
+    onPointerDown: fillRasterAtPointer
   }),
   colorPicker: makeToolHandler("colorPicker", "Cor", "default", {
     onClickAction: () => toggleColorPanel()
@@ -1548,6 +1606,8 @@ function setActiveTool(tool, label) {
   nextHandler.onActivate?.();
   setCanvasCursor(nextHandler.cursor || "default");
   configureDrawingMode();
+  syncOverlayCanvases();
+  renderSelectionVisualMask();
   syncBrushContextUi();
   syncInspectorContext();
   return true;
@@ -2882,6 +2942,25 @@ function activateRasterTool() {
   configureBrush();
 }
 
+function activateAiBrushTool() {
+  activateNonSelectingTool();
+  if (aiBrushToolRegistered) {
+    console.info("[AI_BRUSH] duplicate registration skipped");
+  } else {
+    aiBrushToolRegistered = true;
+    console.info("[AI_BRUSH] tool registered");
+  }
+  showToolNotice("Pena IA: rabisque rapido sobre o objeto para detectar a area.");
+}
+
+function deactivateAiBrushTool() {
+  if (activeAiBrushSession?.state === "drawing" || activeAiBrushSession?.state === "segmenting") {
+    cancelAiBrushSession();
+    return;
+  }
+  aiBrushEffectsRenderer?.clear?.();
+}
+
 function activateVectorPenTool() {
   activateNonSelectingTool();
 }
@@ -2941,11 +3020,148 @@ function isRasterEditableImage(object) {
 }
 
 function makeRasterCanvas(width, height) {
-  const element = document.createElement("canvas");
+  const canUseOffscreen = typeof OffscreenCanvas !== "undefined" && typeof document === "undefined";
+  const element = canUseOffscreen
+    ? new OffscreenCanvas(Math.max(1, Math.round(Number(width || 1))), Math.max(1, Math.round(Number(height || 1))))
+    : document.createElement("canvas");
   element.width = Math.max(1, Math.round(Number(width || 1)));
   element.height = Math.max(1, Math.round(Number(height || 1)));
   return element;
 }
+
+function getCanvasAccelerationHint() {
+  return {
+    desynchronized: true,
+    alpha: true,
+    willReadFrequently: false
+  };
+}
+
+function getCanvas2dContext(canvasElement, options = {}) {
+  return canvasElement?.getContext?.("2d", {
+    ...getCanvasAccelerationHint(),
+    ...options
+  });
+}
+
+function ensureCanvasPixelWorker() {
+  if (canvasGpuRuntime.pixelWorker || typeof Worker === "undefined") {
+    return canvasGpuRuntime.pixelWorker;
+  }
+  try {
+    const worker = new Worker("./workers/canvasPixelWorker.js");
+    worker.onmessage = (event) => {
+      const { id, ok, result, error } = event.data || {};
+      const pending = canvasGpuRuntime.pixelWorkerPending.get(id);
+      if (!pending) return;
+      canvasGpuRuntime.pixelWorkerPending.delete(id);
+      if (ok) pending.resolve(result);
+      else pending.reject(new Error(error || "Falha no worker de pixels."));
+    };
+    worker.onerror = (event) => {
+      console.warn("[CANVAS_GPU] worker pipeline error", event.message || event);
+      canvasGpuRuntime.pixelWorkerPending.forEach((pending) => pending.reject(new Error("Worker de pixels indisponivel.")));
+      canvasGpuRuntime.pixelWorkerPending.clear();
+      canvasGpuRuntime.workerPipelineEnabled = false;
+    };
+    canvasGpuRuntime.pixelWorker = worker;
+    canvasGpuRuntime.workerPipelineEnabled = true;
+    console.info("[CANVAS_GPU] worker pipeline enabled");
+    return worker;
+  } catch (err) {
+    console.warn("[CANVAS_GPU] worker pipeline unavailable", err);
+    canvasGpuRuntime.workerPipelineEnabled = false;
+    return null;
+  }
+}
+
+function runCanvasPixelWorker(type, payload = {}) {
+  const worker = ensureCanvasPixelWorker();
+  if (!worker) {
+    return Promise.reject(new Error("Worker de pixels indisponivel."));
+  }
+  const id = `pixel-${Date.now()}-${++canvasGpuRuntime.pixelWorkerId}`;
+  return new Promise((resolve, reject) => {
+    canvasGpuRuntime.pixelWorkerPending.set(id, { resolve, reject });
+    worker.postMessage({ id, type, payload });
+  });
+}
+
+function makeSelectionMaskFromWorkerResult(result, options = {}) {
+  if (!result || !window.SelectionMask) return null;
+  return new window.SelectionMask(result.width, result.height, {
+    offsetX: options.offsetX || 0,
+    offsetY: options.offsetY || 0,
+    data: result.data
+  });
+}
+
+function getWebglStatus() {
+  const probe = document.createElement("canvas");
+  const gl = probe.getContext("webgl2") || probe.getContext("webgl") || probe.getContext("experimental-webgl");
+  if (!gl) {
+    return { available: false, vendor: "", renderer: "" };
+  }
+  const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+  return {
+    available: true,
+    vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR),
+    renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)
+  };
+}
+
+function getCanvasGpuStatus() {
+  const webgl = getWebglStatus();
+  const status = {
+    navigatorGpu: Boolean(navigator.gpu),
+    offscreenCanvas: typeof OffscreenCanvas !== "undefined",
+    webglAvailable: webgl.available,
+    webglVendor: webgl.vendor,
+    webglRenderer: webgl.renderer,
+    devicePixelRatio: window.devicePixelRatio || 1,
+    canvasAccelerationHint: getCanvasAccelerationHint(),
+    workerPipelineEnabled: canvasGpuRuntime.workerPipelineEnabled
+  };
+  console.info("[CANVAS_GPU] gpu status", status);
+  return status;
+}
+
+window.kitCanvasDebug = {
+  ...(window.kitCanvasDebug || {}),
+  getGpuStatus: getCanvasGpuStatus,
+  overlayStatus: () => ({
+    selectionOverlayExists: Boolean(selectionOverlayCanvas),
+    aiEffectsCanvasExists: Boolean(aiBrushEffectsRenderer?.element),
+    zIndex: {
+      selectionOverlay: selectionOverlayCanvas?.style?.zIndex || "",
+      aiEffects: aiBrushEffectsRenderer?.element?.style?.zIndex || "",
+      promptInline: "40"
+    },
+    pointerEvents: {
+      selectionOverlay: selectionOverlayCanvas ? getComputedStyle(selectionOverlayCanvas).pointerEvents : "",
+      aiEffects: aiBrushEffectsRenderer?.element ? getComputedStyle(aiBrushEffectsRenderer.element).pointerEvents : ""
+    },
+    canvasSizes: {
+      selectionOverlay: selectionOverlayCanvas ? {
+        width: selectionOverlayCanvas.width,
+        height: selectionOverlayCanvas.height,
+        clientWidth: selectionOverlayCanvas.clientWidth,
+        clientHeight: selectionOverlayCanvas.clientHeight
+      } : null,
+      aiEffects: aiBrushEffectsRenderer?.element ? {
+        width: aiBrushEffectsRenderer.element.width,
+        height: aiBrushEffectsRenderer.element.height,
+        clientWidth: aiBrushEffectsRenderer.element.clientWidth,
+        clientHeight: aiBrushEffectsRenderer.element.clientHeight
+      } : null
+    },
+    devicePixelRatio: window.devicePixelRatio || 1,
+    rafRunning: Boolean(selectionOverlayRaf || aiBrushEffectsRenderer?.raf),
+    activeTool,
+    selectionHasMask: Boolean(editor.selectionManager?.hasSelection?.()),
+    aiBrushState: activeAiBrushSession?.state || "idle"
+  })
+};
 
 function getImageElementSize(element) {
   return {
@@ -3941,6 +4157,88 @@ function scenePointToImagePixel(imageObject, scenePoint, rasterCanvas) {
   return { x, y };
 }
 
+function imagePixelToScenePoint(imageObject, imagePixel, rasterCanvas) {
+  if (!imageObject || !imagePixel || !rasterCanvas) {
+    return null;
+  }
+
+  const Point = getFabricClass("Point");
+  const transformPoint = fabricApi?.util?.transformPoint || fabricApi?.transformPoint;
+  const matrix = imageObject.calcTransformMatrix?.();
+  if (!Point || !transformPoint || !matrix) {
+    return null;
+  }
+
+  const objectWidth = Math.max(1, Number(imageObject.width || rasterCanvas.width || 1));
+  const objectHeight = Math.max(1, Number(imageObject.height || rasterCanvas.height || 1));
+  const localX = (Number(imagePixel.x || 0) / rasterCanvas.width) * objectWidth - objectWidth / 2;
+  const localY = (Number(imagePixel.y || 0) / rasterCanvas.height) * objectHeight - objectHeight / 2;
+  const scenePoint = transformPoint(new Point(localX, localY), matrix);
+  return { x: Number(scenePoint.x || 0), y: Number(scenePoint.y || 0) };
+}
+
+function createSelectionClipCanvasForImage(imageObject, rasterCanvas) {
+  const manager = editor.selectionManager;
+  if (!manager?.hasSelection?.()) {
+    return null;
+  }
+
+  const clipCanvas = makeRasterCanvas(rasterCanvas.width, rasterCanvas.height);
+  const clipCtx = clipCanvas.getContext("2d");
+  const imageData = clipCtx.createImageData(clipCanvas.width, clipCanvas.height);
+  for (let y = 0; y < clipCanvas.height; y += 1) {
+    for (let x = 0; x < clipCanvas.width; x += 1) {
+      const scenePoint = imagePixelToScenePoint(imageObject, { x: x + 0.5, y: y + 0.5 }, rasterCanvas);
+      if (!scenePoint || !manager.allowsScenePoint(scenePoint.x, scenePoint.y)) {
+        continue;
+      }
+      const index = (y * clipCanvas.width + x) * 4;
+      imageData.data[index] = 255;
+      imageData.data[index + 1] = 255;
+      imageData.data[index + 2] = 255;
+      imageData.data[index + 3] = 255;
+    }
+  }
+  clipCtx.putImageData(imageData, 0, 0);
+  return clipCanvas;
+}
+
+async function createSelectionClipCanvasForImageAsync(imageObject, rasterCanvas) {
+  const manager = editor.selectionManager;
+  if (!manager?.hasSelection?.()) {
+    return null;
+  }
+
+  const clipCanvas = makeRasterCanvas(rasterCanvas.width, rasterCanvas.height);
+  const clipCtx = clipCanvas.getContext("2d");
+  const imageData = clipCtx.createImageData(clipCanvas.width, clipCanvas.height);
+  let processed = 0;
+  for (let y = 0; y < clipCanvas.height; y += 1) {
+    for (let x = 0; x < clipCanvas.width; x += 1) {
+      const scenePoint = imagePixelToScenePoint(imageObject, { x: x + 0.5, y: y + 0.5 }, rasterCanvas);
+      if (scenePoint && manager.allowsScenePoint(scenePoint.x, scenePoint.y)) {
+        const index = (y * clipCanvas.width + x) * 4;
+        imageData.data[index] = 255;
+        imageData.data[index + 1] = 255;
+        imageData.data[index + 2] = 255;
+        imageData.data[index + 3] = 255;
+      }
+      processed += 1;
+      if (processed % 18000 === 0) {
+        await new Promise((resolve) => {
+          if (typeof window.requestIdleCallback === "function") {
+            window.requestIdleCallback(resolve, { timeout: 40 });
+          } else {
+            window.setTimeout(resolve, 0);
+          }
+        });
+      }
+    }
+  }
+  clipCtx.putImageData(imageData, 0, 0);
+  return clipCanvas;
+}
+
 function makeSoftBrushStamp(config, color) {
   const radius = Math.max(0.5, Number(config?.size || 1) / 2);
   const padding = Math.ceil(Math.max(2, radius * 0.08));
@@ -3971,11 +4269,25 @@ function makeSoftBrushStamp(config, color) {
 }
 
 function getRasterEditStamp(edit, color) {
-  if (!edit?.brushStamp || edit.brushStamp.color !== color) {
+  const key = [
+    color,
+    edit?.config?.size,
+    edit?.config?.hardness,
+    edit?.config?.brushKind,
+    edit?.config?.mode,
+    edit?.renderEraseMask === true ? "erase-mask" : "paint"
+  ].join(":");
+  if (!edit?.brushStamp || edit.brushStamp.key !== key) {
     edit.brushStamp = {
+      key,
       color,
       stamp: makeSoftBrushStamp(edit.config, color)
     };
+    if (window.KIT_CANVAS_PERF_DEBUG === true) {
+      console.debug("[BRUSH_PERF] stamp reused", false);
+    }
+  } else if (window.KIT_CANVAS_PERF_DEBUG === true) {
+    console.debug("[BRUSH_PERF] stamp reused", true);
   }
 
   return edit.brushStamp.stamp;
@@ -4009,14 +4321,201 @@ function drawSoftBrushSegment(ctx, edit, previous, point, color, compositeOperat
   }
 }
 
-function drawRasterStrokeSegment(edit, point) {
-  if (!edit || !point) {
-    return;
+function getStrokePixelBounds(edit, previous, point) {
+  const radius = Math.max(1, Number(edit?.config?.size || 1) / 2);
+  const feather = Number(edit?.config?.hardness || 100) < 100 ? Math.ceil(radius * 0.12) + 3 : 2;
+  const pad = Math.ceil(radius + feather);
+  const minX = Math.max(0, Math.floor(Math.min(previous.x, point.x) - pad));
+  const minY = Math.max(0, Math.floor(Math.min(previous.y, point.y) - pad));
+  const maxX = Math.min(edit.sourceCanvas.width, Math.ceil(Math.max(previous.x, point.x) + pad));
+  const maxY = Math.min(edit.sourceCanvas.height, Math.ceil(Math.max(previous.y, point.y) + pad));
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY)
+  };
+}
+
+function intersectRects(a, b) {
+  if (!a || !b) return null;
+  const x = Math.max(a.x, b.x);
+  const y = Math.max(a.y, b.y);
+  const right = Math.min(a.x + a.width, b.x + b.width);
+  const bottom = Math.min(a.y + a.height, b.y + b.height);
+  if (right <= x || bottom <= y) return null;
+  return {
+    x,
+    y,
+    width: right - x,
+    height: bottom - y
+  };
+}
+
+function getLayerLocalBoundsForSceneBounds(imageObject, rasterCanvas, sceneBounds) {
+  if (!imageObject || !rasterCanvas || !sceneBounds) return null;
+  const corners = [
+    { x: sceneBounds.left, y: sceneBounds.top },
+    { x: sceneBounds.left + sceneBounds.width, y: sceneBounds.top },
+    { x: sceneBounds.left, y: sceneBounds.top + sceneBounds.height },
+    { x: sceneBounds.left + sceneBounds.width, y: sceneBounds.top + sceneBounds.height }
+  ].map((point) => scenePointToImagePixel(imageObject, point, rasterCanvas)).filter(Boolean);
+  if (!corners.length) return null;
+  const minX = Math.max(0, Math.floor(Math.min(...corners.map((point) => point.x))));
+  const minY = Math.max(0, Math.floor(Math.min(...corners.map((point) => point.y))));
+  const maxX = Math.min(rasterCanvas.width, Math.ceil(Math.max(...corners.map((point) => point.x))));
+  const maxY = Math.min(rasterCanvas.height, Math.ceil(Math.max(...corners.map((point) => point.y))));
+  if (maxX <= minX || maxY <= minY) return null;
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY
+  };
+}
+
+function createLayerLocalSelectionMaskCanvas(imageObject, rasterCanvas) {
+  const manager = editor.selectionManager;
+  const maskCanvas = manager?.getMaskCanvas?.();
+  const mask = manager?.getActiveMask?.();
+  if (!maskCanvas || !mask || !imageObject || !rasterCanvas) {
+    return null;
+  }
+  const invertTransform = fabricApi?.util?.invertTransform || fabricApi?.invertTransform;
+  const matrix = imageObject.calcTransformMatrix?.();
+  if (!invertTransform || !matrix) {
+    return null;
+  }
+  const inverse = invertTransform(matrix);
+  const objectWidth = Math.max(1, Number(imageObject.width || rasterCanvas.width || 1));
+  const objectHeight = Math.max(1, Number(imageObject.height || rasterCanvas.height || 1));
+  const scaleX = rasterCanvas.width / objectWidth;
+  const scaleY = rasterCanvas.height / objectHeight;
+  const localMaskCanvas = makeRasterCanvas(rasterCanvas.width, rasterCanvas.height);
+  const localCtx = localMaskCanvas.getContext("2d");
+  localCtx.save();
+  localCtx.clearRect(0, 0, localMaskCanvas.width, localMaskCanvas.height);
+  localCtx.setTransform(
+    scaleX * inverse[0],
+    scaleY * inverse[1],
+    scaleX * inverse[2],
+    scaleY * inverse[3],
+    scaleX * (inverse[0] * mask.offsetX + inverse[2] * mask.offsetY + inverse[4] + objectWidth / 2),
+    scaleY * (inverse[1] * mask.offsetX + inverse[3] * mask.offsetY + inverse[5] + objectHeight / 2)
+  );
+  localCtx.drawImage(maskCanvas, 0, 0);
+  localCtx.restore();
+  return {
+    canvas: localMaskCanvas,
+    bounds: getLayerLocalBoundsForSceneBounds(imageObject, rasterCanvas, manager.getMaskBounds?.())
+  };
+}
+
+function ensureRasterEditTempCanvas(edit, width, height) {
+  const nextWidth = Math.max(1, Math.round(width));
+  const nextHeight = Math.max(1, Math.round(height));
+  let reused = true;
+  if (!edit.tempCanvas) {
+    edit.tempCanvas = makeRasterCanvas(nextWidth, nextHeight);
+    reused = false;
+  }
+  if (edit.tempCanvas.width < nextWidth || edit.tempCanvas.height < nextHeight) {
+    edit.tempCanvas.width = nextWidth;
+    edit.tempCanvas.height = nextHeight;
+    reused = false;
+  }
+  if (window.KIT_CANVAS_PERF_DEBUG === true) {
+    console.debug("[BRUSH_PERF] tempCanvas reused", reused);
+  }
+  return edit.tempCanvas;
+}
+
+function drawRasterStrokeSegmentWithSelection(edit, previous, point) {
+  const maskInfo = edit.selectionMaskLayer;
+  if (!maskInfo?.canvas) return false;
+  const started = performance.now();
+  const targetCanvas = edit.sourceCanvas;
+  const targetCtx = targetCanvas.getContext("2d");
+  const rawDirty = getStrokePixelBounds(edit, previous, point);
+  const layerBounds = { x: 0, y: 0, width: targetCanvas.width, height: targetCanvas.height };
+  const selectionBounds = maskInfo.bounds || layerBounds;
+  const dirty = intersectRects(intersectRects(rawDirty, layerBounds), selectionBounds);
+  if (!dirty) {
+    if (window.KIT_CANVAS_PERF_DEBUG === true) {
+      console.debug("[BRUSH_PERF] composited mask pipeline");
+      console.debug("[BRUSH_PERF] dirtyRect", null);
+      console.debug("[BRUSH_PERF] dabs count", 0);
+      console.debug("[BRUSH_PERF] stroke ms", performance.now() - started);
+    }
+    return true;
   }
 
-  const targetCanvas = edit.sourceCanvas;
-  const ctx = targetCanvas.getContext("2d");
-  const previous = edit.lastPoint || point;
+  if (!edit.loggedSelectionClipping) {
+    console.info("[BRUSH] selection clipping enabled");
+    edit.loggedSelectionClipping = true;
+  }
+  console.debug?.("[BRUSH] stroke clipped bounds", dirty);
+  const tempCanvas = ensureRasterEditTempCanvas(edit, dirty.width, dirty.height);
+  const tempCtx = tempCanvas.getContext("2d");
+  tempCtx.save();
+  tempCtx.setTransform(1, 0, 0, 1, 0, 0);
+  tempCtx.globalCompositeOperation = "source-over";
+  tempCtx.clearRect(0, 0, dirty.width, dirty.height);
+  tempCtx.translate(-dirty.x, -dirty.y);
+  const previousEraseMask = edit.renderEraseMask;
+  try {
+    edit.renderEraseMask = normalizeToolId(activeTool) === "eraser";
+    renderRasterStrokeSegment(tempCtx, edit, previous, point);
+  } finally {
+    edit.renderEraseMask = previousEraseMask;
+  }
+  tempCtx.restore();
+
+  tempCtx.save();
+  tempCtx.globalCompositeOperation = "destination-in";
+  tempCtx.drawImage(
+    maskInfo.canvas,
+    dirty.x,
+    dirty.y,
+    dirty.width,
+    dirty.height,
+    0,
+    0,
+    dirty.width,
+    dirty.height
+  );
+  tempCtx.globalCompositeOperation = "source-over";
+  tempCtx.restore();
+
+  targetCtx.save();
+  targetCtx.globalCompositeOperation = normalizeToolId(activeTool) === "eraser" ? "destination-out" : "source-over";
+  targetCtx.drawImage(
+    tempCanvas,
+    0,
+    0,
+    dirty.width,
+    dirty.height,
+    dirty.x,
+    dirty.y,
+    dirty.width,
+    dirty.height
+  );
+  targetCtx.globalCompositeOperation = "source-over";
+  targetCtx.restore();
+
+  if (window.KIT_CANVAS_PERF_DEBUG === true) {
+    const radius = Math.max(1, Number(edit?.config?.size || 1) / 2);
+    const spacing = Math.max(1, radius * 0.2);
+    const dabCount = Math.max(1, Math.ceil(Math.hypot(point.x - previous.x, point.y - previous.y) / spacing));
+    console.debug("[BRUSH_PERF] composited mask pipeline");
+    console.debug("[BRUSH_PERF] dirtyRect", dirty);
+    console.debug("[BRUSH_PERF] dabs count", dabCount);
+    console.debug("[BRUSH_PERF] stroke ms", performance.now() - started);
+  }
+  return true;
+}
+
+function renderRasterStrokeSegment(ctx, edit, previous, point) {
   const config = edit.config;
   const radius = Math.max(1, config.size / 2);
   const isPencil = config.brushKind === "pencil";
@@ -4027,7 +4526,7 @@ function drawRasterStrokeSegment(edit, point) {
   ctx.lineJoin = "round";
   ctx.lineWidth = config.size;
 
-  if (normalizeToolId(activeTool) === "eraser") {
+  if (normalizeToolId(activeTool) === "eraser" && edit.renderEraseMask !== true) {
     if (useSoftEdge) {
       drawSoftBrushSegment(ctx, edit, previous, point, "#000000", "destination-out");
     } else {
@@ -4043,7 +4542,7 @@ function drawRasterStrokeSegment(edit, point) {
       ctx.fill();
     }
   } else {
-    const paintColor = config.mode === "mask" ? getMaskPaintColor() : config.color;
+    const paintColor = edit.renderEraseMask === true ? "#000000" : config.mode === "mask" ? getMaskPaintColor() : config.color;
 
     if (isPencil) {
       ctx.imageSmoothingEnabled = false;
@@ -4067,6 +4566,25 @@ function drawRasterStrokeSegment(edit, point) {
   }
 
   ctx.restore();
+}
+
+function drawRasterStrokeSegment(edit, point) {
+  if (!edit || !point) {
+    return;
+  }
+
+  const targetCanvas = edit.sourceCanvas;
+  const ctx = targetCanvas.getContext("2d");
+  const previous = edit.lastPoint || point;
+
+  if (editor.selectionManager?.hasSelection?.()) {
+    if (edit.selectionMaskLayer?.canvas) {
+      drawRasterStrokeSegmentWithSelection(edit, previous, point);
+    }
+  } else {
+    renderRasterStrokeSegment(ctx, edit, previous, point);
+  }
+
   edit.lastPoint = point;
   if (isMaskLayerObject(edit.imageObject)) {
     edit.imageObject.rasterSourceSrc = edit.sourceCanvas.toDataURL("image/png");
@@ -4076,12 +4594,906 @@ function drawRasterStrokeSegment(edit, point) {
       void refreshLayerMaskComposite(parentObject, { maskCanvas: edit.sourceCanvas });
     }
   } else {
-    updateRasterImageElement(edit.imageObject, edit.sourceCanvas, null);
+    if (edit.imageObject.getElement?.() === edit.sourceCanvas) {
+      edit.imageObject.dirty = true;
+      canvas?.requestRenderAll();
+    } else {
+      updateRasterImageElement(edit.imageObject, edit.sourceCanvas, null);
+    }
   }
 }
 
 function getMaskPaintColor() {
   return normalizeHexColor(brushColor?.value || "#20232A", "#20232A");
+}
+
+function getAiBrushCombineMode(event = null) {
+  return getSelectionCombineMode(event);
+}
+
+function makeBoundsFromPoints(points = [], padding = 0) {
+  if (!points.length) {
+    return null;
+  }
+  const xs = points.map((point) => Number(point.x || 0));
+  const ys = points.map((point) => Number(point.y || 0));
+  return {
+    left: Math.min(...xs) - padding,
+    top: Math.min(...ys) - padding,
+    width: Math.max(1, Math.max(...xs) - Math.min(...xs) + padding * 2),
+    height: Math.max(1, Math.max(...ys) - Math.min(...ys) + padding * 2)
+  };
+}
+
+function getViewportPointForScenePoint(point) {
+  const transform = canvas?.viewportTransform || [1, 0, 0, 1, 0, 0];
+  const rect = canvas?.upperCanvasEl?.getBoundingClientRect?.() || canvas?.lowerCanvasEl?.getBoundingClientRect?.();
+  return {
+    x: (rect?.left || 0) + Number(point.x || 0) * transform[0] + transform[4],
+    y: (rect?.top || 0) + Number(point.y || 0) * transform[3] + transform[5]
+  };
+}
+
+function ensureSelectionOverlayCanvas() {
+  if (selectionOverlayCanvas) {
+    return selectionOverlayCanvas;
+  }
+  selectionOverlayCanvas = document.createElement("canvas");
+  selectionOverlayCanvas.className = "selection-overlay-canvas";
+  selectionOverlayCanvas.style.position = "fixed";
+  selectionOverlayCanvas.style.pointerEvents = "none";
+  selectionOverlayCanvas.style.zIndex = "20";
+  selectionOverlayCanvas.hidden = true;
+  document.body.appendChild(selectionOverlayCanvas);
+  console.info("[CANVAS_OVERLAY] selection overlay ready");
+  return selectionOverlayCanvas;
+}
+
+function syncOverlayCanvases() {
+  const overlay = ensureSelectionOverlayCanvas();
+  const rect = canvas?.upperCanvasEl?.getBoundingClientRect?.() || canvas?.lowerCanvasEl?.getBoundingClientRect?.();
+  if (!rect) {
+    return;
+  }
+  const dpr = window.devicePixelRatio || 1;
+  overlay.style.left = `${rect.left}px`;
+  overlay.style.top = `${rect.top}px`;
+  overlay.style.width = `${rect.width}px`;
+  overlay.style.height = `${rect.height}px`;
+  const nextWidth = Math.max(1, Math.round(rect.width * dpr));
+  const nextHeight = Math.max(1, Math.round(rect.height * dpr));
+  if (overlay.width !== nextWidth || overlay.height !== nextHeight) {
+    overlay.width = nextWidth;
+    overlay.height = nextHeight;
+  }
+  aiBrushEffectsRenderer?.syncToCanvas?.();
+  console.debug?.("[CANVAS_OVERLAY] sync overlays");
+}
+
+function makeSelectionEdgeCanvas(mask, bounds) {
+  const width = Math.max(1, Math.round(bounds.width));
+  const height = Math.max(1, Math.round(bounds.height));
+  const edgeCanvas = makeRasterCanvas(width, height);
+  const ctx = edgeCanvas.getContext("2d");
+  const imageData = ctx.createImageData(width, height);
+  const dash = selectionOverlayDash;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const sceneX = bounds.left + x;
+      const sceneY = bounds.top + y;
+      if (!mask.contains(sceneX, sceneY)) continue;
+      const edge = !mask.contains(sceneX - 1, sceneY)
+        || !mask.contains(sceneX + 1, sceneY)
+        || !mask.contains(sceneX, sceneY - 1)
+        || !mask.contains(sceneX, sceneY + 1);
+      if (!edge) continue;
+      const index = (y * width + x) * 4;
+      const purple = ((x + y + dash) % 14) < 7;
+      imageData.data[index] = purple ? 138 : 0;
+      imageData.data[index + 1] = purple ? 44 : 175;
+      imageData.data[index + 2] = purple ? 255 : 255;
+      imageData.data[index + 3] = 235;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return edgeCanvas;
+}
+
+function renderSelectionVisualMask() {
+  const overlay = ensureSelectionOverlayCanvas();
+  const mask = editor.selectionManager?.getActiveMask?.();
+  const bounds = editor.selectionManager?.getSelectionBounds?.();
+  if (!mask || !bounds || !canvas) {
+    overlay.hidden = true;
+    if (selectionOverlayRaf) cancelAnimationFrame(selectionOverlayRaf);
+    selectionOverlayRaf = null;
+    return;
+  }
+  syncOverlayCanvases();
+  overlay.hidden = false;
+  const dpr = window.devicePixelRatio || 1;
+  const ctx = overlay.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, overlay.width / dpr, overlay.height / dpr);
+  const rect = canvas.upperCanvasEl.getBoundingClientRect();
+  const tl = getViewportPointForScenePoint({ x: bounds.left, y: bounds.top });
+  const br = getViewportPointForScenePoint({ x: bounds.left + bounds.width, y: bounds.top + bounds.height });
+  const x = tl.x - rect.left;
+  const y = tl.y - rect.top;
+  const width = br.x - tl.x;
+  const height = br.y - tl.y;
+  const sx = Math.max(0, Math.round(bounds.left - mask.offsetX));
+  const sy = Math.max(0, Math.round(bounds.top - mask.offsetY));
+  const sw = Math.max(1, Math.round(bounds.width));
+  const sh = Math.max(1, Math.round(bounds.height));
+  const maskCanvas = mask.toCanvas({
+    foreground: [0, 175, 255],
+    background: [0, 0, 0],
+    foregroundAlpha: 255,
+    backgroundAlpha: 0
+  });
+  ctx.save();
+  ctx.globalAlpha = 0.22;
+  ctx.shadowColor = "#8A2CFF";
+  ctx.shadowBlur = 16;
+  ctx.drawImage(maskCanvas, sx, sy, sw, sh, x, y, width, height);
+  ctx.restore();
+  const edgeCanvas = makeSelectionEdgeCanvas(mask, bounds);
+  ctx.save();
+  ctx.globalAlpha = 0.95;
+  ctx.shadowColor = "#DCCBFF";
+  ctx.shadowBlur = 8;
+  ctx.drawImage(edgeCanvas, 0, 0, sw, sh, x, y, width, height);
+  ctx.restore();
+  console.debug?.("[SELECTION] visual mask rendered");
+}
+
+function startSelectionOverlayAnimation() {
+  if (selectionOverlayRaf) {
+    return;
+  }
+  const tick = () => {
+    selectionOverlayDash = (selectionOverlayDash + 1) % 28;
+    renderSelectionVisualMask();
+    if (editor.selectionManager?.hasSelection?.()) {
+      selectionOverlayRaf = requestAnimationFrame(tick);
+    } else {
+      selectionOverlayRaf = null;
+    }
+  };
+  selectionOverlayRaf = requestAnimationFrame(tick);
+}
+
+function positionPromptForMask(mask) {
+  const bounds = mask?.getBounds?.();
+  const point = bounds
+    ? { x: bounds.left + bounds.width, y: bounds.top + Math.min(40, bounds.height) }
+    : { x: artboardObject?.left || 0, y: artboardObject?.top || 0 };
+  const viewport = getViewportPointForScenePoint(point);
+  return {
+    x: Math.min(window.innerWidth - 360, Math.max(16, viewport.x + 14)),
+    y: Math.min(window.innerHeight - 70, Math.max(16, viewport.y))
+  };
+}
+
+function sampleGesturePoints(points = [], maxPoints = 36) {
+  if (points.length <= maxPoints) {
+    return points;
+  }
+  const step = Math.max(1, Math.floor(points.length / maxPoints));
+  return points.filter((_, index) => index % step === 0).slice(0, maxPoints);
+}
+
+function featherCanvasElement(canvasElement, radius = 6) {
+  if (!canvasElement || radius <= 0) {
+    return canvasElement;
+  }
+  const output = makeRasterCanvas(canvasElement.width, canvasElement.height);
+  const ctx = output.getContext("2d");
+  ctx.filter = `blur(${Math.max(0, Math.round(radius))}px)`;
+  ctx.drawImage(canvasElement, 0, 0);
+  return output;
+}
+
+async function featherCanvasElementAsync(canvasElement, radius = 6) {
+  if (!canvasElement || radius <= 0) {
+    return canvasElement;
+  }
+  const ctx = canvasElement.getContext("2d");
+  const imageData = ctx.getImageData(0, 0, canvasElement.width, canvasElement.height);
+  const feathered = await runCanvasPixelWorker("featherImageData", { imageData, radius }).catch(() => null);
+  if (!feathered) {
+    return featherCanvasElement(canvasElement, radius);
+  }
+  const output = makeRasterCanvas(canvasElement.width, canvasElement.height);
+  output.getContext("2d").putImageData(feathered, 0, 0);
+  return output;
+}
+
+function scheduleAiBrushWork(callback) {
+  window.setTimeout(callback, 0);
+}
+
+function waitForNextFrame() {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+function updateAiBrushStatus(message = "") {
+  if (message) {
+    showToolNotice(message);
+    aiBrushEffectsRenderer?.setStatus?.(message);
+  }
+}
+
+async function yieldAiBrushStep(message = "") {
+  updateAiBrushStatus(message);
+  await waitForNextFrame();
+  await new Promise((resolve) => window.setTimeout(resolve, 0));
+}
+
+function countMaskPixels(mask) {
+  if (!mask?.data) {
+    return 0;
+  }
+  let count = 0;
+  for (let index = 0; index < mask.data.length; index += 1) {
+    if (mask.data[index] > 0) count += 1;
+  }
+  return count;
+}
+
+function hideSelectionOverlayOnly() {
+  if (selectionState.overlay) {
+    removeToolOverlay(selectionState.overlay);
+    selectionState.overlay = null;
+  }
+  selectionAntsRenderer?.clear?.();
+  canvas?.requestRenderAll?.();
+}
+
+function convertSceneGestureToImagePoints(imageObject, sourceCanvas, scenePoints = []) {
+  return sampleGesturePoints(scenePoints)
+    .map((point) => scenePointToImagePixel(imageObject, point, sourceCanvas))
+    .filter(Boolean);
+}
+
+async function createStrokeFallbackImageMask(width, height, points = []) {
+  if (!window.SelectionMask || points.length < 2) {
+    return null;
+  }
+  const workerResult = await runCanvasPixelWorker("strokeMask", { width, height, points }).catch(() => null);
+  if (workerResult) {
+    const workerMask = makeSelectionMaskFromWorkerResult(workerResult);
+    if (workerMask && !workerMask.isEmpty()) return workerMask;
+  }
+  const strokeCanvas = makeRasterCanvas(width, height);
+  const ctx = strokeCanvas.getContext("2d");
+  const bounds = makeBoundsFromPoints(points, 0);
+  const brushWidth = Math.max(24, Math.min(96, Math.round(Math.max(bounds?.width || 1, bounds?.height || 1) * 0.18)));
+  ctx.strokeStyle = "#FFFFFF";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = brushWidth;
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    if (index === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  });
+  ctx.stroke();
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const mask = new window.SelectionMask(width, height);
+  for (let index = 0; index < mask.data.length; index += 1) {
+    mask.data[index] = imageData.data[index * 4 + 3] > 8 ? 255 : 0;
+  }
+  return mask.isEmpty() ? null : mask;
+}
+
+function closePathPoints(points = []) {
+  if (points.length < 2) return points;
+  const first = points[0];
+  const last = points[points.length - 1];
+  const closed = Math.hypot(first.x - last.x, first.y - last.y) <= 8
+    ? points.slice()
+    : [...points, { ...first }];
+  console.info("[AI_BRUSH] path closed");
+  return closed;
+}
+
+function calculatePathCentroid(points = []) {
+  const usable = points.length > 1 ? points.slice(0, -1) : points;
+  const sum = usable.reduce((acc, point) => ({
+    x: acc.x + Number(point.x || 0),
+    y: acc.y + Number(point.y || 0)
+  }), { x: 0, y: 0 });
+  const count = Math.max(1, usable.length);
+  const centroid = { x: sum.x / count, y: sum.y / count };
+  console.info("[AI_BRUSH] centroid calculated", centroid);
+  return centroid;
+}
+
+function createPathFallbackImageMask(width, height, points = []) {
+  const closed = closePathPoints(points);
+  if (!window.SelectionMask || closed.length < 3) {
+    return null;
+  }
+  console.info("[AI_BRUSH] fallback path mask used");
+  const mask = window.SelectionMask.fromPolygon(width, height, closed);
+  return mask.isEmpty() ? null : mask;
+}
+
+async function createSceneSelectionMaskFromImageMaskAsync(imageObject, rasterCanvas, imageMask) {
+  if (!window.SelectionMask || !imageMask) {
+    return null;
+  }
+  syncSelectionManagerGeometry();
+  const artboardRect = getArtboardRect();
+  const sceneMask = new window.SelectionMask(artboardWidth, artboardHeight, {
+    offsetX: artboardRect.x,
+    offsetY: artboardRect.y
+  });
+  let processed = 0;
+  for (let y = 0; y < imageMask.height; y += 1) {
+    for (let x = 0; x < imageMask.width; x += 1) {
+      if (imageMask.data[y * imageMask.width + x]) {
+        const scenePoint = imagePixelToScenePoint(imageObject, { x: x + 0.5, y: y + 0.5 }, rasterCanvas);
+        if (scenePoint) {
+          sceneMask.set(scenePoint.x, scenePoint.y, 255);
+        }
+      }
+      processed += 1;
+      if (processed % 18000 === 0) {
+        await new Promise((resolve) => {
+          if (typeof window.requestIdleCallback === "function") {
+            window.requestIdleCallback(resolve, { timeout: 40 });
+          } else {
+            window.setTimeout(resolve, 0);
+          }
+        });
+      }
+    }
+  }
+  return sceneMask;
+}
+
+async function runAiBrushSegmentation(session) {
+  const sourceCanvas = await createRasterCanvasFromSource(getImageSourceForRaster(session.imageObject), session.imageObject.getElement?.());
+  const imagePoints = convertSceneGestureToImagePoints(session.imageObject, sourceCanvas, session.points);
+  if (!imagePoints.length) {
+    throw new Error("Gesto fora da layer raster.");
+  }
+
+  const roiBounds = makeBoundsFromPoints(imagePoints, Math.max(36, Math.round(Math.min(sourceCanvas.width, sourceCanvas.height) * 0.04)));
+  const closedImagePath = closePathPoints(imagePoints);
+  const positivePoint = calculatePathCentroid(closedImagePath);
+  console.info("[AI_BRUSH] roi bounds", roiBounds);
+  console.info("[AI_BRUSH] segmentation start");
+  const imageData = sourceCanvas.getContext("2d").getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+  const context = {
+    imageData,
+    sourceCanvas,
+    points: imagePoints,
+    closedPath: closedImagePath,
+    positivePoint,
+    scenePoints: session.points,
+    SelectionMask: window.SelectionMask
+  };
+
+  const providers = [
+    window.SamService,
+    window.MobileSamService,
+    window.ClipsegService
+  ].filter(Boolean);
+
+  let imageMask = null;
+  for (const provider of providers) {
+    imageMask = await provider.segment(context);
+    if (imageMask) break;
+  }
+  if (!imageMask) {
+    console.info("[AI_BRUSH] segmentation fallback stroke mask");
+    imageMask = createPathFallbackImageMask(sourceCanvas.width, sourceCanvas.height, closedImagePath)
+      || await createStrokeFallbackImageMask(sourceCanvas.width, sourceCanvas.height, imagePoints);
+    if (imageMask) {
+      console.info("[AI_BRUSH] fallback stroke mask used");
+    }
+  }
+  console.info("[AI_BRUSH] segmentation done");
+  if (!imageMask) {
+    throw new Error("Nao foi possivel segmentar a area da Pena IA.");
+  }
+
+  const refinedImageMask = imageMask;
+  const sceneMask = await createSceneSelectionMaskFromImageMaskAsync(session.imageObject, sourceCanvas, refinedImageMask);
+  if (!sceneMask || sceneMask.isEmpty()) {
+    throw new Error("Mascara segmentada vazia.");
+  }
+  const workerCount = await runCanvasPixelWorker("countMask", { maskData: sceneMask.data }).catch(() => null);
+  console.info("[AI_BRUSH] mask pixel count", workerCount ?? countMaskPixels(sceneMask));
+
+  return {
+    sourceCanvas,
+    imageMask: refinedImageMask,
+    sceneMask
+  };
+}
+
+function ensureAiBrushUi() {
+  if (!aiBrushPromptPopup && window.PromptPopup) {
+    aiBrushPromptPopup = new window.PromptPopup();
+  }
+}
+
+function startAiBrushGesture(event) {
+  if (!canvas) {
+    return false;
+  }
+  ensureAiBrushUi();
+  const scenePoint = getScenePoint(event);
+  if (!scenePoint) {
+    console.warn("[AI_BRUSH] error", "pointer sem scenePoint");
+    return false;
+  }
+  const imageObject = getActiveRasterLayer() || getCanvasObjectAtScenePoint(scenePoint);
+  if (!isRasterEditableImage(imageObject) || isMaskLayerObject(imageObject)) {
+    console.warn("[AI_BRUSH] error", "sem layer raster ativa");
+    showToolNotice("Pena IA precisa de uma layer raster ativa.");
+    return false;
+  }
+
+  console.info("[AI_BRUSH] drawing start", {
+    layerId: imageObject.layerId || null,
+    point: scenePoint
+  });
+  aiBrushPromptPopup?.destroy?.();
+  activeAiBrushSession = {
+    state: "drawing",
+    imageObject,
+    points: [scenePoint],
+    mode: getAiBrushCombineMode(event),
+    mask: null,
+    imageMask: null,
+    sourceCanvas: null,
+    generating: false
+  };
+  aiBrushEffectsRenderer?.startGesture?.(scenePoint);
+  event.e?.preventDefault?.();
+  return true;
+}
+
+function updateAiBrushGesture(event) {
+  if (activeAiBrushSession?.state !== "drawing") {
+    return;
+  }
+  const point = getScenePoint(event);
+  if (!point) {
+    return;
+  }
+  const previous = activeAiBrushSession.points[activeAiBrushSession.points.length - 1];
+  if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) < 2) {
+    return;
+  }
+  activeAiBrushSession.points.push(point);
+  console.info("[AI_BRUSH] drawing move");
+  aiBrushEffectsRenderer?.updateGesture?.(point);
+  event.e?.preventDefault?.();
+}
+
+function finishAiBrushGesture(event) {
+  if (activeAiBrushSession?.state !== "drawing") {
+    return;
+  }
+  const session = activeAiBrushSession;
+  console.info("[AI_BRUSH] drawing end");
+  session.state = "segmenting";
+  event?.e?.preventDefault?.();
+  showToolNotice("Pena IA: detectando objeto...");
+  aiBrushEffectsRenderer?.setState?.("segmenting");
+  scheduleAiBrushWork(async () => {
+    try {
+    if (session.points.length < 2) {
+      throw new Error("Rabisque sobre a area que voce quer editar.");
+    }
+    const segmentation = await runAiBrushSegmentation(session);
+    session.sourceCanvas = segmentation.sourceCanvas;
+    session.imageMask = segmentation.imageMask;
+    session.mask = segmentation.sceneMask;
+    session.state = "prompt";
+    selectionState.type = "ai-brush";
+    SelectionManager.applyMask(session.mask, session.mode);
+    hideSelectionOverlayOnly();
+    aiBrushEffectsRenderer?.showSelection?.(session.mask);
+    const popupPoint = positionPromptForMask(session.mask);
+    aiBrushPromptPopup?.show?.({
+      ...popupPoint,
+      onSubmit: (prompt) => {
+        void submitAiBrushPrompt(prompt);
+      },
+      onCancel: cancelAiBrushSession
+    });
+    console.info("[AI_BRUSH] prompt opened");
+    showToolNotice("Objeto detectado. Digite o prompt e pressione Enter.");
+    } catch (err) {
+    session.state = "error";
+    console.error("[AI_BRUSH] error", err);
+    showToolNotice(`Pena IA: ${err.message || err}`);
+    cancelAiBrushSession();
+    }
+  });
+}
+
+function cancelAiBrushSession() {
+  if (activeAiBrushSession?.generating) {
+    showToolNotice("Pena IA: geracao em andamento; cancele pelo worker se disponivel.");
+    return;
+  }
+  if (activeAiBrushSession) {
+    activeAiBrushSession.state = "cancelled";
+  }
+  aiBrushPromptPopup?.destroy?.();
+  aiBrushEffectsRenderer?.clear?.();
+  activeAiBrushSession = null;
+  showToolNotice("Pena IA cancelada.");
+}
+
+async function submitAiBrushPrompt(prompt) {
+  const session = activeAiBrushSession;
+  const cleanPrompt = String(prompt || "").trim();
+  if (!session?.mask || !cleanPrompt || session.generating || session.state !== "prompt") {
+    return;
+  }
+  session.generating = true;
+  session.state = "generating";
+  aiBrushPromptPopup?.destroy?.();
+  aiBrushEffectsRenderer?.showGenerating?.(session.mask);
+  updateAiBrushStatus("Preparando imagem...");
+  console.info("[AI_BRUSH] inpaint start");
+  scheduleAiBrushWork(async () => {
+    try {
+      const result = await runAiBrushInpaintRequest({ prompt: cleanPrompt, session });
+      await compositeAiBrushResultIntoLayer(result.file, session);
+      session.state = "done";
+      console.info("[AI_BRUSH] inpaint done");
+      console.info("[AI_BRUSH] done");
+      aiBrushEffectsRenderer?.completeFlash?.(session.mask);
+      showToolNotice("Edicao IA aplicada dentro da mascara.");
+      activeAiBrushSession = null;
+    } catch (err) {
+      session.generating = false;
+      session.state = "error";
+      console.error("[AI_BRUSH] error", err);
+      aiBrushPromptPopup?.destroy?.();
+      aiBrushEffectsRenderer?.clear?.();
+      showToolNotice(`Erro na Pena IA: ${err.message || err}`);
+      activeAiBrushSession = null;
+    }
+  });
+}
+
+async function saveAiBrushMaskTemp(maskCanvas, layerId = "ai-brush-mask") {
+  const saved = await window.kitAPI?.saveCanvasI2ITempPng?.({
+    dataUrl: maskCanvas.toDataURL("image/png"),
+    layerId,
+    name: layerId,
+    width: maskCanvas.width,
+    height: maskCanvas.height
+  });
+  if (!saved?.filePath) {
+    throw new Error("Nao foi possivel salvar mascara temporaria da Pena IA.");
+  }
+  return saved.filePath;
+}
+
+function withAiBrushTimeout(promise, ms = 180000) {
+  let timeoutId = null;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error("Tempo limite ao gerar edicao IA. Verifique o motor SD/Forge.")), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
+function getAiBrushImageGeneratorConfig(prompt = "") {
+  const base = collectStableDiffusionPayload();
+  const checkpoint = String(base.checkpoint || sdCheckpoint?.value || "").trim();
+  console.info("[AI_BRUSH] using image generator config");
+  console.info("[AI_BRUSH] using image generator flow");
+  console.info("[AI_BRUSH] selected model", checkpoint || "(none)");
+  if (!checkpoint) {
+    throw new Error("Selecione um modelo em Gerar Imagem antes de usar a Pena IA.");
+  }
+  return {
+    ...base,
+    mode: "inpaint",
+    uiMode: "magic-edit",
+    prompt,
+    negativePrompt: base.negative_prompt || "",
+    negative_prompt: base.negative_prompt || "",
+    model: checkpoint,
+    checkpoint,
+    vae: sdVae?.value || base.vae || "",
+    loras: sdLora?.value || base.lora || "",
+    lora: sdLora?.value || base.lora || "",
+    sampler: base.sampler || sdSampler?.value || "",
+    scheduler: base.scheduler || sdScheduler?.value || "",
+    steps: Number(base.steps || getNumericValue(sdSteps, 24)),
+    cfgScale: Number(base.cfg_scale || getNumericValue(sdCfgScale, 7)),
+    cfg_scale: Number(base.cfg_scale || getNumericValue(sdCfgScale, 7)),
+    denoiseStrength: Number(base.denoising_strength || getNumericValue(sdDenoising, 0.55)),
+    denoising_strength: Number(base.denoising_strength || getNumericValue(sdDenoising, 0.55)),
+    seed: Number(base.seed ?? getNumericValue(sdSeed, -1)),
+    source: "canvas_ai_brush"
+  };
+}
+
+async function runAiBrushInpaintRequest({ prompt, session } = {}) {
+  const sourceObject = session.imageObject;
+  canvas.setActiveObject(sourceObject);
+  const generatorConfig = getAiBrushImageGeneratorConfig(prompt);
+  await yieldAiBrushStep("Preparando imagem...");
+  const sourceCanvas = await createRasterCanvasFromSource(getImageSourceForRaster(sourceObject), sourceObject.getElement?.());
+  console.info("[AI_BRUSH] export base image");
+  const baseDataUrl = sourceCanvas.toDataURL("image/png");
+  const initSaved = await window.kitAPI?.saveCanvasI2ITempPng?.({
+    dataUrl: baseDataUrl,
+    layerId: sourceObject.layerId || "ai-brush-base",
+    name: makeObjectName(sourceObject),
+    width: sourceCanvas.width,
+    height: sourceCanvas.height
+  });
+  if (!initSaved?.filePath) {
+    throw new Error("Nao foi possivel exportar a imagem base da Pena IA.");
+  }
+  await yieldAiBrushStep("Exportando mascara...");
+  console.info("[AI_BRUSH] export mask");
+  const clipCanvas = await createSelectionClipCanvasForImageAsync(sourceObject, sourceCanvas);
+  if (!clipCanvas) {
+    throw new Error("Mascara ativa indisponivel para a Pena IA.");
+  }
+  const maskCanvas = await featherCanvasElementAsync(clipCanvas, 6);
+  const maskDataUrl = maskCanvas.toDataURL("image/png");
+  const maskSaved = await window.kitAPI?.saveCanvasI2ITempPng?.({
+    dataUrl: maskDataUrl,
+    layerId: sourceObject.layerId || "ai-brush-mask",
+    name: `${makeObjectName(sourceObject)}-mask`,
+    width: maskCanvas.width,
+    height: maskCanvas.height
+  });
+  if (!maskSaved?.filePath) {
+    throw new Error("Nao foi possivel exportar a mascara da Pena IA.");
+  }
+  await yieldAiBrushStep("Enviando para i2i...");
+  const payload = {
+    ...generatorConfig,
+    mode: "inpaint",
+    uiMode: "magic-edit",
+    prompt,
+    width: sourceCanvas.width,
+    height: sourceCanvas.height,
+    sourceLayerId: sourceObject.layerId || null,
+    initImagePath: initSaved.filePath,
+    imagePath: initSaved.filePath,
+    image_path: initSaved.filePath,
+    maskPath: maskSaved.filePath,
+    mask_path: maskSaved.filePath,
+    image: baseDataUrl,
+    mask: maskDataUrl,
+    baseImageDataUrl: baseDataUrl,
+    maskImageDataUrl: maskDataUrl,
+    targetLayerId: sourceObject.layerId || null,
+    source: "canvas_ai_brush"
+  };
+  if (!String(payload.prompt || "").trim()) {
+    throw new Error("Digite um prompt para editar a area.");
+  }
+  console.info("[AI_BRUSH] send inpaint request");
+  await CanvasStableActions.ensureStableEnabled();
+  await yieldAiBrushStep("Gerando edicao...");
+  if (typeof window.kitAPI?.inpaintStableDiffusionImage !== "function") {
+    throw new Error("Endpoint de inpaint do Gerador de Imagem indisponivel.");
+  }
+  const result = await withAiBrushTimeout(window.kitAPI.inpaintStableDiffusionImage(payload), 180000);
+  console.info("[AI_BRUSH] inpaint response received");
+  if (!result?.file) {
+    throw new Error("Worker nao retornou arquivo de inpaint.");
+  }
+  recordStableDiffusionInpaint({
+    ...(result.metadata || {}),
+    file: result.file,
+    output_file: result.file,
+    prompt,
+    mode: "magic-edit",
+    mask_path: maskSaved.filePath,
+    targetLayerId: sourceObject.layerId || null,
+    insertMode: "masked-replace"
+  });
+  return result;
+}
+
+async function compositeAiBrushResultIntoLayer(filePath, session) {
+  await yieldAiBrushStep("Aplicando resultado...");
+  console.info("[AI_BRUSH] compose masked result");
+  const layer = session.imageObject;
+  const sourceCanvas = await createRasterCanvasFromSource(getImageSourceForRaster(layer), layer.getElement?.());
+  const resultImage = await loadImageElement(toImageUrl(filePath));
+  const resultCanvas = makeRasterCanvas(sourceCanvas.width, sourceCanvas.height);
+  resultCanvas.getContext("2d").drawImage(resultImage, 0, 0, resultCanvas.width, resultCanvas.height);
+  const clipCanvas = await createSelectionClipCanvasForImageAsync(layer, sourceCanvas);
+  if (!clipCanvas) {
+    throw new Error("Mascara ativa indisponivel para aplicar resultado.");
+  }
+
+  await waitForNextFrame();
+  const isolated = makeRasterCanvas(sourceCanvas.width, sourceCanvas.height);
+  const isolatedCtx = isolated.getContext("2d");
+  isolatedCtx.drawImage(resultCanvas, 0, 0);
+  isolatedCtx.globalCompositeOperation = "destination-in";
+  isolatedCtx.drawImage(clipCanvas, 0, 0, isolated.width, isolated.height);
+
+  const ctx = sourceCanvas.getContext("2d");
+  ctx.drawImage(isolated, 0, 0);
+  layer.rasterSourceSrc = sourceCanvas.toDataURL("image/png");
+  updateRasterImageElement(layer, sourceCanvas, null);
+  canvas.setActiveObject(layer);
+  updateSelectionInfo();
+  markCanvasChanged("ai-brush-inpaint");
+  scheduleAutosave();
+  return layer;
+}
+
+function createSceneSelectionMaskFromImageMask(imageObject, rasterCanvas, imageMask) {
+  if (!window.SelectionMask || !imageMask) {
+    return null;
+  }
+  syncSelectionManagerGeometry();
+  const artboardRect = getArtboardRect();
+  const sceneMask = new window.SelectionMask(artboardWidth, artboardHeight, {
+    offsetX: artboardRect.x,
+    offsetY: artboardRect.y
+  });
+
+  for (let y = 0; y < imageMask.height; y += 1) {
+    for (let x = 0; x < imageMask.width; x += 1) {
+      if (!imageMask.data[y * imageMask.width + x]) {
+        continue;
+      }
+      const scenePoint = imagePixelToScenePoint(imageObject, { x: x + 0.5, y: y + 0.5 }, rasterCanvas);
+      if (scenePoint) {
+        sceneMask.set(scenePoint.x, scenePoint.y, 255);
+      }
+    }
+  }
+  return sceneMask;
+}
+
+async function applyMagicWandSelection(event) {
+  if (!canvas || !window.floodFillSelection) {
+    return false;
+  }
+
+  const scenePoint = getScenePointFromFabricEvent(event);
+  const point = scenePoint ? { x: Number(scenePoint.x || 0), y: Number(scenePoint.y || 0) } : null;
+  const imageObject = getActiveRasterLayer() || getCanvasObjectAtScenePoint(point);
+  if (!isRasterEditableImage(imageObject)) {
+    showToolNotice("Varinha magica precisa de uma layer raster ativa.");
+    return false;
+  }
+
+  console.info("[MAGIC_WAND] flood fill start");
+  const sourceCanvas = await createRasterCanvasFromSource(getImageSourceForRaster(imageObject), imageObject.getElement?.());
+  const imagePoint = scenePointToImagePixel(imageObject, point, sourceCanvas);
+  if (!imagePoint) {
+    return false;
+  }
+
+  const ctx = sourceCanvas.getContext("2d");
+  const imageData = ctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+  const workerMask = await runCanvasPixelWorker("floodFill", {
+    imageData,
+    x: imagePoint.x,
+    y: imagePoint.y,
+    tolerance: 32
+  }).catch(() => null);
+  const imageMask = workerMask
+    ? makeSelectionMaskFromWorkerResult(workerMask)
+    : window.floodFillSelection(imageData, imagePoint.x, imagePoint.y, 32);
+  console.info("[MAGIC_WAND] flood fill done");
+  const sceneMask = createSceneSelectionMaskFromImageMask(imageObject, sourceCanvas, imageMask);
+  if (!sceneMask || sceneMask.isEmpty()) {
+    showToolNotice("Varinha magica nao encontrou uma area selecionavel.");
+    return false;
+  }
+  console.info("[MAGIC_WAND] mask pixels count", sceneMask.countPixels?.() ?? 0);
+
+  selectionTargetLayerId = imageObject.layerId || null;
+  selectionState.type = "magic";
+  selectionState.mode = getSelectionCombineMode(event);
+  SelectionManager.applyMask(sceneMask, selectionState.mode);
+  canvas.setActiveObject(imageObject);
+  showToolNotice("Selecao criada com varinha magica.");
+  event.e?.preventDefault?.();
+  return true;
+}
+
+async function fillRasterAtPointer(event) {
+  if (!canvas) {
+    return false;
+  }
+
+  const scenePoint = getScenePointFromFabricEvent(event);
+  const point = scenePoint ? { x: Number(scenePoint.x || 0), y: Number(scenePoint.y || 0) } : null;
+  const imageObject = getActiveRasterLayer() || getCanvasObjectAtScenePoint(point);
+  if (!isRasterEditableImage(imageObject)) {
+    showToolNotice("Balde precisa de uma layer raster ativa.");
+    return false;
+  }
+
+  const sourceCanvas = await createRasterCanvasFromSource(getImageSourceForRaster(imageObject), imageObject.getElement?.());
+  const imagePoint = scenePointToImagePixel(imageObject, point, sourceCanvas);
+  if (!imagePoint) {
+    return false;
+  }
+
+  const ctx = sourceCanvas.getContext("2d");
+  const imageData = ctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+  const workerMask = await runCanvasPixelWorker("floodFill", {
+    imageData,
+    x: imagePoint.x,
+    y: imagePoint.y,
+    tolerance: 24
+  }).catch(() => null);
+  const fillMask = workerMask
+    ? makeSelectionMaskFromWorkerResult(workerMask)
+    : window.floodFillSelection(imageData, imagePoint.x, imagePoint.y, 24);
+  const fillBounds = fillMask?.getBounds?.();
+  if (!fillMask || !fillBounds) {
+    return false;
+  }
+  const selectionMaskLayer = editor.selectionManager?.hasSelection?.()
+    ? createLayerLocalSelectionMaskCanvas(imageObject, sourceCanvas)
+    : null;
+  if (editor.selectionManager?.hasSelection?.() && !selectionMaskLayer?.canvas) {
+    showToolNotice("Mascara de selecao indisponivel para esta layer.");
+    event.e?.preventDefault?.();
+    return false;
+  }
+  const dirty = intersectRects({
+    x: Math.max(0, Math.floor(fillBounds.left)),
+    y: Math.max(0, Math.floor(fillBounds.top)),
+    width: Math.min(sourceCanvas.width, Math.ceil(fillBounds.left + fillBounds.width)) - Math.max(0, Math.floor(fillBounds.left)),
+    height: Math.min(sourceCanvas.height, Math.ceil(fillBounds.top + fillBounds.height)) - Math.max(0, Math.floor(fillBounds.top))
+  }, selectionMaskLayer?.bounds || { x: 0, y: 0, width: sourceCanvas.width, height: sourceCanvas.height });
+  if (!dirty) {
+    showToolNotice("Balde fora da selecao.");
+    event.e?.preventDefault?.();
+    return false;
+  }
+  const { r, g, b } = hexToRgb(getPrimaryColor());
+  const alpha = clampValue(getNumericValue(brushOpacity, 100), 0, 100) / 100;
+  const fillCanvas = makeRasterCanvas(dirty.width, dirty.height);
+  const fillCtx = fillCanvas.getContext("2d");
+  fillCtx.clearRect(0, 0, dirty.width, dirty.height);
+  fillCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  fillCtx.fillRect(0, 0, dirty.width, dirty.height);
+  const fillMaskCanvas = fillMask.toCanvas({
+    foreground: [255, 255, 255],
+    background: [0, 0, 0],
+    foregroundAlpha: 255,
+    backgroundAlpha: 0
+  });
+  fillCtx.globalCompositeOperation = "destination-in";
+  fillCtx.drawImage(fillMaskCanvas, dirty.x, dirty.y, dirty.width, dirty.height, 0, 0, dirty.width, dirty.height);
+  if (selectionMaskLayer?.canvas) {
+    fillCtx.drawImage(selectionMaskLayer.canvas, dirty.x, dirty.y, dirty.width, dirty.height, 0, 0, dirty.width, dirty.height);
+  }
+  fillCtx.globalCompositeOperation = "source-over";
+  ctx.drawImage(fillCanvas, 0, 0, dirty.width, dirty.height, dirty.x, dirty.y, dirty.width, dirty.height);
+  imageObject.rasterSourceSrc = sourceCanvas.toDataURL("image/png");
+  updateRasterImageElement(imageObject, sourceCanvas, null);
+  canvas.setActiveObject(imageObject);
+  updateSelectionInfo();
+  markCanvasChanged("raster-fill");
+  showToolNotice(editor.selectionManager?.hasSelection?.() ? "Balde aplicado dentro da selecao." : "Balde aplicado.");
+  event.e?.preventDefault?.();
+  return true;
 }
 
 async function startRasterEdit(event) {
@@ -4112,8 +5524,12 @@ async function startRasterEdit(event) {
       imageObject,
       sourceCanvas,
       maskCanvas: null,
+      selectionMaskLayer: editor.selectionManager?.hasSelection?.()
+        ? createLayerLocalSelectionMaskCanvas(imageObject, sourceCanvas)
+        : null,
       config,
       brushStamp: null,
+      tempCanvas: null,
       lastPoint: null
     };
 
@@ -4147,6 +5563,15 @@ function continueRasterEdit(event) {
   );
   if (!point) {
     return;
+  }
+
+  const previous = activeRasterEdit.lastPoint;
+  if (previous) {
+    const radius = Math.max(1, Number(activeRasterEdit.config?.size || 1) / 2);
+    const minDistance = Math.max(1, radius * 0.25);
+    if (Math.hypot(point.x - previous.x, point.y - previous.y) < minDistance) {
+      return;
+    }
   }
 
   event.e?.preventDefault?.();
@@ -4469,8 +5894,8 @@ function createSelectionOverlay(type = "rect") {
       ry: 1,
       originX: "left",
       originY: "top",
-      fill: "rgba(79,143,130,0.14)",
-      stroke: "#4F8F82",
+      fill: "rgba(0,175,255,0.10)",
+      stroke: "#00AFFF",
       strokeDashArray: [8, 5],
       selectable: false,
       evented: false,
@@ -4483,8 +5908,8 @@ function createSelectionOverlay(type = "rect") {
       height: 1,
       originX: "left",
       originY: "top",
-      fill: "rgba(79,143,130,0.14)",
-      stroke: "#4F8F82",
+      fill: "rgba(138,44,255,0.10)",
+      stroke: "#8A2CFF",
       strokeDashArray: [8, 5],
       selectable: false,
       evented: false,
@@ -4492,6 +5917,43 @@ function createSelectionOverlay(type = "rect") {
     });
   object.excludeFromExport = true;
   return object;
+}
+
+function createLassoOverlay(points = []) {
+  const Polyline = getFabricClass("Polyline");
+  if (!Polyline) {
+    return createSelectionOverlay("rect");
+  }
+  const object = new Polyline(points, {
+    fill: "rgba(0,175,255,0.10)",
+    stroke: "#00AFFF",
+    strokeDashArray: [8, 5],
+    strokeWidth: 1,
+    selectable: false,
+    evented: false,
+    isToolOverlay: true
+  });
+  object.excludeFromExport = true;
+  return object;
+}
+
+function updateLassoOverlay(overlay, points = []) {
+  if (!overlay) {
+    return;
+  }
+  if (Array.isArray(overlay.points)) {
+    overlay.set({ points });
+    overlay.setCoords();
+    canvas?.bringObjectToFront?.(overlay);
+    canvas?.requestRenderAll();
+    return;
+  }
+  const bounds = points.length ? makeBoxFromPoints(points[0], points[points.length - 1]) : null;
+  if (bounds) {
+    overlay.set(bounds);
+    overlay.setCoords();
+    canvas?.requestRenderAll();
+  }
 }
 
 function updateSelectionOverlay() {
@@ -4529,11 +5991,88 @@ function updateSelectionOverlay() {
   canvas.requestRenderAll();
 }
 
+function getSelectionCombineMode(event = null) {
+  const nativeEvent = event?.e || event || {};
+  if (nativeEvent.altKey) return "subtract";
+  if (nativeEvent.shiftKey && nativeEvent.ctrlKey) return "intersect";
+  if (nativeEvent.shiftKey) return "add";
+  return "replace";
+}
+
+function syncSelectionManagerGeometry() {
+  if (!editor.selectionManager || typeof editor.selectionManager.setGeometry !== "function") {
+    return;
+  }
+  const artboardRect = getArtboardRect();
+  editor.selectionManager.setGeometry(artboardWidth, artboardHeight, artboardRect.x, artboardRect.y);
+}
+
+function createSelectionMaskFromBounds(bounds, type = "rect") {
+  if (!window.SelectionMask || !bounds) {
+    return null;
+  }
+  syncSelectionManagerGeometry();
+  const artboardRect = getArtboardRect();
+  return type === "ellipse"
+    ? window.SelectionMask.fromEllipse(artboardWidth, artboardHeight, bounds, {
+      offsetX: artboardRect.x,
+      offsetY: artboardRect.y
+    })
+    : window.SelectionMask.fromRect(artboardWidth, artboardHeight, bounds, {
+      offsetX: artboardRect.x,
+      offsetY: artboardRect.y
+    });
+}
+
+function updateSelectionOverlayFromMask() {
+  const bounds = editor.selectionManager?.getBounds?.() || null;
+  if (!bounds) {
+    if (selectionState.overlay) {
+      removeToolOverlay(selectionState.overlay);
+      selectionState.overlay = null;
+    }
+    selectionAntsRenderer?.clear?.();
+    selectionState.active = false;
+    canvas?.requestRenderAll();
+    return;
+  }
+
+  if (selectionState.type === "mask" || selectionState.type === "magic" || selectionState.type === "ai-brush") {
+    if (selectionState.overlay) {
+      removeToolOverlay(selectionState.overlay);
+      selectionState.overlay = null;
+    }
+    selectionAntsRenderer?.clear?.();
+    renderSelectionVisualMask();
+    startSelectionOverlayAnimation();
+    if (selectionState.type === "ai-brush") {
+      aiBrushEffectsRenderer?.showSelection?.(editor.selectionManager.getActiveMask?.());
+    }
+    canvas?.requestRenderAll();
+    return;
+  }
+
+  if (!selectionState.overlay) {
+    selectionState.overlay = createSelectionOverlay("rect");
+    canvas.add(selectionState.overlay);
+  }
+  selectionState.type = "mask";
+  selectionState.bounds = bounds;
+  selectionState.active = true;
+  updateSelectionOverlay();
+  selectionAntsRenderer?.setOverlay?.(selectionState.overlay);
+}
+
 const SelectionManager = {
-  startSelection(type, point) {
+  startSelection(type, point, event = null) {
     const activeObject = getActiveEditableObject();
     selectionTargetLayerId = activeObject?.layerId || null;
-    clearSelection();
+    if (getSelectionCombineMode(event) === "replace") {
+      clearSelection();
+    } else if (selectionState.overlay) {
+      removeToolOverlay(selectionState.overlay);
+      selectionState.overlay = null;
+    }
     selectionTargetLayerId = activeObject?.layerId || null;
     selectionState = {
       type,
@@ -4541,7 +6080,8 @@ const SelectionManager = {
       end: point,
       bounds: makeBoxFromPoints(point, point),
       overlay: createSelectionOverlay(type),
-      active: false
+      active: false,
+      mode: getSelectionCombineMode(event)
     };
     canvas.add(selectionState.overlay);
     if (activeObject && canvas.getObjects().includes(activeObject)) {
@@ -4562,8 +6102,10 @@ const SelectionManager = {
       clearSelection();
       return;
     }
+    const mask = createSelectionMaskFromBounds(selectionState.bounds, selectionState.type);
+    editor.selectionManager?.apply?.(mask, selectionState.mode || "replace");
     selectionState.active = true;
-    updateSelectionOverlay();
+    updateSelectionOverlayFromMask();
     showToolNotice("Selecao ativa.");
   },
   clearSelection() {
@@ -4577,6 +6119,10 @@ const SelectionManager = {
   },
   getSelectionMask() {
     return getSelectionMask();
+  },
+  applyMask(mask, mode = "replace") {
+    editor.selectionManager?.apply?.(mask, mode);
+    updateSelectionOverlayFromMask();
   }
 };
 
@@ -4586,7 +6132,7 @@ function startSelectionAreaTool(event, type = "rect") {
     return;
   }
 
-  SelectionManager.startSelection(type === "ellipse" ? "ellipse" : "rect", start);
+  SelectionManager.startSelection(type === "ellipse" ? "ellipse" : "rect", start, event);
   activeToolPointerState = { kind: "selection" };
   event.e?.preventDefault?.();
 }
@@ -4639,9 +6185,87 @@ function finishSelectionAreaTool() {
   activeToolPointerState = null;
 }
 
+function startLassoSelectionTool(event) {
+  const start = getScenePoint(event);
+  if (!start || !canvas) {
+    return;
+  }
+
+  if (getSelectionCombineMode(event) === "replace") {
+    clearSelection();
+  } else if (selectionState.overlay) {
+    removeToolOverlay(selectionState.overlay);
+    selectionState.overlay = null;
+  }
+
+  const overlay = createLassoOverlay([start]);
+  canvas.add(overlay);
+  activeToolPointerState = {
+    kind: "lasso-selection",
+    points: [start],
+    overlay,
+    mode: getSelectionCombineMode(event)
+  };
+  event.e?.preventDefault?.();
+}
+
+function updateLassoSelectionTool(event) {
+  if (activeToolPointerState?.kind !== "lasso-selection") {
+    return;
+  }
+  const point = getScenePoint(event);
+  if (!point) {
+    return;
+  }
+  const points = activeToolPointerState.points;
+  const previous = points[points.length - 1];
+  if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) < 2) {
+    return;
+  }
+  points.push(point);
+  updateLassoOverlay(activeToolPointerState.overlay, points);
+  event.e?.preventDefault?.();
+}
+
+function finishLassoSelectionTool() {
+  if (activeToolPointerState?.kind !== "lasso-selection") {
+    return;
+  }
+  const points = activeToolPointerState.points || [];
+  const overlay = activeToolPointerState.overlay;
+  const mode = activeToolPointerState.mode || "replace";
+  if (points.length < 3) {
+    removeToolOverlay(overlay);
+    activeToolPointerState = null;
+    return;
+  }
+
+  syncSelectionManagerGeometry();
+  const artboardRect = getArtboardRect();
+  const mask = window.SelectionMask.fromPolygon(artboardWidth, artboardHeight, points, {
+    offsetX: artboardRect.x,
+    offsetY: artboardRect.y
+  });
+  removeToolOverlay(overlay);
+  selectionState.overlay = null;
+  selectionState.type = "mask";
+  SelectionManager.applyMask(mask, mode);
+  activeToolPointerState = null;
+  showToolNotice("Selecao de laco ativa.");
+}
+
 function clearSelection() {
   if (selectionState.overlay) {
     removeToolOverlay(selectionState.overlay);
+  }
+  editor.selectionManager?.clear?.();
+  selectionAntsRenderer?.clear?.();
+  if (selectionOverlayCanvas) {
+    selectionOverlayCanvas.hidden = true;
+  }
+  if (selectionOverlayRaf) {
+    cancelAnimationFrame(selectionOverlayRaf);
+    selectionOverlayRaf = null;
   }
   selectionTargetLayerId = null;
   selectionState = {
@@ -4656,17 +6280,30 @@ function clearSelection() {
 }
 
 function getSelectionBounds() {
-  return selectionState.active && selectionState.bounds
-    ? { ...selectionState.bounds, type: selectionState.type }
-    : null;
+  const managerBounds = editor.selectionManager?.getBounds?.();
+  return managerBounds
+    ? { ...managerBounds, type: selectionState.type || "mask" }
+    : selectionState.active && selectionState.bounds
+      ? { ...selectionState.bounds, type: selectionState.type }
+      : null;
+}
+
+function getSelectionMaskObject() {
+  return editor.selectionManager?.getMask?.() || null;
 }
 
 function hasSelection() {
-  return Boolean(getSelectionBounds());
+  return Boolean(editor.selectionManager?.hasSelection?.() || getSelectionBounds());
 }
 
 function getSelectionMask() {
-  const bounds = getSelectionBounds();
+  const activeMask = getSelectionMaskObject();
+  if (activeMask) {
+    return activeMask.toCanvas();
+  }
+  const bounds = selectionState.active && selectionState.bounds
+    ? { ...selectionState.bounds, type: selectionState.type }
+    : null;
   if (!bounds) {
     return null;
   }
@@ -4684,11 +6321,6 @@ function getSelectionMask() {
 }
 
 function getActiveRasterLayer() {
-  const explicitTarget = selectionTargetLayerId ? getLayerObjectById(selectionTargetLayerId) : null;
-  if (isRasterEditableImage(explicitTarget)) {
-    return explicitTarget;
-  }
-
   const object = getActiveEditableObject();
   if (isMaskLayerObject(object)) {
     const parentObject = getParentLayerForMask(object);
@@ -4698,6 +6330,11 @@ function getActiveRasterLayer() {
   }
   if (isRasterEditableImage(object)) {
     return object;
+  }
+
+  const explicitTarget = selectionTargetLayerId ? getLayerObjectById(selectionTargetLayerId) : null;
+  if (isRasterEditableImage(explicitTarget)) {
+    return explicitTarget;
   }
 
   const bounds = getSelectionBounds();
@@ -4721,8 +6358,9 @@ function getActiveSelection() {
 }
 
 async function createSelectionCanvasFromLayer(layer) {
-  const bounds = getSelectionBounds();
-  if (!bounds || !layer) {
+  const mask = editor.selectionManager?.getActiveMask?.();
+  const bounds = editor.selectionManager?.getSelectionBounds?.();
+  if (!mask || !bounds || !layer) {
     return null;
   }
 
@@ -4739,13 +6377,19 @@ async function createSelectionCanvasFromLayer(layer) {
   const sh = Math.max(1, Math.floor(Math.abs(br.y - tl.y)));
   const output = makeRasterCanvas(sw, sh);
   const ctx = output.getContext("2d");
-  ctx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
-
-  const mask = getSelectionMask();
-  if (mask && bounds.type === "ellipse") {
-    ctx.globalCompositeOperation = "destination-in";
-    ctx.drawImage(mask, 0, 0, sw, sh);
+  const sourceCtx = sourceCanvas.getContext("2d");
+  const sourceImageData = sourceCtx.getImageData(sx, sy, sw, sh);
+  const outputImageData = ctx.createImageData(sw, sh);
+  outputImageData.data.set(sourceImageData.data);
+  for (let y = 0; y < sh; y += 1) {
+    for (let x = 0; x < sw; x += 1) {
+      const scenePoint = imagePixelToScenePoint(layer, { x: sx + x + 0.5, y: sy + y + 0.5 }, sourceCanvas);
+      if (!scenePoint || !mask.contains(scenePoint.x, scenePoint.y)) {
+        outputImageData.data[(y * sw + x) * 4 + 3] = 0;
+      }
+    }
   }
+  ctx.putImageData(outputImageData, 0, 0);
 
   return { canvas: output, sx, sy, sw, sh, sourceCanvas, sceneLeft: bounds.left, sceneTop: bounds.top };
 }
@@ -4796,12 +6440,24 @@ async function duplicateSelectionToLayer() {
 async function deleteSelectionPixels() {
   const layer = getActiveRasterLayer();
   const selection = await createSelectionCanvasFromLayer(layer);
+  const mask = editor.selectionManager?.getActiveMask?.();
   if (!selection) {
     return false;
   }
 
   const ctx = selection.sourceCanvas.getContext("2d");
-  if (getSelectionBounds().type === "ellipse") {
+  if (mask) {
+    const imageData = ctx.getImageData(selection.sx, selection.sy, selection.sw, selection.sh);
+    for (let y = 0; y < selection.sh; y += 1) {
+      for (let x = 0; x < selection.sw; x += 1) {
+        const scenePoint = imagePixelToScenePoint(layer, { x: selection.sx + x + 0.5, y: selection.sy + y + 0.5 }, selection.sourceCanvas);
+        if (scenePoint && mask.contains(scenePoint.x, scenePoint.y)) {
+          imageData.data[(y * selection.sw + x) * 4 + 3] = 0;
+        }
+      }
+    }
+    ctx.putImageData(imageData, selection.sx, selection.sy);
+  } else if (getSelectionBounds().type === "ellipse") {
     ctx.save();
     ctx.globalCompositeOperation = "destination-out";
     ctx.beginPath();
@@ -8425,6 +10081,11 @@ async function createMaskDataUrl() {
     throw new Error("StaticCanvas indisponivel para exportar mascara.");
   }
 
+  if (editor.selectionManager?.hasSelection?.()) {
+    console.info("[SELECTION] inpaint mask exported");
+    return editor.selectionManager.exportMaskPng?.() || editor.selectionManager.exportBlackWhiteCanvas().toDataURL("image/png");
+  }
+
   const maskPaths = getMaskPaths();
   if (!maskPaths.length) {
     throw new Error("Nenhum traco de mascara para exportar.");
@@ -9112,16 +10773,24 @@ function setSelectOptions(select, items = [], config = {}) {
 
   items.forEach((item) => {
     const option = document.createElement("option");
-    option.value = item.path || item.id || item.name || "";
-    option.textContent = item.name || item.filename || item.file || item.path || "Modelo";
-    if (item.architecture && item.architecture !== "auto") {
-      option.dataset.architecture = item.architecture;
+    option.value = getRegistrySelectValue(item);
+    option.textContent = item.name || item.filename || item.fileName || item.file || item.path || "Modelo";
+    const architecture = item.architecture || item.engine;
+    if (architecture && architecture !== "auto") {
+      option.dataset.architecture = architecture;
     }
-    if (item.preview) {
-      option.dataset.preview = item.preview;
+    const preview = item.preview || item.previewPath;
+    if (preview) {
+      option.dataset.preview = preview;
     }
     if (item.type) {
       option.dataset.modelType = item.type;
+    }
+    if (item.engine) {
+      option.dataset.engine = item.engine;
+    }
+    if (item.warning) {
+      option.dataset.warning = item.warning;
     }
     if (item.originLabel) {
       option.dataset.originLabel = item.originLabel;
@@ -9131,6 +10800,10 @@ function setSelectOptions(select, items = [], config = {}) {
     }
     select.appendChild(option);
   });
+}
+
+function getRegistrySelectValue(item = {}) {
+  return item.path || item.modelPath || item.id || item.name || "";
 }
 
 function updateSelectPreview(select, imageElement, cardElement) {
@@ -9149,10 +10822,15 @@ function updateSelectPreview(select, imageElement, cardElement) {
 
 function getSelectedCheckpointArchitecture() {
   const selected = sdCheckpoint?.selectedOptions?.[0];
-  if (sdArchitecture?.value && sdArchitecture.value !== "auto") {
-    return sdArchitecture.value;
+  const selectedEngine = normalizeRegistryEngine(selected?.dataset?.architecture || selected?.dataset?.engine || "");
+  if (selectedEngine) {
+    return selectedEngine;
   }
-  return selected?.dataset?.architecture || "sd15";
+  const generationType = normalizeRegistryEngine(aiImageGenerationType?.value || "sd15");
+  if (generationType === "batch-img2img" || generationType === "animatediff") {
+    return "sd15";
+  }
+  return generationType || "sd15";
 }
 
 function isStableImageSourceObject(object) {
@@ -9722,19 +11400,267 @@ function startStableDiffusionProgressPolling() {
   stableDiffusionProgressTimer = setInterval(() => void poll(), 500);
 }
 
+function normalizeRegistryEngine(value = "") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "zib") return "zit";
+  return normalized;
+}
+
+function getSelectedImageEngineFilter() {
+  return normalizeRegistryEngine(aiImageGenerationType?.value || "sd15");
+}
+
+function getSelectedVideoEngineFilter() {
+  const typeValue = normalizeRegistryEngine(aiVideoEngineType?.value || "wan");
+  const filterValue = normalizeRegistryEngine(aiVideoModelFilter?.value || "all");
+  return filterValue !== "all" ? filterValue : typeValue;
+}
+
+function isImagePrimaryModel(item = {}) {
+  return item.type === "image" && ["sd15", "sdxl", "zit", "zib", "flux"].includes(item.engine);
+}
+
+function isVideoPrimaryModel(item = {}) {
+  return item.type === "video" && ["wan", "svd", "hunyuan"].includes(item.engine);
+}
+
+function isCompatibleWithEngine(item = {}, engine = "") {
+  const normalizedEngine = normalizeRegistryEngine(engine);
+  if (!normalizedEngine || normalizedEngine === "all") return true;
+  if (normalizeRegistryEngine(item.engine) === normalizedEngine) return true;
+  return (item.compatibleWith || []).map(normalizeRegistryEngine).includes(normalizedEngine);
+}
+
+function applyRecommendedParams(model = {}) {
+  const params = model?.recommendedParams || {};
+  if (sdSteps && params.steps) sdSteps.value = params.steps;
+  if (sdCfgScale && params.cfg) sdCfgScale.value = params.cfg;
+  if (sdWidth && params.width) sdWidth.value = params.width;
+  if (sdHeight && params.height) sdHeight.value = params.height;
+  if (sdSampler && params.sampler) {
+    const option = Array.from(sdSampler.options || []).find((item) => item.value === params.sampler || item.textContent === params.sampler);
+    if (option) sdSampler.value = option.value;
+  }
+}
+
+function getSelectedImageRegistryModel() {
+  const selectedValue = sdCheckpoint?.value || "";
+  if (!selectedValue) {
+    return null;
+  }
+  return availableImageModels.find((item) => item.path === selectedValue || item.id === selectedValue) || null;
+}
+
+function getImageModelsForGenerationType(typeValue = getSelectedImageEngineFilter()) {
+  const normalizedType = normalizeRegistryEngine(typeValue);
+  const primaryModels = availableImageModels.filter(isImagePrimaryModel);
+  if (normalizedType === "animatediff") {
+    return primaryModels.filter((item) => ["sd15", "sdxl"].includes(normalizeRegistryEngine(item.engine)));
+  }
+  if (normalizedType === "batch-img2img") {
+    return primaryModels.filter((item) => item.capabilities?.batchImg2Img === true || ["sd15", "sdxl"].includes(normalizeRegistryEngine(item.engine)));
+  }
+  if (normalizedType === "zit") {
+    return primaryModels.filter((item) => ["zit", "zib"].includes(normalizeRegistryEngine(item.engine)));
+  }
+  if (normalizedType === "flux") {
+    return primaryModels.filter((item) => normalizeRegistryEngine(item.engine) === "flux");
+  }
+  return primaryModels.filter((item) => isCompatibleWithEngine(item, normalizedType));
+}
+
+function getSelectedImageCapabilities(selectedModel = getSelectedImageRegistryModel()) {
+  const typeValue = getSelectedImageEngineFilter();
+  if (typeValue === "animatediff") {
+    return {
+      ...(selectedModel?.capabilities || {}),
+      negativePrompt: true,
+      lora: true,
+      sampler: true,
+      cfg: true
+    };
+  }
+  if (selectedModel?.capabilities && Object.keys(selectedModel.capabilities).length) {
+    return selectedModel.capabilities;
+  }
+  if (["sd15", "sdxl"].includes(typeValue) || typeValue === "batch-img2img") {
+    return {
+      negativePrompt: true,
+      lora: true,
+      vae: true,
+      batchImg2Img: true,
+      sampler: true,
+      cfg: true
+    };
+  }
+  if (typeValue === "flux") {
+    return {
+      negativePrompt: "limited",
+      lora: true,
+      vae: true
+    };
+  }
+  return {};
+}
+
+function syncImageOutputOptions(isAnimateDiff = getSelectedImageEngineFilter() === "animatediff") {
+  if (!aiImageOutput) {
+    return;
+  }
+  const previousValue = aiImageOutput.value || "image";
+  const options = isAnimateDiff
+    ? [
+        ["image", "Imagem"],
+        ["gif", "GIF"],
+        ["mp4", "MP4"]
+      ]
+    : [["image", "Imagem"]];
+
+  aiImageOutput.innerHTML = "";
+  options.forEach(([value, label]) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    aiImageOutput.appendChild(option);
+  });
+  aiImageOutput.value = options.some(([value]) => value === previousValue) ? previousValue : "image";
+}
+
+function updateImageOptionVisibility(selectedModel = getSelectedImageRegistryModel()) {
+  const typeValue = getSelectedImageEngineFilter();
+  const capabilities = getSelectedImageCapabilities(selectedModel);
+  const supportsNegativePrompt = Boolean(capabilities.negativePrompt);
+  const supportsVae = capabilities.vae === true || typeValue === "animatediff";
+  const supportsLora = capabilities.lora === true || typeValue === "animatediff";
+  const isAnimateDiff = typeValue === "animatediff";
+
+  if (sdNegativePromptRow) {
+    sdNegativePromptRow.hidden = !supportsNegativePrompt;
+  }
+  if (sdLoraRow) {
+    sdLoraRow.hidden = !supportsLora;
+  }
+  if (sdVaeRow) {
+    sdVaeRow.hidden = !supportsVae;
+  }
+  if (aiImageMotionModuleRow) {
+    aiImageMotionModuleRow.hidden = !isAnimateDiff;
+  }
+  if (aiImageAnimateParamsRow) {
+    aiImageAnimateParamsRow.hidden = !isAnimateDiff;
+  }
+  syncImageOutputOptions(isAnimateDiff);
+}
+
+function renderImageRegistrySelectors() {
+  const typeValue = normalizeRegistryEngine(aiImageGenerationType?.value || "");
+  const previousModelValue = sdCheckpoint?.value || "";
+  const previousLoraValue = sdLora?.value || "";
+  const previousVaeValue = sdVae?.value || "";
+  const previousMotionValue = aiImageMotionModule?.value || "";
+  const models = getImageModelsForGenerationType(typeValue);
+
+  setSelectOptions(sdCheckpoint, models, {
+    placeholder: models.length ? "Selecione um modelo principal" : "Nenhum modelo de imagem compativel"
+  });
+  if (previousModelValue && models.some((item) => getRegistrySelectValue(item) === previousModelValue)) {
+    sdCheckpoint.value = previousModelValue;
+  }
+
+  const selectedEngine = getSelectedCheckpointArchitecture();
+  const loraEngines = typeValue === "animatediff" ? ["animatediff", selectedEngine] : [selectedEngine];
+  const loras = availableLoras.filter((item) => loraEngines.some((engine) => isCompatibleWithEngine(item, engine)));
+  const vaes = availableVaes.filter((item) => isCompatibleWithEngine(item, selectedEngine));
+  setSelectOptions(sdLora, loras, { placeholder: "Sem LoRA" });
+  setSelectOptions(sdVae, vaes, { placeholder: "Auto / sem VAE" });
+  setSelectOptions(aiImageMotionModule, availableMotionModules, {
+    placeholder: availableMotionModules.length ? "Selecione motion module" : "Nenhum motion module AnimateDiff"
+  });
+  if (previousLoraValue && loras.some((item) => getRegistrySelectValue(item) === previousLoraValue)) {
+    sdLora.value = previousLoraValue;
+  }
+  if (previousVaeValue && vaes.some((item) => getRegistrySelectValue(item) === previousVaeValue)) {
+    sdVae.value = previousVaeValue;
+  }
+  if (previousMotionValue && availableMotionModules.some((item) => getRegistrySelectValue(item) === previousMotionValue)) {
+    aiImageMotionModule.value = previousMotionValue;
+  }
+
+  const selectedModel = getSelectedImageRegistryModel();
+  updateImageOptionVisibility(selectedModel);
+
+  if (aiImageCompatibilityNote) {
+    const selected = sdCheckpoint?.selectedOptions?.[0];
+    const selectedType = selected?.dataset?.modelType || "";
+    const warning = selected?.dataset?.warning || selected?.dataset?.compatibilityWarning || "";
+    if (typeValue === "animatediff") {
+      aiImageCompatibilityNote.textContent = "AnimateDiff preparado: selecione SD15/SDXL como base + motion module. Modelo detectado, mas motor ainda nao implementado.";
+    } else if (["zit", "flux"].includes(typeValue)) {
+      aiImageCompatibilityNote.textContent = "Modelo detectado, mas motor ainda nao implementado.";
+    } else if (selectedType && selectedType !== "image") {
+      aiImageCompatibilityNote.textContent = `Este arquivo nao parece ser um checkpoint principal. Tipo detectado: ${selectedType}.`;
+    } else {
+      aiImageCompatibilityNote.textContent = warning || "";
+    }
+  }
+
+  if (selectedModel) applyRecommendedParams(selectedModel);
+  updateSelectPreview(sdCheckpoint, aiImageModelPreview, aiImageModelPreviewCard);
+  updateSelectPreview(sdLora, aiImageLoraPreview, aiImageLoraPreviewCard);
+}
+
+function renderVideoRegistrySelectors() {
+  const engine = getSelectedVideoEngineFilter();
+  const models = availableVideoModels
+    .filter(isVideoPrimaryModel)
+    .filter((item) => !engine || engine === "all" || isCompatibleWithEngine(item, engine));
+  setSelectOptions(aiVideoModel, models, {
+    placeholder: models.length ? "Selecione um modelo de video" : "Nenhum modelo de video compativel"
+  });
+  const videoLoras = availableLoras.filter((item) => isCompatibleWithEngine(item, engine || "wan"));
+  renderVideoLoraSlots(videoLoras);
+  if (aiVideoEngineNote) {
+    aiVideoEngineNote.textContent = engine && engine !== "wan"
+      ? "Modelo detectado, mas motor ainda nao implementado. WAN2.2 continua via ComfyUI."
+      : "WAN2.2 usa ComfyUI. SVD/Hunyuan ficam preparados no registry.";
+  }
+}
+
+function applyModelRegistryData(data = {}) {
+  modelRegistrySnapshot = data;
+  const models = Array.isArray(data?.models) ? data.models : [];
+  availableImageModels = models.filter((item) => item.type === "image");
+  availableVideoModels = models.filter((item) => item.type === "video");
+  availableLoras = models.filter((item) => item.type === "lora");
+  availableVaes = models.filter((item) => item.type === "vae");
+  availableMotionModules = models.filter((item) => item.type === "motion-module" && item.engine === "animatediff");
+  renderImageRegistrySelectors();
+  renderVideoRegistrySelectors();
+}
+
+async function refreshModelRegistryForCanvas(contextKey = "image") {
+  console.info(contextKey === "video"
+    ? "[CANVAS_AI] video engine activated, refreshing model registry"
+    : "[CANVAS_AI] image engine activated, refreshing model registry");
+  const data = await window.kitAPI?.refreshModelRegistry?.();
+  applyModelRegistryData(data || {});
+  return data;
+}
+
 async function refreshStableDiffusionModels() {
   try {
-    setAiEngineStatus("image", "carregando", "Consultando worker SD...");
-    const data = await window.kitAPI?.getStableDiffusionModels?.();
+    setAiEngineStatus("image", "carregando", "Consultando registry de modelos...");
+    const registry = await refreshModelRegistryForCanvas("image");
+    const data = await window.kitAPI?.getStableDiffusionModels?.().catch(() => null);
     const checkpoints = Array.isArray(data?.selectableModels)
       ? data.selectableModels
       : (data?.checkpoints || []);
-    setSelectOptions(sdCheckpoint, checkpoints, {
-      placeholder: checkpoints.length ? "Selecione um checkpoint/modelo" : "Nenhum modelo local"
-    });
-    setSelectOptions(sdLora, data?.loras || [], {
-      placeholder: "Sem LoRA"
-    });
+    if (!availableImageModels.length && checkpoints.length) {
+      setSelectOptions(sdCheckpoint, checkpoints, {
+        placeholder: checkpoints.length ? "Selecione um checkpoint/modelo" : "Nenhum modelo local"
+      });
+      setSelectOptions(sdLora, data?.loras || [], { placeholder: "Sem LoRA" });
+    }
 
     if (sdSampler && Array.isArray(data?.samplers) && data.samplers.length) {
       const currentValue = sdSampler.value;
@@ -9772,8 +11698,9 @@ async function refreshStableDiffusionModels() {
     setAiEngineStatus(
       "image",
       "pronto",
-      `${counts.checkpoints ?? data?.checkpoints?.length ?? 0} checkpoint(s), ` +
-      `${counts.loras ?? data?.loras?.length ?? 0} LoRA(s).${warningText}`
+      `${registry?.counts?.byType?.image ?? counts.checkpoints ?? data?.checkpoints?.length ?? 0} modelo(s) de imagem, ` +
+      `${registry?.counts?.byType?.lora ?? counts.loras ?? data?.loras?.length ?? 0} LoRA(s), ` +
+      `${registry?.counts?.byType?.vae ?? 0} VAE(s).${warningText}`
     );
     updateAiGeneratorPanelState();
   } catch (err) {
@@ -9845,27 +11772,35 @@ function selectDefaultWanModel() {
 async function refreshGlobalVideoModels() {
   try {
     setAiEngineStatus("video", "carregando", "Consultando motor global de video...");
-    const [data, workflowsData] = await Promise.all([
+    const [registryData, data, workflowsData] = await Promise.all([
+      window.kitAPI?.refreshModelRegistry?.().catch(() => null),
       window.kitAPI?.getGlobalVideoModels?.(),
       window.kitAPI?.listComfyWorkflows?.().catch(() => null)
     ]);
+    if (registryData?.models) {
+      applyModelRegistryData(registryData);
+    }
     const wanGgufModels = (data?.models || []).filter(isWanGgufModelEntry);
     const wanLoras = (data?.loras || []).filter((item) => (
       String(item.familyHint || "").toLowerCase() === "wan" ||
       String(item.originLabel || "").toLowerCase() === "wan" ||
       /\bwan\b/i.test(String(item.name || item.path || ""))
     ));
-    setSelectOptions(aiVideoModel, wanGgufModels, {
-      placeholder: wanGgufModels.length ? "Selecione um modelo Wan GGUF" : "Nenhum modelo Wan GGUF local"
-    });
+    if (!availableVideoModels.length && wanGgufModels.length) {
+      setSelectOptions(aiVideoModel, wanGgufModels, {
+        placeholder: wanGgufModels.length ? "Selecione um modelo Wan GGUF" : "Nenhum modelo Wan GGUF local"
+      });
+    }
     selectDefaultWanModel();
-    renderVideoLoraSlots(wanLoras);
+    if (!availableLoras.length) {
+      renderVideoLoraSlots(wanLoras);
+    }
     await refreshComfyWorkflowSelector(workflowsData);
     globalVideoEngineReady = true;
     setAiEngineStatus(
       "video",
       "pronto",
-      `${wanGgufModels.length} modelo(s) Wan GGUF, ${wanLoras.length} LoRA(s) Wan.`
+      `${availableVideoModels.length || wanGgufModels.length} modelo(s) de video, ${availableLoras.length || wanLoras.length} LoRA(s).`
     );
   } catch (err) {
     globalVideoEngineReady = false;
@@ -10260,6 +12195,9 @@ async function activateAiEngine(engineKey = "image") {
   if (engineKey === "video") {
     setAiEngineStatus("video", "carregando", "Iniciando ComfyUI...");
     await window.kitAPI?.controlService?.("comfyui", "start");
+    await refreshModelRegistryForCanvas("video").catch((err) => {
+      console.warn("[CANVAS_AI] registry refresh failed for video", err);
+    });
     await refreshGlobalVideoModels();
     return;
   }
@@ -10318,14 +12256,23 @@ function collectComfyWorkflowFieldValues() {
 }
 
 function collectStableDiffusionPayload() {
+  const selectedCapabilities = getSelectedImageCapabilities();
+  const includeNegativePrompt = Boolean(selectedCapabilities.negativePrompt);
+  const includeLora = selectedCapabilities.lora === true || getSelectedImageEngineFilter() === "animatediff";
+  const includeVae = selectedCapabilities.vae === true || getSelectedImageEngineFilter() === "animatediff";
   return {
     mode: getStableDiffusionMode(),
     uiMode: getStableUiMode(),
     prompt: buildAiPromptWithStyle(sdPrompt?.value, aiStyle?.value),
-    negative_prompt: sdNegativePrompt?.value?.trim() || "",
+    negative_prompt: includeNegativePrompt ? (sdNegativePrompt?.value?.trim() || "") : "",
     checkpoint: sdCheckpoint?.value || "",
     architecture: getSelectedCheckpointArchitecture(),
-    lora: sdLora?.value || "",
+    lora: includeLora ? (sdLora?.value || "") : "",
+    vae: includeVae ? (sdVae?.value || "") : "",
+    motionModule: getSelectedImageEngineFilter() === "animatediff" ? (aiImageMotionModule?.value || "") : "",
+    frames: getNumericValue(aiImageFrames, 16),
+    fps: getNumericValue(aiImageFps, 8),
+    output: aiImageOutput?.value || "image",
     scheduler: sdScheduler?.value || "DPMSolverMultistepScheduler",
     sampler: sdSampler?.value || "",
     steps: getNumericValue(sdSteps, 24),
@@ -11062,7 +13009,7 @@ const CanvasStableActions = {
     }
 
     if (mode === "inpaint" || mode === "inpaint-sketch") {
-      if (!options.maskImageData && !getMaskPaths().length) {
+      if (!options.maskImageData && !getMaskPaths().length && !editor.selectionManager?.hasSelection?.()) {
         throw new Error("Inpaint precisa de mascara.");
       }
       const maskImageDataUrl = options.maskImageData || await createMaskDataUrl();
@@ -11489,8 +13436,16 @@ if (typeof window !== "undefined") {
 async function generateStableDiffusionImage() {
   const primaryMode = getSelectedStablePrimaryMode();
   const i2iMode = getSelectedStableI2ISubmode();
+  const generationType = normalizeRegistryEngine(aiImageGenerationType?.value || "");
 
   try {
+    if (["zit", "flux", "animatediff"].includes(generationType)) {
+      setAiEngineStatus("image", "erro", "Modelo detectado, mas motor ainda nao implementado.");
+      return null;
+    }
+    if (generationType === "batch-img2img") {
+      return await generateBatchImg2ImgFromCanvas();
+    }
     aiEngineState.generating = true;
     setAiEngineStatus("image", "gerando", primaryMode === "txt2img" ? "Gerando imagem T2I..." : `Executando ${i2iMode}...`);
     updateAiGeneratorPanelState();
@@ -11532,12 +13487,65 @@ async function generateStableDiffusionImage() {
   }
 }
 
+function getSelectedRasterObjectsForBatch() {
+  const activeObject = canvas?.getActiveObject?.();
+  if (activeObject?.type === "activeselection" && typeof activeObject.getObjects === "function") {
+    return activeObject.getObjects().filter(isStableImageSourceObject);
+  }
+  const source = getStableSourceObject();
+  return source ? [source] : [];
+}
+
+async function generateBatchImg2ImgFromCanvas() {
+  const objects = getSelectedRasterObjectsForBatch();
+  if (!objects.length) {
+    setAiEngineStatus("image", "erro", "Selecione uma ou mais imagens no Canvas para img2img em lote.");
+    return null;
+  }
+  const payload = collectStableDiffusionPayload();
+  if (!payload.checkpoint) {
+    setAiEngineStatus("image", "erro", "Selecione um modelo base SD15/SDXL para img2img em lote.");
+    return null;
+  }
+  try {
+    aiEngineState.generating = true;
+    setAiEngineStatus("image", "gerando", `Exportando ${objects.length} imagem(ns) para lote...`);
+    const imagePaths = [];
+    for (const object of objects) {
+      const filePath = await exportCanvasObjectToTempPng(object);
+      if (filePath) imagePaths.push(filePath);
+    }
+    if (!imagePaths.length) {
+      throw new Error("Nao consegui exportar as imagens selecionadas.");
+    }
+    const result = await window.kitAPI?.batchImg2ImgStableDiffusion?.({
+      ...payload,
+      imagePaths,
+      resizeMode: sdI2ISizeMode?.value || "layer",
+      outputFormat: "png"
+    });
+    setAiEngineStatus("image", "pronto", `Batch img2img enfileirado: ${result?.jobId || "ok"}`);
+    return result;
+  } catch (err) {
+    setAiEngineStatus("image", "erro", `Erro no batch img2img: ${err.message || err}`);
+    return null;
+  } finally {
+    aiEngineState.generating = false;
+    updateAiGeneratorPanelState();
+  }
+}
+
 async function generateAiPanelContent() {
   return generateStableDiffusionImage();
 }
 
 async function generateCanvasVideoFromPanel() {
   const payload = collectCanvasVideoPayload();
+  const selectedEngine = normalizeRegistryEngine(aiVideoEngineType?.value || "wan");
+  if (selectedEngine && selectedEngine !== "wan") {
+    setAiEngineStatus("video", "erro", "Modelo detectado, mas motor ainda nao implementado.");
+    return null;
+  }
   if (normalizeVideoModeValue(payload.mode) === "i2v") {
     const sourceObject = getVideoSourceObject();
     if (!sourceObject) {
@@ -13389,6 +15397,8 @@ function handleWheel(event) {
   zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
   canvas.zoomToPoint(new Point(event.e.offsetX, event.e.offsetY), zoom);
   syncZoomLabel();
+  syncOverlayCanvases();
+  renderSelectionVisualMask();
   updateRasterCursorOverlay();
 }
 
@@ -13416,6 +15426,8 @@ function movePan(event) {
   viewport[4] += event.e.clientX - lastPanPoint.x;
   viewport[5] += event.e.clientY - lastPanPoint.y;
   canvas.requestRenderAll();
+  syncOverlayCanvases();
+  renderSelectionVisualMask();
   lastPanPoint = {
     x: event.e.clientX,
     y: event.e.clientY
@@ -13449,6 +15461,23 @@ function initFabricCanvas() {
     selection: true
   });
   addArtboardObject();
+  editor.selectionManager = new window.CanvasSelectionManager();
+  syncSelectionManagerGeometry();
+  selectionAntsRenderer = new window.MarchingAntsRenderer(canvas);
+  editor.selectionManager.onChange(() => updateSelectionOverlayFromMask());
+  aiBrushEffectsRenderer = new window.AiSelectionEffectsRenderer(canvas);
+  ensureSelectionOverlayCanvas();
+  syncOverlayCanvases();
+  ensureAiBrushUi();
+  console.info("[CANVAS_OVERLAY] ai effects ready");
+  ensureCanvasPixelWorker();
+  console.info("[CANVAS_GPU] webgl available", getWebglStatus().available);
+  console.info("[CANVAS_GPU] offscreen canvas available", typeof OffscreenCanvas !== "undefined");
+  getCanvasGpuStatus();
+  if (!aiBrushToolRegistered) {
+    aiBrushToolRegistered = true;
+    console.info("[AI_BRUSH] tool registered");
+  }
 
   canvas.on("mouse:wheel", handleWheel);
   canvas.on("mouse:down", (event) => {
@@ -14098,7 +16127,7 @@ aiVideoAbortButton?.addEventListener("click", () => {
   });
 });
 
-[sdMode, sdI2IMode, sdI2ISizeMode, sdPrompt, sdNegativePrompt, aiStyle, aiPreset, sdCheckpoint, sdArchitecture, sdLora, sdSampler, sdScheduler, sdSteps, sdCfgScale, sdWidth, sdHeight, sdSeed, sdDenoising, sdInpaintInsertMode, aiVideoMode, aiVideoPreset, aiVideoModel, aiVideoDuration, aiVideoFps, aiVideoSeed, aiVideoPrompt, aiVideoNegativePrompt, aiVideoWorkflow, aiNarrationVoice, aiNarrationText, aiNarrationSubtitle]
+[sdMode, sdI2IMode, sdI2ISizeMode, sdPrompt, sdNegativePrompt, aiStyle, aiPreset, aiImageGenerationType, sdCheckpoint, sdLora, sdVae, aiImageMotionModule, aiImageFrames, aiImageFps, aiImageOutput, sdSampler, sdScheduler, sdSteps, sdCfgScale, sdWidth, sdHeight, sdSeed, sdDenoising, sdInpaintInsertMode, aiVideoEngineType, aiVideoModelFilter, aiVideoMode, aiVideoPreset, aiVideoModel, aiVideoDuration, aiVideoFps, aiVideoSeed, aiVideoPrompt, aiVideoNegativePrompt, aiVideoWorkflow, aiNarrationVoice, aiNarrationText, aiNarrationSubtitle]
   .filter(Boolean)
   .forEach((input) => {
     input.addEventListener("input", updateAiGeneratorPanelState);
@@ -14107,6 +16136,20 @@ aiVideoAbortButton?.addEventListener("click", () => {
 
 aiVideoWorkflow?.addEventListener("change", () => {
   void refreshSelectedComfyWorkflowFields().catch(() => {});
+});
+
+[aiImageGenerationType, sdCheckpoint].filter(Boolean).forEach((input) => {
+  input.addEventListener("change", () => {
+    renderImageRegistrySelectors();
+    updateAiGeneratorPanelState();
+  });
+});
+
+[aiVideoEngineType, aiVideoModelFilter].filter(Boolean).forEach((input) => {
+  input.addEventListener("change", () => {
+    renderVideoRegistrySelectors();
+    updateAiGeneratorPanelState();
+  });
 });
 
 aiVideoWorkflowFields?.addEventListener("input", updateAiGeneratorPanelState);
@@ -14223,6 +16266,12 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (!editingField && event.key === "Escape" && activeAiBrushSession) {
+    event.preventDefault();
+    cancelAiBrushSession();
+    return;
+  }
+
   if (!editingField && event.key === "Escape" && hasSelection()) {
     event.preventDefault();
     clearSelection();
@@ -14260,6 +16309,8 @@ window.addEventListener("resize", () => {
   renderToolbar();
   syncToolbarActiveState();
   updateRasterCursorOverlay();
+  syncOverlayCanvases();
+  renderSelectionVisualMask();
 });
 
 window.kitAPI?.onCanvasCommand?.((command = {}) => {
@@ -14291,6 +16342,8 @@ async function bootstrapCanvasModule() {
   renderBrandKit(createLocalDefaultBrandKit(), null);
   setSelectOptions(sdCheckpoint, [], { placeholder: "Atualize modelos" });
   setSelectOptions(sdLora, [], { placeholder: "Sem LoRA" });
+  setSelectOptions(sdVae, [], { placeholder: "Auto / sem VAE" });
+  setSelectOptions(aiImageMotionModule, [], { placeholder: "Nenhum motion module" });
   setSelectOptions(aiVideoModel, [], { placeholder: "Ative o motor de video" });
   renderVideoLoraSlots([]);
   renderNarrationVoices([]);

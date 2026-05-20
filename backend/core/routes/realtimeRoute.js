@@ -296,6 +296,49 @@ export default function createRealtimeRoute(context) {
       .trim();
   }
 
+  function detectMemoryCommand(text = "") {
+    const raw = String(text || "").trim();
+    const stripPrefix = (value) => value
+      .replace(/^(?:kit|kita|kit ia)\s*[,;:.-]?\s*/i, "")
+      .trim();
+    const commandText = stripPrefix(raw);
+    const commandNormalized = normalizeComparableText(commandText);
+
+    if (/^memoria$/.test(commandNormalized)) {
+      return { action: "list" };
+    }
+
+    const openTitle = extractCommandPayload(commandText, [
+      /^\s*abrir\s+mem[oó]ria\s*[:;-]\s*(.+)$/i,
+      /^\s*abra\s+a?\s*mem[oó]ria\s*[:;-]\s*(.+)$/i
+    ]);
+    if (openTitle) {
+      return { action: "open", title: openTitle };
+    }
+
+    const deleteTitle = extractCommandPayload(commandText, [
+      /^\s*esquecer\s+isso\s*[:;-]\s*(.+)$/i,
+      /^\s*esque[cç]a\s+isso\s*[:;-]\s*(.+)$/i,
+      /^\s*apague\s+(?:esta|essa|a)?\s*mem[oó]ria\s*[:;-]\s*(.+)$/i,
+      /^\s*exclui\s+(?:esta|essa|a)?\s*mem[oó]ria\s*[:;-]\s*(.+)$/i,
+      /^\s*excluir\s+(?:esta|essa|a)?\s*mem[oó]ria\s*[:;-]\s*(.+)$/i
+    ]);
+    if (deleteTitle) {
+      return { action: "delete", title: deleteTitle };
+    }
+
+    const knowledgeQuery = extractCommandPayload(commandText, [
+      /^\s*(?:me\s+diga\s+)?(?:o\s+que|oque)\s+(?:voce|voc[eê])\s+sabe\s+sobre\s+(.+)$/i,
+      /^\s*(?:voce|voc[eê])?\s*sabe\s+sobre\s+(.+)$/i,
+      /^\s*me\s+diga\s+o\s+que\s+sabe\s+sobre\s+(.+)$/i
+    ]);
+    if (knowledgeQuery) {
+      return { action: "search_answer", query: knowledgeQuery };
+    }
+
+    return null;
+  }
+
   function detectIntent(text) {
     if (isHelpCommand(text)) {
       return { helpCommand: true };
@@ -973,6 +1016,7 @@ export default function createRealtimeRoute(context) {
     const text = normalize(input);
     const session = ensureSession(sessionId);
     const intent = detectIntent(text);
+    const memoryCommand = detectMemoryCommand(text);
     const realtimeStreamingEnabled = context.config?.system?.realtimeStreamingEnabled !== false;
     const hasIncomingMedia = Boolean(filePath || screenshotPath || images.length > 0 || session.memory?.pendingMedia);
     let mediaContext = null;
@@ -993,6 +1037,34 @@ export default function createRealtimeRoute(context) {
     let searchResult = null;
 
     try {
+      if (memoryCommand && !hasIncomingMedia) {
+        emitStatus("lendo memoria...");
+        const memoryResponse = await handleMemoryCommand({
+          command: memoryCommand,
+          text,
+          sessionId
+        });
+
+        if (memoryResponse?.handled) {
+          context.core.responseQueue.enqueue({
+            text: memoryResponse.text,
+            speak: memoryResponse.speak === true,
+            priority: 1,
+            source: "realtime-memory",
+            allowGeneric: true,
+            sessionId,
+            userFacing: true
+          });
+          emitStatus(null);
+
+          return {
+            handled: true,
+            type: "memory",
+            response: memoryResponse.text
+          };
+        }
+      }
+
       const audioSkill = context.core.skillManager.get("audio");
       const llmMode = context.services?.ai?.getMode?.()?.requested || "fast";
       const fastMode = llmMode === "fast";
@@ -1422,6 +1494,94 @@ export default function createRealtimeRoute(context) {
     }
 
     return "Ja fiz.";
+  }
+
+  async function handleMemoryCommand({ command, text, sessionId }) {
+    if (!command) {
+      return null;
+    }
+
+    if (command.action === "list") {
+      const result = await context.invokeTool("memory_access", {
+        action: "list",
+        source: "realtime.memory-list",
+        sessionId,
+        limit: 80
+      });
+
+      return {
+        handled: true,
+        type: "memory",
+        text: result?.data?.text || "Nao consegui listar a memoria agora.",
+        speak: false
+      };
+    }
+
+    if (command.action === "open" || command.action === "delete") {
+      const result = await context.invokeTool("memory_access", {
+        action: command.action,
+        source: `realtime.memory-${command.action}`,
+        sessionId,
+        title: command.title
+      });
+
+      return {
+        handled: true,
+        type: "memory",
+        text: result?.data?.text || "Nao consegui acessar essa memoria agora.",
+        speak: false
+      };
+    }
+
+    if (command.action === "search_answer") {
+      const memoryResult = await context.invokeTool("memory_access", {
+        action: "search",
+        source: "realtime.memory-search",
+        sessionId,
+        query: command.query,
+        limit: 8
+      });
+      const memoryContext = String(memoryResult?.data?.text || "").trim();
+
+      if (!memoryContext) {
+        return {
+          handled: true,
+          type: "memory",
+          text: `Nao achei memoria salva sobre "${command.query}".`,
+          speak: true
+        };
+      }
+
+      const prompt = `
+Voce e a KIT respondendo com base exclusivamente na memoria salva abaixo.
+Se a memoria nao tiver informacao suficiente para responder o pedido, diga isso com naturalidade.
+Nao use vocabulario/girias como se fossem memoria comum. Nao invente fatos fora do contexto.
+
+Memoria encontrada:
+${memoryContext}
+
+Pedido do usuario:
+${text}
+
+Resposta natural:
+`;
+
+      const ai = await context.invokeTool("ai_chat", {
+        prompt,
+        source: "realtime.memory-answer",
+        sessionId,
+        stream: context.config?.system?.realtimeStreamingEnabled !== false
+      });
+
+      return {
+        handled: true,
+        type: "memory",
+        text: String(ai?.data?.text || "").trim() || "Achei memoria, mas nao consegui transformar isso numa resposta agora.",
+        speak: true
+      };
+    }
+
+    return null;
   }
 
   async function generateResponse({ text, memoryContext, searchResult, mediaContext, sessionId, realtimeThinkingEnabled = false }) {

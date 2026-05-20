@@ -51,6 +51,40 @@ const MARKETING_OPTIONS = {
   contentTypes: ["Post", "Reel", "Story", "Carrossel", "Anuncio"]
 };
 
+const DEFAULT_KANBAN_STAGES = ["Projeto", "Execucao", "Agendamento", "Postado"];
+const DEMAND_TYPES = ["post", "anuncio", "campanha", "edicao", "captacao", "roteiro", "arte", "video", "reuniao", "tarefa administrativa", "agendamento"];
+const INTERNAL_ACCOUNT_NAMES = ["adsune", "adsune marketing", "adsune marketing e publicidade"];
+const ONBOARDING_FIELDS = [
+  ["name", "Qual e o nome do cliente?"],
+  ["segment", "Qual e o segmento principal?"],
+  ["niche", "Qual e o nicho especifico?"],
+  ["subniche", "Existe algum subnicho importante?"],
+  ["region", "Qual cidade ou regiao esse cliente atende?"],
+  ["audience", "Quem e o publico-alvo principal?"],
+  ["recurringCommercialGoals", "Quais sao os objetivos comerciais?"],
+  ["channels", "Quais redes sociais e canais esse cliente usa?"],
+  ["plan", "Qual plano contratado?"],
+  ["toneOfVoice", "Qual tom de comunicacao a marca deve usar?"],
+  ["positioning", "Como voce resumiria o posicionamento da marca?"],
+  ["mainProducts", "Quais produtos ou servicos principais?"],
+  ["differentials", "Quais diferenciais competitivos?"],
+  ["brand.colors", "Quais cores ou elementos de identidade visual?"],
+  ["strategicNotes", "Alguma observacao estrategica importante?"]
+];
+const INTERNAL_ONBOARDING_FIELDS = [
+  ["name", "Qual e o nome da conta interna?"],
+  ["region", "Qual cidade ou regiao a operacao da ADSune atende?"],
+  ["audience", "Quem e o publico que a ADSune quer atrair para si?"],
+  ["recurringCommercialGoals", "Quais objetivos comerciais da propria ADSune agora?"],
+  ["channels", "Quais canais da ADSune vamos gerir?"],
+  ["toneOfVoice", "Qual tom de comunicacao a ADSune deve usar?"],
+  ["positioning", "Como voce resumiria o posicionamento da ADSune?"],
+  ["mainProducts", "Quais servicos ou ofertas da ADSune entram na comunicacao?"],
+  ["differentials", "Quais diferenciais reais da ADSune precisamos reforcar?"],
+  ["brand.colors", "Quais cores ou elementos de identidade visual da ADSune?"],
+  ["strategicNotes", "Alguma observacao estrategica importante sobre a operacao interna?"]
+];
+
 const CLIENT_SEGMENTS = [
   "Imobiliaria",
   "Energia solar",
@@ -155,19 +189,34 @@ const PLAN_RULES = {
     meetingFrequency: "Personalizado",
     summary: ["Escopo definido manualmente"],
     rules: ["Consultar observacoes estrategicas antes de sugerir entregas"]
+  },
+  "Interno ADSune": {
+    attendanceMode: "Operacao interna",
+    meetingFrequency: "Ritual interno",
+    summary: [
+      "Gestao da propria ADSune",
+      "Planejamento de marketing interno",
+      "Operacao editorial e comercial da agencia"
+    ],
+    rules: [
+      "Tratar como conta interna, nao como cliente contratado",
+      "Nao exigir segmento ou nicho de cliente",
+      "Priorizar posicionamento, autoridade, leads e rotina operacional da ADSune"
+    ]
   }
 };
 
 const CLIENT_OPTIONS = {
   plans: Object.keys(PLAN_RULES),
-  attendanceModes: ["Online", "Presencial + Online"],
+  attendanceModes: ["Online", "Presencial + Online", "Operacao interna"],
   meetingFrequencies: [
     "Sob demanda",
     "Quinzenal online",
     "Mensal online",
     "Mensal presencial",
     "Presencial + acompanhamento online",
-    "Personalizado"
+    "Personalizado",
+    "Ritual interno"
   ],
   channels: [
     "Instagram",
@@ -276,11 +325,14 @@ const CLIENT_OPTIONS = {
 };
 
 const DEFAULT_CLIENT = {
+  accountType: "client",
+  businessModel: "",
   name: "Cliente exemplo",
   logo: "",
   segment: "Imobiliaria",
   niche: "Loteamentos",
   subniche: "Minha casa minha vida",
+  region: "",
   plan: "R$900 - Gestao Comercial",
   attendanceMode: "Presencial + Online",
   meetingFrequency: "Presencial + acompanhamento online",
@@ -305,6 +357,8 @@ const DEFAULT_CLIENT = {
   languageRestrictions: "Evitar promessas absolutas de valorizacao ou financiamento aprovado.",
   forbiddenClaims: ["Garantido", "Financiamento aprovado", "Valorizacao certa", "Resultado garantido"],
   brandRules: "Sempre usar linguagem consultiva, evitar exageros e priorizar WhatsApp.",
+  positioning: "",
+  differentials: "",
   commercialGoals: "Gerar leads qualificados, direct e visitas agendadas.",
   recurringCommercialGoals: ["Gerar leads qualificados", "Agendar visitas", "Aumentar WhatsApp"],
   currentPriority: "Leads",
@@ -348,8 +402,57 @@ const DEFAULT_CLIENT = {
   }
 };
 
+function detectInternalAccount(value = {}) {
+  const accountType = String(value.accountType || value.type || "").toLowerCase();
+  const name = normalizeId(value.name || value.client?.name || value);
+  return accountType === "internal" || accountType === "agency" || INTERNAL_ACCOUNT_NAMES.some((candidate) => name.includes(normalizeId(candidate)));
+}
+
+function isInternalAccount(client) {
+  return detectInternalAccount(client || state.client || {});
+}
+
+function internalAccountDefaults(name = "ADSune Marketing e Publicidade") {
+  return {
+    accountType: "internal",
+    businessModel: "Agencia de marketing e publicidade",
+    name,
+    segment: "",
+    niche: "",
+    subniche: "",
+    plan: "Interno ADSune",
+    attendanceMode: PLAN_RULES["Interno ADSune"].attendanceMode,
+    meetingFrequency: PLAN_RULES["Interno ADSune"].meetingFrequency,
+    channels: ["Instagram", "Facebook", "LinkedIn", "Site", "Meta Ads"],
+    socialNetworks: "Instagram, Facebook, LinkedIn, Site, Meta Ads",
+    tone: "Estrategico, direto, consultivo e profissional",
+    toneOfVoice: ["Estrategico", "Direto", "Consultivo", "Profissional"],
+    audience: "Empresas que precisam organizar marketing, campanhas, conteudo e geracao de demanda com mais estrategia.",
+    mainProducts: "Gestao de marketing, trafego pago, conteudo estrategico, identidade visual e automacoes com IA.",
+    products: "Gestao de marketing, trafego pago, conteudo estrategico, identidade visual e automacoes com IA.",
+    recurringCommercialGoals: ["Gerar leads qualificados", "Fortalecer autoridade", "Mostrar bastidores e metodo", "Converter diagnosticos em contratos"],
+    commercialGoals: "Gerar leads qualificados, fortalecer autoridade, mostrar bastidores e metodo, converter diagnosticos em contratos",
+    currentPriority: "Autoridade e leads",
+    marketing: {
+      objectives: ["Autoridade", "Geracao de leads", "Reconhecimento de marca"],
+      funnelStages: ["Topo", "Meio", "Fundo"],
+      preferredCtas: ["Chamar no direct", "Entrar em contato pelo WhatsApp", "Pedir diagnostico"],
+      formats: ["Carrossel", "Reel", "Story", "Video curto"],
+      platforms: ["Instagram Feed", "Instagram Reels", "Instagram Stories", "Meta Ads", "LinkedIn"]
+    },
+    strategicNotes: "Gerir a ADSune como operacao interna da agencia, com foco em autoridade, clareza comercial e consistencia de producao."
+  };
+}
+
 const state = loadState();
 state.clientDirty = false;
+state.confirmation = null;
+state.onboarding = null;
+state.syncTimer = null;
+state.opsPaths = null;
+state.clientsIndex = [];
+state.lastDirectorScope = "";
+state.lastDirectorAt = 0;
 state.aiStatus = {
   mode: "idle",
   text: "IA em repouso",
@@ -417,7 +520,9 @@ function normalizeHistoryItem(item = {}, index = 0) {
 }
 
 function normalizeClient(raw = {}) {
-  const client = { ...DEFAULT_CLIENT, ...(raw || {}) };
+  const incoming = raw || {};
+  const internal = detectInternalAccount(incoming);
+  const client = { ...DEFAULT_CLIENT, ...(internal ? internalAccountDefaults(incoming.name || incoming.client?.name) : {}), ...incoming };
   const internalOptions = {
     ...DEFAULT_CLIENT.internalOptions,
     ...(client.internalOptions || {})
@@ -431,12 +536,14 @@ function normalizeClient(raw = {}) {
   const recurringCommercialGoals = uniqueList(client.recurringCommercialGoals?.length ? client.recurringCommercialGoals : client.commercialGoals);
   const toneOfVoice = uniqueList(client.toneOfVoice?.length ? client.toneOfVoice : client.tone);
   const externalInfoDependentProducts = uniqueList(client.externalInfoDependentProducts?.length ? client.externalInfoDependentProducts : client.externalProducts);
+  const selectedPlan = internal && (!client.plan || client.plan === DEFAULT_CLIENT.plan) ? "Interno ADSune" : client.plan;
 
   return {
     ...client,
-    plan: client.plan && PLAN_RULES[client.plan] ? client.plan : DEFAULT_CLIENT.plan,
-    attendanceMode: client.attendanceMode || PLAN_RULES[client.plan]?.attendanceMode || DEFAULT_CLIENT.attendanceMode,
-    meetingFrequency: client.meetingFrequency || PLAN_RULES[client.plan]?.meetingFrequency || DEFAULT_CLIENT.meetingFrequency,
+    accountType: internal ? "internal" : (client.accountType || "client"),
+    plan: selectedPlan && PLAN_RULES[selectedPlan] ? selectedPlan : (internal ? "Interno ADSune" : DEFAULT_CLIENT.plan),
+    attendanceMode: client.attendanceMode || PLAN_RULES[selectedPlan]?.attendanceMode || (internal ? PLAN_RULES["Interno ADSune"].attendanceMode : DEFAULT_CLIENT.attendanceMode),
+    meetingFrequency: client.meetingFrequency || PLAN_RULES[selectedPlan]?.meetingFrequency || (internal ? PLAN_RULES["Interno ADSune"].meetingFrequency : DEFAULT_CLIENT.meetingFrequency),
     links: { ...DEFAULT_CLIENT.links, ...(client.links || {}) },
     channels,
     socialNetworks: channels.join(", "),
@@ -489,20 +596,16 @@ function loadState() {
   }
 
   return {
-    activeTab: stored?.activeTab || "client",
+    activeTab: normalizeTabId(stored?.activeTab || "client"),
     selectedItemId: stored?.selectedItemId || null,
+    selectedDemandId: stored?.selectedDemandId || null,
+    conversationId: stored?.conversationId || `studio_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
     clientKitPath: stored?.clientKitPath || "",
     client: normalizeClient(stored?.client || DEFAULT_CLIENT),
     selectedMonth: stored?.selectedMonth || currentMonthValue(),
     planners: stored?.planners && typeof stored.planners === "object" ? stored.planners : {},
-    messages: Array.isArray(stored?.messages) && stored.messages.length
-      ? stored.messages
-      : [
-        {
-          role: "assistant",
-          text: "Studio Planner pronto. Eu vou atuar como estrategista de marketing: cliente, mes, planner, cards e roteiro ficam no contexto antes de qualquer automacao."
-        }
-      ],
+    kanbans: stored?.kanbans && typeof stored.kanbans === "object" ? stored.kanbans : {},
+    messages: Array.isArray(stored?.messages) ? stored.messages : [],
     marketingOptions: {
       objectives: mergeOptions(MARKETING_OPTIONS.objectives, stored?.marketingOptions?.objectives),
       funnel: mergeOptions(MARKETING_OPTIONS.funnel, stored?.marketingOptions?.funnel),
@@ -513,6 +616,28 @@ function loadState() {
   };
 }
 
+function normalizeTabId(tabId = "") {
+  const aliases = {
+    cards: "calendar",
+    script: "demand",
+    planner: "project",
+    "client-kit": "client",
+    "monthly-project": "project",
+    "selected-demand": "demand"
+  };
+  return aliases[tabId] || tabId || "client";
+}
+
+function studioApiTabId(tabId = state.activeTab) {
+  return {
+    client: "client-kit",
+    project: "monthly-project",
+    calendar: "calendar",
+    kanban: "kanban",
+    demand: "selected-demand"
+  }[normalizeTabId(tabId)] || "client-kit";
+}
+
 function mergeOptions(defaults, saved) {
   return [...new Set([...(defaults || []), ...(Array.isArray(saved) ? saved : [])])];
 }
@@ -521,10 +646,13 @@ function persist() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     activeTab: state.activeTab,
     selectedItemId: state.selectedItemId,
+    selectedDemandId: state.selectedDemandId,
+    conversationId: state.conversationId,
     clientKitPath: state.clientKitPath,
     client: state.client,
     selectedMonth: state.selectedMonth,
     planners: state.planners,
+    kanbans: state.kanbans,
     messages: state.messages.slice(-40),
     marketingOptions: state.marketingOptions
   }));
@@ -540,6 +668,71 @@ function getPlanner() {
 
 function setPlanner(planner) {
   state.planners[plannerKey()] = planner;
+}
+
+function getKanban() {
+  const key = plannerKey();
+  if (!state.kanbans[key]) {
+    state.kanbans[key] = createDefaultKanban();
+  }
+  return state.kanbans[key];
+}
+
+function setKanban(kanban) {
+  state.kanbans[plannerKey()] = normalizeKanbanState(kanban);
+}
+
+function createDefaultKanban() {
+  return {
+    stages: DEFAULT_KANBAN_STAGES.map((name, index) => ({
+      id: normalizeId(name),
+      name,
+      order: index
+    })),
+    cards: []
+  };
+}
+
+function normalizeKanbanState(kanban = {}) {
+  const stages = Array.isArray(kanban.stages) && kanban.stages.length
+    ? kanban.stages
+    : createDefaultKanban().stages;
+  return {
+    stages: stages.map((stage, index) => ({
+      id: stage.id || normalizeId(stage.name || `etapa-${index + 1}`),
+      name: stage.name || `Etapa ${index + 1}`,
+      order: Number.isFinite(Number(stage.order)) ? Number(stage.order) : index
+    })).sort((a, b) => a.order - b.order),
+    cards: Array.isArray(kanban.cards) ? kanban.cards.map(normalizeDemandCard) : []
+  };
+}
+
+function normalizeDemandCard(card = {}) {
+  const now = new Date().toISOString();
+  return {
+    id: card.id || uid("demand"),
+    client: card.client || state.client.name,
+    monthlyProject: card.monthlyProject || state.selectedMonth,
+    title: card.title || "Nova demanda",
+    type: card.type || "post",
+    description: card.description || "",
+    stageId: card.stageId || getKanban().stages[0]?.id || "projeto",
+    dueDate: card.dueDate || "",
+    priority: card.priority || "normal",
+    status: card.status || "aberto",
+    responsible: card.responsible || "",
+    origin: card.origin || "manual",
+    funnel: card.funnel || "",
+    objective: card.objective || "",
+    relatedFiles: Array.isArray(card.relatedFiles) ? card.relatedFiles : [],
+    script: card.script || "",
+    caption: card.caption || "",
+    visualPrompt: card.visualPrompt || "",
+    notes: card.notes || "",
+    calendarItemId: card.calendarItemId || null,
+    createdAt: card.createdAt || now,
+    updatedAt: now
+  };
 }
 
 function normalizeId(value = "") {
@@ -581,6 +774,181 @@ function render() {
   renderActiveTab();
   renderChat();
   persist();
+  scheduleOpsSync("render");
+}
+
+function buildDirectorContext() {
+  return {
+    client: state.client,
+    planner: getPlanner(),
+    kanban: getKanban(),
+    demand: getSelectedDemand(),
+    currentClient: state.client?.name || "",
+    monthLabel: monthLabel()
+  };
+}
+
+function pushDirectorSuggestion(scope = state.activeTab, { force = false } = {}) {
+  state.lastDirectorScope = `${scope}:${plannerKey()}`;
+  state.lastDirectorAt = Date.now();
+}
+
+async function loadClientsIndex() {
+  if (!window.kitAPI?.listStudioOpsClients) return [];
+  try {
+    const response = await window.kitAPI.listStudioOpsClients();
+    state.clientsIndex = response?.data || response || [];
+  } catch {
+    state.clientsIndex = [];
+  }
+  return state.clientsIndex;
+}
+
+function findClientInIndex(name = "") {
+  const wanted = normalizeId(name);
+  return state.clientsIndex.find((client) => client.id === wanted || normalizeId(client.name) === wanted || normalizeId(client.name).includes(wanted));
+}
+
+function applyLoadedClientKit(clientKit = {}) {
+  if (!clientKit) return false;
+  const raw = clientKit.raw || {};
+  state.client = normalizeClient({
+    ...state.client,
+    ...raw,
+    accountType: clientKit.accountType || raw.accountType || state.client.accountType,
+    businessModel: clientKit.businessModel || raw.businessModel || state.client.businessModel,
+    name: clientKit.name || raw.name || state.client.name,
+    logo: clientKit.logo || raw.logo || state.client.logo,
+    segment: clientKit.segment || raw.segment || state.client.segment,
+    niche: clientKit.niche || raw.niche || state.client.niche,
+    subniche: clientKit.subniche || raw.subniche || state.client.subniche,
+    region: clientKit.region || raw.region || state.client.region,
+    audience: clientKit.audience || raw.audience || state.client.audience,
+    recurringCommercialGoals: clientKit.commercialGoals || raw.recurringCommercialGoals || state.client.recurringCommercialGoals,
+    channels: clientKit.socialNetworks || raw.channels || state.client.channels,
+    plan: clientKit.plan || raw.plan || state.client.plan,
+    toneOfVoice: clientKit.tone || raw.toneOfVoice || state.client.toneOfVoice,
+    positioning: clientKit.positioning || raw.positioning || state.client.positioning,
+    mainProducts: clientKit.products || raw.mainProducts || state.client.mainProducts,
+    differentials: clientKit.differentials || raw.differentials || state.client.differentials,
+    strategicNotes: clientKit.strategicNotes || raw.strategicNotes || state.client.strategicNotes,
+    brand: {
+      ...(raw.brand || state.client.brand || {}),
+      colors: clientKit.colors || raw.brand?.colors || state.client.brand?.colors || []
+    }
+  });
+  state.clientDirty = false;
+  return true;
+}
+
+async function openOpsClientByName(name = "") {
+  await loadClientsIndex();
+  const found = findClientInIndex(name);
+  const targetName = found?.name || name;
+  if (!targetName) {
+    pushMessage("assistant", "Nao encontrei o nome da conta. Me diga algo como: abrir ADSune.");
+    return false;
+  }
+  const loaded = await window.kitAPI?.loadStudioOps?.({
+    clientName: targetName,
+    month: state.selectedMonth
+  });
+  const data = loaded?.data || loaded;
+  if (!data?.clientKit) {
+    if (detectInternalAccount(targetName)) {
+      await startOnboarding(targetName);
+      pushMessage("assistant", "Ainda nao havia .kit salvo para a ADSune, entao iniciei a conta interna. Ela sera gerida pela KIT sem tratar como cliente externo.");
+      return true;
+    }
+    pushMessage("assistant", `Ainda nao encontrei client.kit para "${targetName}". Posso criar uma nova conta com esse nome.`);
+    return false;
+  }
+  applyLoadedClientKit(data.clientKit);
+  if (data.kanban) setKanban(data.kanban);
+  state.opsPaths = data.paths || null;
+  pushMessage("assistant", `${isInternalAccount() ? "Conta interna" : "Cliente"} ${state.client.name} aberto.`);
+  pushDirectorSuggestion("client", { force: true });
+  state.activeTab = "client";
+  return true;
+}
+
+function scheduleOpsSync(action = "studio.render") {
+  window.clearTimeout(state.syncTimer);
+  state.syncTimer = window.setTimeout(() => {
+    void saveOpsSnapshot(action);
+  }, 650);
+}
+
+async function saveOpsSnapshot(action = "studio.ops.autosave") {
+  if (!window.kitAPI?.saveStudioOps) return;
+  const planner = getPlanner();
+  try {
+    const saved = await window.kitAPI.saveStudioOps({
+      client: state.client,
+      month: state.selectedMonth,
+      planner: planner || {
+        id: `project_${normalizeId(state.client.name)}_${state.selectedMonth}`,
+        clientName: state.client.name,
+        month: state.selectedMonth,
+        status: "sem calendario",
+        items: []
+      },
+      kanban: getKanban(),
+      action
+    });
+    state.opsPaths = saved?.data?.paths || saved?.paths || state.opsPaths;
+  } catch (err) {
+    console.warn("[Studio Ops] Falha ao salvar snapshot:", err.message);
+  }
+}
+
+async function loadOpsSnapshot() {
+  if (!window.kitAPI?.loadStudioOps) return;
+  try {
+    const loaded = await window.kitAPI.loadStudioOps({
+      clientName: state.client.name,
+      month: state.selectedMonth
+    });
+    const data = loaded?.data || loaded;
+    state.opsPaths = data?.paths || state.opsPaths;
+    if (data?.kanban) {
+      setKanban(data.kanban);
+    }
+    if (data?.calendar?.items?.length && !getPlanner()) {
+      const planner = {
+        id: data.calendar.id || uid("planner"),
+        clientName: state.client.name,
+        month: state.selectedMonth,
+        status: data.calendar.status || "Rascunho estrategico",
+        diagnosis: data.project?.diagnosis || "",
+        macroObjective: data.project?.macroObjective || "",
+        secondaryObjectives: [],
+        funnel: [],
+        formatDistribution: [],
+        campaigns: [],
+        ads: [],
+        items: data.calendar.items.map((item) => createPlannerItem({
+          id: item.id,
+          date: item.dueDate,
+          type: item.type,
+          objective: item.objective,
+          funnel: item.funnel,
+          theme: item.title,
+          caption: item.captionDraft,
+          visualDirection: item.visualIdea,
+          productionNotes: item.notes,
+          priority: item.priority,
+          approvalStatus: item.status,
+          kanbanCardId: item.kanbanCardId
+        })),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      setPlanner(planner);
+    }
+  } catch (err) {
+    console.warn("[Studio Ops] Falha ao carregar snapshot:", err.message);
+  }
 }
 
 function syncMarketingOptionsFromClient() {
@@ -646,10 +1014,11 @@ async function withAiStatus(text, task, { successText = "Finalizado.", errorText
 
 function renderTabs() {
   const tabs = [
-    ["client", "Cliente"],
-    ["planner", "Planner"],
-    ["cards", "Cards"],
-    ["script", "Roteiro do Item"]
+    ["client", "Cliente / .kit"],
+    ["project", "Projeto mensal"],
+    ["calendar", "Calendario"],
+    ["kanban", "Planner Kanban"],
+    ["demand", "Demanda selecionada"]
   ];
   els.studioTabs.innerHTML = tabs.map(([id, label]) => `
     <button class="tab-button ${state.activeTab === id ? "is-active" : ""}" type="button" data-tab="${id}">
@@ -660,22 +1029,26 @@ function renderTabs() {
 
 function getTabLabel(tabId) {
   return {
-    client: "Cliente",
-    planner: "Planner",
-    cards: "Cards",
-    script: "Roteiro do Item"
+    client: "Cliente / .kit",
+    project: "Projeto mensal",
+    calendar: "Calendario",
+    kanban: "Planner Kanban",
+    demand: "Demanda selecionada"
   }[tabId] || "Studio";
 }
 
 function renderActiveTab() {
+  state.activeTab = normalizeTabId(state.activeTab);
   if (state.activeTab === "client") renderClientTab();
-  if (state.activeTab === "planner") renderPlannerTab();
-  if (state.activeTab === "cards") renderCardsTab();
-  if (state.activeTab === "script") renderScriptTab();
+  if (state.activeTab === "project") renderPlannerTab();
+  if (state.activeTab === "calendar") renderCalendarTab();
+  if (state.activeTab === "kanban") renderKanbanTab();
+  if (state.activeTab === "demand") renderDemandTab();
 }
 
 function renderClientTab() {
   const client = state.client;
+  const internal = isInternalAccount(client);
   const validation = validateClientKit();
   const plan = PLAN_RULES[client.plan] || PLAN_RULES[DEFAULT_CLIENT.plan];
   const logoHtml = client.logo
@@ -687,9 +1060,9 @@ function renderClientTab() {
       <header class="client-hero">
         <div class="client-logo">${logoHtml}</div>
         <div class="client-hero-copy">
-          <span class="eyebrow">Central estrategica do cliente</span>
+          <span class="eyebrow">${internal ? "Central estrategica da operacao interna" : "Central estrategica do cliente"}</span>
           <h1>${escapeHtml(client.name || "Cliente sem nome")}</h1>
-          <p>${escapeHtml(client.segment || "Segmento nao definido")} &bull; ${escapeHtml(client.niche || "Nicho nao definido")} &bull; ${escapeHtml(client.subniche || "Subnicho nao definido")}</p>
+          <p>${escapeHtml(internal ? "Conta interna ADSune - gestao propria pela KIT" : `${client.segment || "Segmento nao definido"} - ${client.niche || "Nicho nao definido"} - ${client.subniche || "Subnicho nao definido"}`)}</p>
           <div class="badge-row">
             <span class="badge">${escapeHtml(client.plan || "Plano nao definido")}</span>
             <span class="badge ${state.clientDirty ? "is-warn" : "is-ok"}">${state.clientDirty ? "Alteracoes pendentes" : ".KIT salvo"}</span>
@@ -706,18 +1079,19 @@ function renderClientTab() {
 
       ${validation.errors.length ? `<div class="client-alert">Campos minimos pendentes: ${escapeHtml(validation.errors.join(", "))}</div>` : ""}
 
-      ${clientBlock("Identidade e Segmentacao", "Essas informacoes orientam o posicionamento, linguagem, campanhas e conteudos do cliente.", `
+      ${clientBlock(internal ? "Identidade da Conta Interna" : "Identidade e Segmentacao", internal ? "Essas informacoes orientam a propria operacao, comunicacao e posicionamento da ADSune." : "Essas informacoes orientam o posicionamento, linguagem, campanhas e conteudos do cliente.", `
         <div class="doc-grid is-three">
-          ${textField("name", "Nome do cliente", client.name, "Nome da empresa")}
-          ${selectClientField("segment", "Segmento", client.segment, client.internalOptions.segments, "Selecione o segmento")}
-          ${textField("niche", "Nicho especifico", client.niche, "Ex: loteamentos, casas populares, energia fotovoltaica residencial...")}
-          ${textField("subniche", "Subnicho", client.subniche, "Ex: Minha Casa Minha Vida, alto padrao, empresas, familias...")}
+          ${textField("name", internal ? "Nome da conta" : "Nome do cliente", client.name, "Nome da empresa")}
+          ${internal ? textField("businessModel", "Modelo de operacao", client.businessModel || "", "Ex: agencia de marketing e publicidade") : selectClientField("segment", "Segmento", client.segment, client.internalOptions.segments, "Selecione o segmento")}
+          ${internal ? "" : textField("niche", "Nicho especifico", client.niche, "Ex: loteamentos, casas populares, energia fotovoltaica residencial...")}
+          ${internal ? "" : textField("subniche", "Subnicho", client.subniche, "Ex: Minha Casa Minha Vida, alto padrao, empresas, familias...")}
+          ${textField("region", "Cidade/regiao", client.region, "Ex: Araraquara e regiao")}
           ${textField("logo", "Logo", client.logo, "Caminho do arquivo de logo", "is-wide")}
-          ${client.segment === "Outro" ? textField("customSegment", "Segmento manual", client.customSegment || "", "Digite o segmento do cliente") : ""}
+          ${!internal && client.segment === "Outro" ? textField("customSegment", "Segmento manual", client.customSegment || "", "Digite o segmento do cliente") : ""}
         </div>
       `)}
 
-      ${clientBlock("Plano e Atendimento", "Define o nivel de acompanhamento, presenca, treinamento e gestao da ADSune para este cliente.", `
+      ${clientBlock(internal ? "Operacao e Rotina" : "Plano e Atendimento", internal ? "Define como a KIT acompanha a propria ADSune como uma conta de producao interna." : "Define o nivel de acompanhamento, presenca, treinamento e gestao da ADSune para este cliente.", `
         <div class="doc-grid">
           ${selectClientField("plan", "Plano contratado", client.plan, CLIENT_OPTIONS.plans, "Selecione o plano")}
           ${selectClientField("attendanceMode", "Modalidade de atendimento", client.attendanceMode, CLIENT_OPTIONS.attendanceModes)}
@@ -755,6 +1129,7 @@ function renderClientTab() {
 
       ${clientBlock("Produtos, Servicos e Dependencias", "Ajuda a KIT a saber o que pode ser planejado livremente e o que depende de informacao externa.", `
         ${textareaField("mainProducts", "Produtos/servicos principais", client.mainProducts, "Ex: loteamentos, casas novas, energia solar residencial...")}
+        ${textareaField("differentials", "Diferenciais", client.differentials, "Ex: atendimento consultivo, equipe tecnica, entrega rapida...")}
         <h3>Produtos que dependem de informacao externa</h3>
         ${chipGroup("externalInfoDependentProducts", client.externalInfoDependentProducts, CLIENT_OPTIONS.dependentProducts, { addLabel: "Adicionar dependencia" })}
         <h3>Informacoes obrigatorias para produto/oferta</h3>
@@ -768,6 +1143,7 @@ function renderClientTab() {
         <div class="doc-grid">
           ${textareaField("languageRestrictions", "Restricoes de linguagem", client.languageRestrictions, "Ex: evitar promessas absolutas, nao garantir financiamento aprovado...")}
           ${textareaField("brandRules", "Regras importantes da marca", client.brandRules, "Ex: sempre usar linguagem consultiva, priorizar WhatsApp...")}
+          ${textareaField("positioning", "Posicionamento", client.positioning, "Ex: marca tecnica, confiavel e orientada a resultado...")}
         </div>
         <h3>Palavras ou promessas proibidas</h3>
         ${chipGroup("forbiddenClaims", client.forbiddenClaims, CLIENT_OPTIONS.forbiddenClaims, { addLabel: "Adicionar promessa proibida" })}
@@ -1150,6 +1526,200 @@ function renderCardsTab() {
   `;
 }
 
+function renderCalendarTab() {
+  const planner = ensurePlannerForEditing();
+  if (!planner) return;
+  els.tabPanel.innerHTML = `
+    <article class="document is-planner-print">
+      <header class="document-header">
+        <div class="document-title">
+          <span class="eyebrow">Calendario de conteudo</span>
+          <h1>${escapeHtml(state.client.name)} - ${escapeHtml(monthLabel())}</h1>
+          <p>Itens iniciam em rascunho. Aprove individualmente ou aprove tudo para transformar em operacao.</p>
+        </div>
+        <div class="inline-actions no-print">
+          <button class="ghost-button" type="button" data-action="approve-calendar">Aprovar calendario</button>
+          <button class="primary-button" type="button" data-action="calendar-to-kanban">Transformar aprovados em demandas</button>
+        </div>
+      </header>
+      <section class="doc-section">
+        <div class="planner-calendar">
+          ${WEEKDAYS.map((day) => `<div class="weekday">${day}</div>`).join("")}
+          ${renderCalendar(planner.items)}
+        </div>
+      </section>
+      <section class="doc-section cards-grid">
+        ${planner.items.map(renderCalendarApprovalCard).join("")}
+      </section>
+    </article>
+  `;
+}
+
+function renderCalendarApprovalCard(item) {
+  const approved = item.approvalStatus === "aprovado";
+  return `
+    <article class="content-card" data-item-id="${escapeHtml(item.id)}">
+      <header class="content-card-header">
+        <div>
+          <span class="eyebrow">${escapeHtml(item.date)} / ${escapeHtml(item.funnel)}</span>
+          <h3>${escapeHtml(item.theme || item.title || "Item sem titulo")}</h3>
+        </div>
+        <div class="badge-row">
+          <span class="badge ${approved ? "is-ok" : "is-warn"}">${approved ? "Aprovado" : "Rascunho"}</span>
+          ${item.kanbanCardId ? `<span class="badge is-ok">Kanban</span>` : ""}
+        </div>
+      </header>
+      <div class="mini-grid">
+        <label class="doc-field"><span class="field-label">Prazo</span><input class="doc-input" type="date" data-item-field="date" value="${escapeHtml(item.date)}"></label>
+        ${selectField("type", "Tipo", item.type, MARKETING_OPTIONS.contentTypes, "data-item-field")}
+        ${selectField("objective", "Objetivo", item.objective, state.marketingOptions.objectives, "data-item-field")}
+        ${selectField("funnel", "Funil", item.funnel, state.marketingOptions.funnel, "data-item-field")}
+        ${selectField("priority", "Prioridade", item.priority || "normal", ["baixa", "normal", "alta", "urgente"], "data-item-field")}
+        ${selectField("approvalStatus", "Aprovacao", item.approvalStatus || "rascunho", ["rascunho", "aprovado", "reprovado"], "data-item-field")}
+      </div>
+      <label class="doc-field">
+        <span class="field-label">Legenda preliminar</span>
+        <textarea class="doc-textarea" data-item-field="caption">${escapeHtml(item.caption || "")}</textarea>
+      </label>
+      <label class="doc-field">
+        <span class="field-label">Ideia visual</span>
+        <textarea class="doc-textarea" data-item-field="visualDirection">${escapeHtml(item.visualDirection || "")}</textarea>
+      </label>
+      <div class="inline-actions">
+        <button class="ghost-button" type="button" data-action="approve-item" data-item-id="${escapeHtml(item.id)}">Aprovar</button>
+        <button class="ghost-button" type="button" data-action="sync-calendar-card" data-item-id="${escapeHtml(item.id)}" ${item.kanbanCardId ? "" : "disabled"}>Sincronizar card</button>
+        <button class="primary-button" type="button" data-action="select-item" data-item-id="${escapeHtml(item.id)}">Abrir demanda</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderKanbanTab() {
+  const kanban = getKanban();
+  const planner = getPlanner();
+  const typeFilter = state.kanbanTypeFilter || "";
+  const filteredCards = kanban.cards.filter((card) => !typeFilter || card.type === typeFilter);
+  els.tabPanel.innerHTML = `
+    <article class="document kanban-document">
+      <header class="document-header">
+        <div class="document-title">
+          <span class="eyebrow">Operacao ADSune</span>
+          <h1>Planner Kanban</h1>
+          <p>${escapeHtml(state.client.name)} / ${escapeHtml(monthLabel())} / ${filteredCards.length} demandas</p>
+        </div>
+        <div class="inline-actions no-print">
+          <select class="doc-select compact-select" data-action="set-kanban-filter">
+            <option value="">Todos os tipos</option>
+            ${DEMAND_TYPES.map((type) => `<option value="${escapeHtml(type)}" ${typeFilter === type ? "selected" : ""}>${escapeHtml(type)}</option>`).join("")}
+          </select>
+          <button class="ghost-button" type="button" data-action="add-kanban-stage">Nova etapa</button>
+          <button class="primary-button" type="button" data-action="add-demand">Nova demanda</button>
+        </div>
+      </header>
+      <section class="studio-kanban-board">
+        ${kanban.stages.map((stage) => renderKanbanStage(stage, filteredCards)).join("")}
+      </section>
+      ${planner ? "" : `<div class="empty-state">Crie um projeto mensal para vincular calendario e demandas.</div>`}
+    </article>
+  `;
+}
+
+function renderKanbanStage(stage, cards) {
+  const stageCards = cards.filter((card) => card.stageId === stage.id);
+  return `
+    <section class="studio-kanban-column" data-stage-id="${escapeHtml(stage.id)}">
+      <header>
+        <strong>${escapeHtml(stage.name)}</strong>
+        <span>${stageCards.length}</span>
+      </header>
+      <div class="studio-kanban-cards">
+        ${stageCards.map(renderDemandCard).join("") || `<div class="empty-state">Vazio</div>`}
+      </div>
+      <footer>
+        <button class="ghost-button" type="button" data-action="rename-kanban-stage" data-stage-id="${escapeHtml(stage.id)}">Editar</button>
+        <button class="ghost-button" type="button" data-action="delete-kanban-stage" data-stage-id="${escapeHtml(stage.id)}">Apagar</button>
+      </footer>
+    </section>
+  `;
+}
+
+function renderDemandCard(card) {
+  return `
+    <button class="kanban-demand-card" type="button" data-action="select-demand" data-demand-id="${escapeHtml(card.id)}">
+      <span class="eyebrow">${escapeHtml(card.type)} / ${escapeHtml(card.origin)}</span>
+      <strong>${escapeHtml(card.title)}</strong>
+      <span>${escapeHtml(card.dueDate || "Sem prazo")} - ${escapeHtml(card.priority)}</span>
+    </button>
+  `;
+}
+
+function renderDemandTab() {
+  const kanban = getKanban();
+  const card = getSelectedDemand() || kanban.cards[0] || null;
+  if (!card) {
+    els.tabPanel.innerHTML = `
+      <article class="document">
+        <header class="document-header">
+          <div class="document-title">
+            <span class="eyebrow">Demanda selecionada</span>
+            <h1>Nenhuma demanda selecionada</h1>
+            <p>Crie uma demanda manual ou transforme posts aprovados em cards do Kanban.</p>
+          </div>
+          <button class="primary-button" type="button" data-action="add-demand">Nova demanda</button>
+        </header>
+      </article>
+    `;
+    return;
+  }
+  state.selectedDemandId = card.id;
+  els.tabPanel.innerHTML = `
+    <article class="document">
+      <header class="document-header">
+        <div class="document-title">
+          <span class="eyebrow">Card operacional</span>
+          <h1>${escapeHtml(card.title)}</h1>
+          <p>${escapeHtml(card.client)} / ${escapeHtml(card.monthlyProject)} / origem ${escapeHtml(card.origin)}</p>
+        </div>
+        <div class="inline-actions">
+          <button class="ghost-button" type="button" data-action="open-kanban">Ver Kanban</button>
+          <button class="ghost-button" type="button" data-action="delete-demand" data-demand-id="${escapeHtml(card.id)}">Apagar</button>
+        </div>
+      </header>
+      <section class="doc-section">
+        <div class="doc-grid is-three" data-demand-id="${escapeHtml(card.id)}">
+          ${demandField("title", "Titulo", card.title)}
+          ${demandSelect("type", "Tipo", card.type, DEMAND_TYPES)}
+          ${demandSelect("stageId", "Etapa", card.stageId, kanban.stages.map((stage) => ({ value: stage.id, label: stage.name })))}
+          ${demandField("dueDate", "Prazo", card.dueDate, "date")}
+          ${demandSelect("priority", "Prioridade", card.priority, ["baixa", "normal", "alta", "urgente"])}
+          ${demandField("responsible", "Responsavel", card.responsible)}
+          ${demandSelect("status", "Status", card.status, ["aberto", "em andamento", "aguardando", "concluido", "cancelado"])}
+          ${demandField("objective", "Objetivo", card.objective)}
+          ${demandField("funnel", "Funil", card.funnel)}
+          ${demandText("description", "Descricao", card.description)}
+          ${demandText("script", "Roteiro", card.script)}
+          ${demandText("caption", "Legenda", card.caption)}
+          ${demandText("visualPrompt", "Prompt visual", card.visualPrompt)}
+          ${demandText("notes", "Observacoes", card.notes)}
+        </div>
+      </section>
+    </article>
+  `;
+}
+
+function demandField(field, label, value, type = "text") {
+  return `<label class="doc-field"><span class="field-label">${escapeHtml(label)}</span><input class="doc-input" type="${escapeHtml(type)}" data-demand-field="${escapeHtml(field)}" value="${escapeHtml(value || "")}"></label>`;
+}
+
+function demandText(field, label, value) {
+  return `<label class="doc-field is-wide"><span class="field-label">${escapeHtml(label)}</span><textarea class="doc-textarea" data-demand-field="${escapeHtml(field)}">${escapeHtml(value || "")}</textarea></label>`;
+}
+
+function demandSelect(field, label, value, options) {
+  const normalizedOptions = options.map((option) => typeof option === "string" ? { value: option, label: option } : option);
+  return `<label class="doc-field"><span class="field-label">${escapeHtml(label)}</span><select class="doc-select" data-demand-field="${escapeHtml(field)}">${normalizedOptions.map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === value ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label>`;
+}
+
 function ensurePlannerForEditing() {
   const planner = getPlanner();
   if (!planner) {
@@ -1315,17 +1885,180 @@ function getSelectedItem(planner = getPlanner()) {
   return (planner?.items || []).find((item) => item.id === state.selectedItemId) || null;
 }
 
+function getSelectedDemand() {
+  return getKanban().cards.find((card) => card.id === state.selectedDemandId) || null;
+}
+
+function getStageByName(name = "") {
+  const wanted = normalizeId(name);
+  return getKanban().stages.find((stage) => normalizeId(stage.name) === wanted || stage.id === wanted) || null;
+}
+
+function addDemand(overrides = {}) {
+  const kanban = getKanban();
+  const card = normalizeDemandCard({
+    client: state.client.name,
+    monthlyProject: state.selectedMonth,
+    stageId: kanban.stages[0]?.id || "projeto",
+    ...overrides
+  });
+  kanban.cards.unshift(card);
+  state.selectedDemandId = card.id;
+  pushMessage("assistant", `Demanda criada: ${card.title}.`);
+  return card;
+}
+
+function updateDemand(demandId, field, value) {
+  const card = getKanban().cards.find((entry) => entry.id === demandId);
+  if (!card) return;
+  card[field] = value;
+  card.updatedAt = new Date().toISOString();
+}
+
+function deleteDemand(demandId) {
+  const kanban = getKanban();
+  const before = kanban.cards.length;
+  kanban.cards = kanban.cards.filter((card) => card.id !== demandId);
+  if (state.selectedDemandId === demandId) state.selectedDemandId = kanban.cards[0]?.id || null;
+  return kanban.cards.length < before;
+}
+
+function moveDemandToStage(demandId, stageNameOrId) {
+  const kanban = getKanban();
+  const card = kanban.cards.find((entry) => entry.id === demandId || normalizeId(entry.title) === normalizeId(demandId));
+  const stage = kanban.stages.find((entry) => entry.id === stageNameOrId) || getStageByName(stageNameOrId);
+  if (!card || !stage) return false;
+  card.stageId = stage.id;
+  card.status = stage.name.toLowerCase() === "postado" ? "concluido" : "em andamento";
+  card.updatedAt = new Date().toISOString();
+  state.selectedDemandId = card.id;
+  pushMessage("assistant", `Movi "${card.title}" para ${stage.name}.`);
+  return true;
+}
+
+function addKanbanStage(name = "") {
+  const label = String(name || "").trim() || window.prompt("Nome da nova etapa");
+  if (!label) return null;
+  const kanban = getKanban();
+  const stage = {
+    id: normalizeId(label),
+    name: label,
+    order: kanban.stages.length
+  };
+  if (kanban.stages.some((item) => item.id === stage.id)) {
+    pushMessage("assistant", `A etapa "${label}" ja existe.`);
+    return null;
+  }
+  kanban.stages.push(stage);
+  pushMessage("assistant", `Criei a etapa "${label}".`);
+  return stage;
+}
+
+function calendarItemToDemand(item) {
+  return normalizeDemandCard({
+    id: item.kanbanCardId || uid("demand"),
+    client: state.client.name,
+    monthlyProject: state.selectedMonth,
+    title: item.theme || item.title || "Post aprovado",
+    type: normalizeDemandType(item.type),
+    description: item.briefing || item.productionNotes || "",
+    stageId: getStageByName("Projeto")?.id || getKanban().stages[0]?.id,
+    dueDate: item.date,
+    priority: item.priority || "normal",
+    status: "aberto",
+    responsible: item.responsible || "",
+    origin: "calendario",
+    funnel: item.funnel || "",
+    objective: item.objective || "",
+    script: item.videoScript || item.scenes || "",
+    caption: item.caption || "",
+    visualPrompt: item.positivePrompt || item.visualDirection || "",
+    notes: item.productionNotes || "",
+    calendarItemId: item.id
+  });
+}
+
+function normalizeDemandType(type = "") {
+  const normalized = normalizeId(type).replace(/-/g, " ");
+  if (/anuncio|ads/.test(normalized)) return "anuncio";
+  if (/campanha/.test(normalized)) return "campanha";
+  if (/roteiro/.test(normalized)) return "roteiro";
+  if (/arte/.test(normalized)) return "arte";
+  if (/video|reel/.test(normalized)) return "video";
+  if (/agenda/.test(normalized)) return "agendamento";
+  return "post";
+}
+
+function approveCalendar(all = true, itemId = "") {
+  const planner = getPlanner();
+  if (!planner) return 0;
+  let count = 0;
+  planner.items.forEach((item) => {
+    if (all || item.id === itemId) {
+      item.approvalStatus = "aprovado";
+      item.status = "aprovado";
+      count += 1;
+    }
+  });
+  planner.status = "Calendario aprovado";
+  planner.updatedAt = new Date().toISOString();
+  pushMessage("assistant", all ? `Aprovei ${count} item(ns) do calendario.` : "Item aprovado no calendario.");
+  return count;
+}
+
+function syncCalendarItemToCard(itemId) {
+  const planner = getPlanner();
+  const item = planner?.items.find((entry) => entry.id === itemId);
+  if (!item?.kanbanCardId) return false;
+  const kanban = getKanban();
+  const index = kanban.cards.findIndex((card) => card.id === item.kanbanCardId);
+  if (index < 0) return false;
+  kanban.cards[index] = {
+    ...kanban.cards[index],
+    ...calendarItemToDemand(item),
+    id: kanban.cards[index].id,
+    stageId: kanban.cards[index].stageId,
+    createdAt: kanban.cards[index].createdAt
+  };
+  state.selectedDemandId = kanban.cards[index].id;
+  return true;
+}
+
+function transformApprovedCalendarToKanban() {
+  const planner = getPlanner();
+  if (!planner) return 0;
+  const kanban = getKanban();
+  let created = 0;
+  planner.items
+    .filter((item) => item.approvalStatus === "aprovado")
+    .forEach((item) => {
+      if (item.kanbanCardId && kanban.cards.some((card) => card.id === item.kanbanCardId)) {
+        syncCalendarItemToCard(item.id);
+        return;
+      }
+      const card = calendarItemToDemand(item);
+      kanban.cards.push(card);
+      item.kanbanCardId = card.id;
+      created += 1;
+    });
+  pushMessage("assistant", created ? `Transformei ${created} post(s) aprovado(s) em demandas no Kanban.` : "Os posts aprovados ja estavam sincronizados com o Kanban.");
+  return created;
+}
+
 function createPlanner({ force = false } = {}) {
   if (getPlanner() && !force) {
     pushMessage("assistant", `Ja existe um planner para ${state.client.name} em ${monthLabel()}. Abri o planejamento existente para evitar duplicidade.`);
-    state.activeTab = "planner";
+    state.activeTab = "project";
     render();
     return getPlanner();
   }
 
   const [year, month] = state.selectedMonth.split("-").map(Number);
   const daysInMonth = new Date(year, month, 0).getDate();
-  const segmentFocus = `${state.client.segment} / ${state.client.niche} / ${state.client.subniche}`.replace(/\s+\/\s+\/\s*$/, "");
+  const internal = isInternalAccount();
+  const segmentFocus = internal
+    ? "operacao interna da ADSune"
+    : `${state.client.segment} / ${state.client.niche} / ${state.client.subniche}`.replace(/\s+\/\s+\/\s*$/, "");
   const isRealEstateProduct = /imob|lote|apart|casa|imovel/i.test(`${state.client.segment} ${state.client.niche} ${state.client.products}`);
   const postDays = [2, 5, 8, 12, 15, 19, 22, 26, Math.min(29, daysInMonth)].filter((day, index, arr) => day <= daysInMonth && arr.indexOf(day) === index);
   const types = ["Carrossel", "Reel", "Post", "Story", "Carrossel", "Reel", "Post", "Story", "Post"];
@@ -1351,9 +2084,13 @@ function createPlanner({ force = false } = {}) {
     id: uid("planner"),
     clientName: state.client.name,
     month: state.selectedMonth,
-    status: "Rascunho estrategico",
-    diagnosis: `O mes pede uma comunicacao especifica para ${segmentFocus}. A estrategia deve evitar conteudos genericos e transformar as dores do publico em educacao, prova e convite comercial claro.`,
-    macroObjective: `Gerar demanda qualificada para ${state.client.niche || state.client.segment}, mantendo autoridade e consistencia editorial.`,
+    status: "rascunho",
+    diagnosis: internal
+      ? "O mes pede uma rotina propria da ADSune: autoridade, bastidores, prova de metodo, geracao de demanda e organizacao operacional sem tratar a empresa como cliente externo."
+      : `O mes pede uma comunicacao especifica para ${segmentFocus}. A estrategia deve evitar conteudos genericos e transformar as dores do publico em educacao, prova e convite comercial claro.`,
+    macroObjective: internal
+      ? "Fortalecer autoridade da ADSune, gerar leads qualificados e manter producao interna consistente."
+      : `Gerar demanda qualificada para ${state.client.niche || state.client.segment}, mantendo autoridade e consistencia editorial.`,
     secondaryObjectives: [
       "Aumentar reconhecimento de marca com conteudos de topo de funil.",
       "Converter interesse em conversas no WhatsApp ou direct.",
@@ -1370,7 +2107,7 @@ function createPlanner({ force = false } = {}) {
     ads: [
       {
         id: uid("ad"),
-        name: `ADS - Leads ${state.client.niche || state.client.segment}`,
+        name: `ADS - Leads ${internal ? "ADSune" : (state.client.niche || state.client.segment)}`,
         objective: "Geracao de leads",
         platform: /google/i.test(state.client.socialNetworks) ? "Google Ads" : "Meta Ads",
         duration: "15 dias",
@@ -1406,10 +2143,14 @@ function createPlannerItem(overrides = {}) {
     platform: "Instagram Feed",
     objective: "Autoridade",
     funnel: "Topo",
+    emotion: "confianca",
     cta: "Chamar no direct",
     theme: "Tema editorial",
     caption: "",
     format: "Imagem unica",
+    priority: "normal",
+    approvalStatus: "rascunho",
+    status: "rascunho",
     productionStatus: dependsOnProduct ? "Aguardando informacao do produto" : "Em branco",
     publicationStatus: "Nao agendado",
     dependsOnProduct,
@@ -1515,8 +2256,9 @@ function markClientDirty() {
 
 function validateClientKit() {
   const errors = [];
-  if (!String(state.client.name || "").trim()) errors.push("nome do cliente");
-  if (!String(state.client.segment || "").trim()) errors.push("segmento");
+  const internal = isInternalAccount();
+  if (!String(state.client.name || "").trim()) errors.push(internal ? "nome da conta" : "nome do cliente");
+  if (!internal && !String(state.client.segment || "").trim()) errors.push("segmento");
   if (!String(state.client.plan || "").trim()) errors.push("plano contratado");
   if (!state.client.channels?.length) errors.push("pelo menos uma rede social");
   if (!String(state.client.audience || "").trim()) errors.push("publico-alvo");
@@ -1543,6 +2285,9 @@ function updateClientField(field, value) {
   }
   if (field === "mainProducts") {
     state.client.products = value;
+  }
+  if (field === "positioning") {
+    state.client.brandRules = value || state.client.brandRules;
   }
   state.client = normalizeClient(state.client);
   markClientDirty();
@@ -1743,11 +2488,14 @@ async function openKit() {
 function clientKitToClient(clientKit = {}) {
   return {
     ...(clientKit.client || {}),
+    accountType: clientKit.accountType || clientKit.client?.accountType || "client",
+    businessModel: clientKit.businessModel || clientKit.client?.businessModel || "",
     name: clientKit.client?.name || "",
     logo: clientKit.client?.logo || "",
     segment: clientKit.client?.segment || "",
     niche: clientKit.client?.niche || "",
     subniche: clientKit.client?.subniche || "",
+    region: clientKit.client?.region || "",
     plan: clientKit.client?.plan || DEFAULT_CLIENT.plan,
     attendanceMode: clientKit.client?.attendanceMode || "",
     meetingFrequency: clientKit.client?.meetingFrequency || "",
@@ -1760,8 +2508,10 @@ function clientKitToClient(clientKit = {}) {
     languageRestrictions: clientKit.strategy?.restrictions || "",
     forbiddenClaims: clientKit.strategy?.forbiddenClaims || [],
     brandRules: clientKit.strategy?.brandRules || "",
+    positioning: clientKit.strategy?.positioning || "",
     strategicNotes: clientKit.strategy?.strategicNotes || "",
     mainProducts: clientKit.products?.mainProducts || "",
+    differentials: clientKit.products?.differentials || "",
     externalInfoDependentProducts: clientKit.products?.externalInfoDependentProducts || [],
     requiredOfferFields: clientKit.products?.requiredOfferFields || [],
     marketing: {
@@ -1781,12 +2531,17 @@ function buildStructuredClientKit() {
   const client = normalizeClient(state.client);
   const planRule = PLAN_RULES[client.plan] || PLAN_RULES[DEFAULT_CLIENT.plan];
   return {
+    accountType: client.accountType || "client",
+    businessModel: client.businessModel || "",
     client: {
+      accountType: client.accountType || "client",
+      businessModel: client.businessModel || "",
       name: client.name,
       logo: client.logo,
       segment: client.segment === "Outro" && client.customSegment ? client.customSegment : client.segment,
       niche: client.niche,
       subniche: client.subniche,
+      region: client.region,
       plan: client.plan,
       attendanceMode: client.attendanceMode,
       meetingFrequency: client.meetingFrequency,
@@ -1805,10 +2560,12 @@ function buildStructuredClientKit() {
       restrictions: client.languageRestrictions,
       forbiddenClaims: client.forbiddenClaims,
       brandRules: client.brandRules,
+      positioning: client.positioning,
       strategicNotes: client.strategicNotes
     },
     products: {
       mainProducts: client.mainProducts,
+      differentials: client.differentials,
       externalInfoDependentProducts: client.externalInfoDependentProducts,
       requiredOfferFields: client.requiredOfferFields
     },
@@ -1899,6 +2656,7 @@ async function selectLogo() {
 async function saveAll() {
   persist();
   await saveKit();
+  await saveOpsSnapshot("studio.save-all");
 }
 
 async function generateOneKia(itemId) {
@@ -2028,38 +2786,213 @@ function renderChat() {
   els.chatMessageList.scrollTop = els.chatMessageList.scrollHeight;
 }
 
-async function handleChatCommand(text) {
-  const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  await withAiStatus("Aguardando resposta da IA...", async () => {
-    if (/planejamento|planner|calendario/.test(normalized)) {
-      createPlanner({ force: /refaca|regenere|novo/.test(normalized) });
-    } else if (/carrossel/.test(normalized) && getSelectedItem()) {
-      const item = getSelectedItem();
-      item.type = "Carrossel";
-      item.format = "Carrossel";
-      item.scenes = "Slide 1: gancho\nSlide 2: contexto\nSlide 3: prova\nSlide 4: CTA";
-      pushMessage("assistant", "Transformei o item selecionado em carrossel com estrutura de slides.");
-    } else if (/reel|roteiro/.test(normalized) && getSelectedItem()) {
-      const item = getSelectedItem();
-      item.type = "Reel";
-      item.format = "Reel";
-      item.videoScript = "0-3s: gancho forte. 4-12s: dor e contexto. 13-24s: solucao e prova. 25-30s: CTA.";
-      item.narration = `Se ${state.client.audience}, este ponto sobre ${item.theme} pode evitar uma decisao errada.`;
-      pushMessage("assistant", "Criei um roteiro de Reel para o item selecionado.");
-    } else if (/legenda/.test(normalized)) {
-      generateDraftCaptions();
-    } else if (/cta/.test(normalized)) {
-      (getPlanner()?.items || []).forEach((item) => {
-        item.cta = item.funnel === "Fundo" ? "Entrar em contato pelo WhatsApp" : "Chamar no direct";
-      });
-      pushMessage("assistant", "Fortaleci os CTAs conforme o funil de cada item.");
-    } else if (/kia|canvas/.test(normalized)) {
-      await generateEligibleKias();
-    } else {
-      pushMessage("assistant", "Analisei o contexto atual. Posso ajustar foco de leads, transformar formatos, criar anuncios, gerar legendas ou preparar .kia quando os itens forem aprovados.");
+function normalizeCommand(text = "") {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function parseListValue(value = "") {
+  return String(value || "")
+    .split(/\s*,\s*|\s+e\s+|\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getOnboardingFields() {
+  return isInternalAccount() ? INTERNAL_ONBOARDING_FIELDS : ONBOARDING_FIELDS;
+}
+
+function currentOnboardingField() {
+  return state.onboarding ? getOnboardingFields()[state.onboarding.index] : null;
+}
+
+async function startOnboarding(initialName = "") {
+  const name = String(initialName || "").trim();
+  const internal = detectInternalAccount(name);
+  state.client = normalizeClient({
+    ...DEFAULT_CLIENT,
+    ...(internal ? internalAccountDefaults(name || "ADSune Marketing e Publicidade") : {}),
+    name
+  });
+  state.clientKitPath = "";
+  state.onboarding = { index: name ? 1 : 0 };
+  state.clientDirty = true;
+  pushMessage("assistant", `${internal ? "Vamos organizar a ADSune como uma conta interna da operacao." : "Vamos criar um novo cliente passo a passo."}\n${currentOnboardingField()[1]}`);
+  state.activeTab = "client";
+}
+
+async function continueOnboarding(answer = "") {
+  const field = currentOnboardingField();
+  if (!field) return false;
+  const [pathName] = field;
+  if (pathName === "recurringCommercialGoals" || pathName === "channels" || pathName === "toneOfVoice") {
+    setClientPath(pathName, parseListValue(answer));
+  } else if (pathName === "brand.colors") {
+    state.client.brand = state.client.brand || {};
+    state.client.brand.colors = parseListValue(answer).map((item) => ({ name: item, hex: item.startsWith("#") ? item : "" }));
+  } else {
+    setClientPath(pathName, answer.trim());
+  }
+  if (pathName === "name" && detectInternalAccount(answer)) {
+    state.client = normalizeClient({
+      ...state.client,
+      ...internalAccountDefaults(answer.trim() || "ADSune Marketing e Publicidade")
+    });
+  }
+  state.client = normalizeClient(state.client);
+  markClientDirty();
+  state.onboarding.index += 1;
+  const next = currentOnboardingField();
+  if (next) {
+    pushMessage("assistant", next[1]);
+    return true;
+  }
+  state.onboarding = null;
+  await saveKit();
+  pushMessage("assistant", `Onboarding concluido. Criei e salvei o .kit de ${state.client.name}${isInternalAccount() ? " como conta interna" : ""}.`);
+  return true;
+}
+
+function applyClientEditFromCommand(text = "") {
+  const normalized = normalizeCommand(text);
+  const valueAfter = (pattern) => {
+    const match = text.match(pattern);
+    return match?.[1]?.trim() || "";
+  };
+
+  if (/segmento/.test(normalized)) {
+    const value = valueAfter(/(?:segmento|mude o segmento para|troque o segmento para)\s*(?:para)?\s*(.+)$/i);
+    if (value) updateClientField("segment", value);
+    return Boolean(value);
+  }
+  if (/instagram|facebook|redes|canais/.test(normalized) && /adicione|inclua|coloque/.test(normalized)) {
+    const channels = parseListValue(text.replace(/.*(?:adicione|inclua|coloque)/i, ""));
+    setClientPath("channels", mergeOptions(state.client.channels, channels));
+    state.client = normalizeClient(state.client);
+    markClientDirty();
+    return channels.length > 0;
+  }
+  if (/tom/.test(normalized)) {
+    const value = valueAfter(/(?:tom|troque o tom para|mude o tom para)\s*(?:para)?\s*(.+)$/i);
+    if (value) {
+      setClientPath("toneOfVoice", parseListValue(value));
+      state.client = normalizeClient(state.client);
+      markClientDirty();
     }
-  }, { successText: "Resposta aplicada." });
+    return Boolean(value);
+  }
+  return false;
+}
+
+function clientSummary() {
+  const internal = isInternalAccount();
+  return [
+    `${internal ? "Conta interna" : "Cliente"}: ${state.client.name}`,
+    internal ? `Operacao: ${state.client.businessModel || "gestao propria da ADSune"}` : `Segmento: ${state.client.segment} / ${state.client.niche} / ${state.client.subniche}`,
+    `Regiao: ${state.client.region || "nao definida"}`,
+    `${internal ? "Modo" : "Plano"}: ${state.client.plan}`,
+    `Canais: ${state.client.channels.join(", ")}`,
+    `Objetivos: ${state.client.recurringCommercialGoals.join(", ")}`,
+    `Tom: ${state.client.toneOfVoice.join(", ")}`,
+    `Produtos/servicos: ${state.client.mainProducts}`,
+    `Observacoes: ${state.client.strategicNotes || "sem observacoes"}`
+  ].join("\n");
+}
+
+function executeConfirmation() {
+  const confirmation = state.confirmation;
+  state.confirmation = null;
+  if (!confirmation) return false;
+  if (confirmation.type === "delete-demand") {
+    const ok = deleteDemand(confirmation.demandId);
+    pushMessage("assistant", ok ? "Demanda apagada." : "Nao encontrei essa demanda para apagar.");
+    return true;
+  }
+  if (confirmation.type === "delete-stage") {
+    const kanban = getKanban();
+    const fallbackStage = getStageByName("Projeto") || kanban.stages[0];
+    kanban.cards.forEach((card) => {
+      if (card.stageId === confirmation.stageId) card.stageId = fallbackStage?.id || card.stageId;
+    });
+    kanban.stages = kanban.stages.filter((stage) => stage.id !== confirmation.stageId);
+    pushMessage("assistant", "Etapa apagada e demandas preservadas.");
+    return true;
+  }
+  return false;
+}
+
+function findDemandByText(text = "") {
+  const wanted = normalizeId(text);
+  return getKanban().cards.find((card) => card.id === text || normalizeId(card.title).includes(wanted) || wanted.includes(normalizeId(card.title)));
+}
+
+async function handleChatCommand(text) {
+  if (state.confirmation && /^confirm(ar|o)?$/i.test(normalizeCommand(text).trim())) {
+    executeConfirmation();
+    await saveOpsSnapshot("studio.chat.confirmation");
+    render();
+    return;
+  }
+
+  await withAiStatus("Aguardando resposta da IA...", async () => {
+    if (!window.kitAPI?.sendStudioChatMessage) {
+      throw new Error("Rota de chat do Studio indisponivel.");
+    }
+
+    const planner = getPlanner();
+    const response = await window.kitAPI.sendStudioChatMessage({
+      message: text,
+      activeTab: studioApiTabId(),
+      clientId: normalizeId(state.client?.name || ""),
+      clientName: state.client?.name || "",
+      projectId: planner?.id || "",
+      month: state.selectedMonth,
+      selectedDemandId: state.selectedDemandId || "",
+      conversationId: state.conversationId,
+      history: state.messages.slice(-12),
+      studioState: {
+        activeTab: studioApiTabId(),
+        selectedItemId: state.selectedItemId,
+        selectedDemandId: state.selectedDemandId,
+        client: state.client,
+        planner,
+        kanban: getKanban(),
+        selectedDemand: getSelectedDemand(),
+        messages: state.messages.slice(-12)
+      }
+    });
+
+    if (response?.conversationId) {
+      state.conversationId = response.conversationId;
+    }
+
+    pushMessage("assistant", response?.reply || "Nao consegui responder agora.");
+    state.lastStudioChatActions = Array.isArray(response?.actions) ? response.actions : [];
+    await saveOpsSnapshot("studio.chat.user_message");
+  }, { successText: "Resposta recebida." });
   render();
+}
+
+function continueOperationalFlow() {
+  return null;
+}
+
+function resolveDateFromCommand(normalized = "") {
+  const today = new Date();
+  const targetWeekday = {
+    domingo: 0,
+    segunda: 1,
+    terca: 2,
+    quarta: 3,
+    quinta: 4,
+    sexta: 5,
+    sabado: 6
+  };
+  const found = Object.keys(targetWeekday).find((day) => normalized.includes(day));
+  if (!found) return "";
+  const copy = new Date(today);
+  const diff = (targetWeekday[found] - copy.getDay() + 7) % 7 || 7;
+  copy.setDate(copy.getDate() + diff);
+  return copy.toISOString().slice(0, 10);
 }
 
 function addItem() {
@@ -2078,7 +3011,7 @@ function addItem() {
 }
 
 function exportPlannerPdf() {
-  state.activeTab = "planner";
+  state.activeTab = "project";
   render();
   requestAnimationFrame(() => window.print());
 }
@@ -2094,12 +3027,12 @@ function bindEvents() {
   els.topClientName.addEventListener("change", () => {
     state.client.name = els.topClientName.value.trim() || "Cliente sem nome";
     markClientDirty();
-    render();
+    void loadOpsSnapshot().finally(render);
   });
 
   els.topMonth.addEventListener("change", () => {
     state.selectedMonth = els.topMonth.value || currentMonthValue();
-    render();
+    void loadOpsSnapshot().finally(render);
   });
 
   els.tabPanel.addEventListener("input", (event) => {
@@ -2111,6 +3044,7 @@ function bindEvents() {
     if (target.matches("[data-ad-field]")) updateAd(target.closest("[data-ad-id]")?.dataset.adId, target.dataset.adField, target.value);
     if (target.matches("[data-item-field]")) updateItem(target.closest("[data-item-id]")?.dataset.itemId, target.dataset.itemField, target.value);
     if (target.matches("[data-route-field]")) updateSelectedRoute(target.dataset.routeField, target.value);
+    if (target.matches("[data-demand-field]")) updateDemand(target.closest("[data-demand-id]")?.dataset.demandId || state.selectedDemandId, target.dataset.demandField, target.value);
     persist();
   });
 
@@ -2136,6 +3070,14 @@ function bindEvents() {
       updateSelectedRoute(target.dataset.routeField, target.value);
       render();
     }
+    if (target.matches("[data-demand-field]")) {
+      updateDemand(target.closest("[data-demand-id]")?.dataset.demandId || state.selectedDemandId, target.dataset.demandField, target.value);
+      render();
+    }
+    if (target.matches("[data-action='set-kanban-filter']")) {
+      state.kanbanTypeFilter = target.value;
+      render();
+    }
   });
 
   els.tabPanel.addEventListener("click", async (event) => {
@@ -2143,13 +3085,17 @@ function bindEvents() {
     const calendarItem = event.target.closest("[data-item-id]");
     if (calendarItem && !actionEl && calendarItem.dataset.itemId) {
       state.selectedItemId = calendarItem.dataset.itemId;
-      state.activeTab = "script";
+      const item = getPlanner()?.items.find((entry) => entry.id === state.selectedItemId);
+      if (item?.kanbanCardId) state.selectedDemandId = item.kanbanCardId;
+      state.activeTab = item?.kanbanCardId ? "demand" : "calendar";
       render();
       return;
     }
     if (!actionEl) return;
     const action = actionEl.dataset.action;
     const itemId = actionEl.dataset.itemId;
+    const demandId = actionEl.dataset.demandId;
+    const stageId = actionEl.dataset.stageId;
     if (action === "add-chip") addClientChip(actionEl.dataset.chipField);
     if (action === "add-campaign") addCampaign();
     if (action === "archive-campaign") archiveCampaign(actionEl.dataset.campaignId);
@@ -2165,6 +3111,57 @@ function bindEvents() {
     if (action === "planner-to-cards") {
       await withAiStatus("Processando conteudo...", async () => generateCards(), { successText: "Cards atualizados." });
     }
+    if (action === "approve-calendar") {
+      approveCalendar(true);
+      state.activeTab = "calendar";
+    }
+    if (action === "approve-item") {
+      approveCalendar(false, itemId);
+      state.activeTab = "calendar";
+    }
+    if (action === "calendar-to-kanban") {
+      transformApprovedCalendarToKanban();
+      state.activeTab = "kanban";
+    }
+    if (action === "sync-calendar-card") {
+      if (syncCalendarItemToCard(itemId)) pushMessage("assistant", "Sincronizei o item do calendario com o card operacional.");
+    }
+    if (action === "add-kanban-stage") addKanbanStage();
+    if (action === "rename-kanban-stage") {
+      const stage = getKanban().stages.find((entry) => entry.id === stageId);
+      const nextName = window.prompt("Novo nome da etapa", stage?.name || "");
+      if (stage && nextName?.trim()) {
+        stage.name = nextName.trim();
+        stage.id = stage.id || normalizeId(nextName);
+      }
+    }
+    if (action === "delete-kanban-stage") {
+      const stage = getKanban().stages.find((entry) => entry.id === stageId);
+      if (stage) {
+        state.confirmation = {
+          type: "delete-stage",
+          stageId,
+          text: `Confirme apagar a etapa "${stage.name}". As demandas voltam para Projeto.`
+        };
+        pushMessage("assistant", `${state.confirmation.text}\nResponda "confirmar" para executar.`);
+      }
+    }
+    if (action === "add-demand") {
+      addDemand({ title: "Nova demanda", type: "post", origin: "manual" });
+      state.activeTab = "demand";
+    }
+    if (action === "select-demand") {
+      state.selectedDemandId = demandId;
+      state.activeTab = "demand";
+    }
+    if (action === "delete-demand") {
+      const card = getKanban().cards.find((entry) => entry.id === demandId);
+      if (card) {
+        state.confirmation = { type: "delete-demand", demandId, text: `Confirme apagar a demanda "${card.title}".` };
+        pushMessage("assistant", `${state.confirmation.text}\nResponda "confirmar" para executar.`);
+      }
+    }
+    if (action === "open-kanban") state.activeTab = "kanban";
     if (action === "open-kit") await withAiStatus("Abrindo .kit...", openKit, { successText: ".kit carregado." });
     if (action === "save-kit") await withAiStatus("Salvando .kit...", saveKit, { successText: ".kit salvo." });
     if (action === "select-logo") await selectLogo();
@@ -2174,7 +3171,9 @@ function bindEvents() {
     }
     if (action === "select-item") {
       state.selectedItemId = itemId;
-      state.activeTab = "script";
+      const item = getPlanner()?.items.find((entry) => entry.id === itemId);
+      if (item?.kanbanCardId) state.selectedDemandId = item.kanbanCardId;
+      state.activeTab = item?.kanbanCardId ? "demand" : "calendar";
     }
     if (action === "regenerate-item") {
       await withAiStatus("Processando conteudo...", async () => regenerateItem(itemId), { successText: "Card regenerado." });
@@ -2203,20 +3202,20 @@ function bindEvents() {
 
   els.newPlannerButton.addEventListener("click", async () => {
     await withAiStatus("Gerando planejamento...", async () => createPlanner(), { successText: "Planejamento pronto." });
-    state.activeTab = "planner";
+    state.activeTab = "project";
     render();
   });
   els.saveButton.addEventListener("click", () => void withAiStatus("Salvando...", saveAll, { successText: "Salvo." }));
   els.exportPdfButton.addEventListener("click", exportPlannerPdf);
   els.generateCardsButton.addEventListener("click", async () => {
     await withAiStatus("Processando conteudo...", async () => generateCards(), { successText: "Cards prontos." });
-    state.activeTab = "cards";
+    state.activeTab = "calendar";
     render();
   });
   els.generateKiaButton.addEventListener("click", () => void withAiStatus("Finalizando...", generateEligibleKias, { successText: "Arquivos .kia processados." }));
   els.chatPlannerButton.addEventListener("click", async () => {
     await withAiStatus("Gerando planejamento...", async () => createPlanner(), { successText: "Planejamento pronto." });
-    state.activeTab = "planner";
+    state.activeTab = "project";
     render();
   });
   els.chatCaptionButton.addEventListener("click", async () => {
@@ -2229,7 +3228,11 @@ function bindEvents() {
     if (!text) return;
     els.chatInput.value = "";
     pushMessage("user", text);
-    void handleChatCommand(text);
+    void handleChatCommand(text).catch((err) => {
+      console.warn("[Studio Chat] Falha ao chamar LLM:", err);
+      pushMessage("assistant", "Nao consegui acionar o LLM do Studio agora. Verifique se o backend e o modelo estao ativos e tente de novo.");
+      render();
+    });
   });
 }
 
@@ -2256,11 +3259,12 @@ function applyIncomingStudioState(payload = {}) {
     state.clientKitPath = incomingProject.clientKit.filePath;
   }
 
-  pushMessage("assistant", "Importei o contexto que abriu o Studio e adaptei para o Planner. A partir daqui o chat lateral atua como estrategista de marketing e producao editorial.");
+  persist();
 }
 
 async function bootstrap() {
   bindEvents();
+  await loadClientsIndex();
 
   if (window.kitAPI?.onProcessStatus) {
     window.kitAPI.onProcessStatus((payload = {}) => {
@@ -2292,6 +3296,7 @@ async function bootstrap() {
     } catch {}
   }
 
+  await loadOpsSnapshot();
   render();
 }
 

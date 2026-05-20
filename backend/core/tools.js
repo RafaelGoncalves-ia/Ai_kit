@@ -24,8 +24,11 @@ import {
 } from "./security/workspaceGuard.js";
 import { initDB } from "../skills/memory/sqlite.js";
 import {
+  deleteMemoryById,
+  getMemoryById,
   getRecentConversationMessages,
   getRelevantMemory,
+  listLongTermMemories,
   saveConversationMessage
 } from "../skills/memory/memory.repository.js";
 
@@ -603,6 +606,153 @@ function formatLongMemoryContext(memories = []) {
     "Memoria longa relevante (use apenas se realmente combinar com o assunto atual):",
     ...lines
   ].join("\n");
+}
+
+function formatDateTimePtBr(timestamp) {
+  const numeric = Number(timestamp || 0);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return "-";
+  }
+
+  try {
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: process.env.KIT_TIMEZONE || process.env.TZ || "America/Sao_Paulo"
+    }).format(new Date(numeric));
+  } catch {
+    return new Date(numeric).toISOString();
+  }
+}
+
+function memoryTitle(memory = {}) {
+  return String(memory.key || `memoria-${memory.id || ""}`).replace(/[_-]+/g, " ").trim();
+}
+
+function summarizeMemoryContent(content = "", maxLength = 110) {
+  const normalized = String(content || "").replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+}
+
+function formatMemoryTable(memories = []) {
+  if (!memories.length) {
+    return "Nenhuma memoria longa salva por enquanto.";
+  }
+
+  const rows = memories.map((memory) => ([
+    String(memory.id || "-"),
+    memoryTitle(memory),
+    String(memory.type || "-"),
+    summarizeMemoryContent(memory.content || ""),
+    formatDateTimePtBr(memory.updatedAt || memory.createdAt)
+  ]));
+
+  return [
+    "| ID | Titulo | Tipo/Categoria | Resumo | Atualizada em |",
+    "|---:|---|---|---|---|",
+    ...rows.map((row) => `| ${row.map((cell) => String(cell).replace(/\|/g, "\\|")).join(" | ")} |`)
+  ].join("\n");
+}
+
+function memorySearchHaystack(memory = {}) {
+  return normalizeComparableText([
+    memory.id,
+    memory.type,
+    memory.key,
+    memoryTitle(memory),
+    memory.content
+  ].filter(Boolean).join(" "));
+}
+
+function scoreMemoryMatch(memory = {}, query = "") {
+  const normalizedQuery = normalizeComparableText(query);
+  if (!normalizedQuery) {
+    return 0;
+  }
+
+  if (String(memory.id || "") === normalizedQuery) {
+    return 1000;
+  }
+
+  const keyText = normalizeComparableText(memory.key || "");
+  const titleText = normalizeComparableText(memoryTitle(memory));
+  const contentText = normalizeComparableText(memory.content || "");
+  const haystack = memorySearchHaystack(memory);
+  const terms = normalizedQuery
+    .split(/[^a-z0-9]+/i)
+    .filter((term) => term.length >= 2);
+
+  let score = 0;
+  if (keyText === normalizedQuery || titleText === normalizedQuery) score += 220;
+  if (keyText.includes(normalizedQuery) || titleText.includes(normalizedQuery)) score += 120;
+  if (contentText.includes(normalizedQuery)) score += 45;
+
+  for (const term of new Set(terms)) {
+    if (keyText.includes(term)) score += 18;
+    if (titleText.includes(term)) score += 18;
+    if (haystack.includes(term)) score += 6;
+  }
+
+  return score;
+}
+
+function findMemoryMatches(query = "", { limit = 8, threshold = 1 } = {}) {
+  const memories = listLongTermMemories(500);
+  return memories
+    .map((memory) => ({ memory, score: scoreMemoryMatch(memory, query) }))
+    .filter((entry) => entry.score >= threshold)
+    .sort((a, b) => b.score - a.score || Number(b.memory.updatedAt || 0) - Number(a.memory.updatedAt || 0))
+    .slice(0, Math.max(1, Number(limit || 8)))
+    .map((entry) => entry.memory);
+}
+
+function isSelfMemoryQuery(query = "") {
+  const normalized = normalizeComparableText(query);
+  return /^(mim|sobre mim|eu|rafael|usuario|o usuario|meu perfil|minhas preferencias|minha rotina)$/.test(normalized);
+}
+
+function findSelfMemories(limit = 8) {
+  return listLongTermMemories(500)
+    .filter((memory) => {
+      const category = normalizeComparableText(memory.type || "");
+      const haystack = memorySearchHaystack(memory);
+      return (
+        category === "user_routine" ||
+        haystack.includes("rafael") ||
+        haystack.includes("usuario") ||
+        haystack.includes("preferencia")
+      );
+    })
+    .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0))
+    .slice(0, Math.max(1, Number(limit || 8)));
+}
+
+function resolveSingleMemoryMatch(query = "") {
+  const matches = findMemoryMatches(query, { limit: 6, threshold: 6 });
+  if (!matches.length) {
+    return { status: "not_found", matches: [] };
+  }
+
+  const [first] = matches;
+  const normalizedQuery = normalizeComparableText(query);
+  const exact =
+    String(first.id || "") === normalizedQuery ||
+    normalizeComparableText(first.key || "") === normalizedQuery ||
+    normalizeComparableText(memoryTitle(first)) === normalizedQuery;
+
+  if (exact || matches.length === 1) {
+    return { status: "single", memory: first, matches };
+  }
+
+  return { status: "ambiguous", matches };
 }
 
 function findRecentGeneratedAudio(sinceMs = 0) {
@@ -1749,6 +1899,110 @@ export default function createTools(context) {
           kind: "ai_response",
           deferred: true
         });
+      case "list": {
+        const limit = Math.max(1, Math.min(Number(input.limit || 50), 200));
+        const memories = listLongTermMemories(limit);
+        console.log(`[MEMORY][MANAGE] listar total=${memories.length}`);
+        return wrapOk({
+          memories,
+          text: formatMemoryTable(memories),
+          table: formatMemoryTable(memories),
+          count: memories.length
+        });
+      }
+      case "search": {
+        const query = input.query || input.text || input.prompt || "";
+        const limit = Math.max(1, Math.min(Number(input.limit || 8), 30));
+        const matches = isSelfMemoryQuery(query)
+          ? findSelfMemories(limit)
+          : findMemoryMatches(query, { limit, threshold: 1 });
+        const contextText = formatLongMemoryContext(matches);
+        console.log(`[MEMORY][MANAGE] buscar query="${query}" total=${matches.length}`);
+        return wrapOk({
+          memories: matches,
+          text: contextText,
+          context: contextText,
+          table: formatMemoryTable(matches),
+          count: matches.length,
+          query
+        });
+      }
+      case "open": {
+        const title = input.title || input.query || input.id || "";
+        const direct = input.id ? getMemoryById(input.id) : null;
+        const resolution = direct
+          ? { status: "single", memory: direct, matches: [direct] }
+          : resolveSingleMemoryMatch(title);
+
+        console.log(`[MEMORY][MANAGE] abrir title="${title}" status=${resolution.status}`);
+        if (resolution.status === "not_found") {
+          return wrapOk({
+            found: false,
+            text: `Nao encontrei memoria salva para "${title}".`
+          });
+        }
+
+        if (resolution.status === "ambiguous") {
+          return wrapOk({
+            found: false,
+            ambiguous: true,
+            matches: resolution.matches,
+            text: [
+              "Encontrei mais de uma memoria parecida. Qual delas voce quer abrir?",
+              formatMemoryTable(resolution.matches)
+            ].join("\n\n")
+          });
+        }
+
+        const memory = resolution.memory;
+        return wrapOk({
+          found: true,
+          memory,
+          text: [
+            `Memoria #${memory.id} - ${memoryTitle(memory)}`,
+            `Tipo/Categoria: ${memory.type || "-"}`,
+            `Atualizada em: ${formatDateTimePtBr(memory.updatedAt || memory.createdAt)}`,
+            "",
+            memory.content || ""
+          ].join("\n")
+        });
+      }
+      case "delete": {
+        const title = input.title || input.query || input.id || "";
+        const direct = input.id ? getMemoryById(input.id) : null;
+        const resolution = direct
+          ? { status: "single", memory: direct, matches: [direct] }
+          : resolveSingleMemoryMatch(title);
+
+        console.log(`[MEMORY][MANAGE] apagar title="${title}" status=${resolution.status}`);
+        if (resolution.status === "not_found") {
+          return wrapOk({
+            deleted: false,
+            text: `Nao encontrei memoria salva para "${title}". Nada foi apagado.`
+          });
+        }
+
+        if (resolution.status === "ambiguous") {
+          return wrapOk({
+            deleted: false,
+            ambiguous: true,
+            matches: resolution.matches,
+            text: [
+              "Encontrei mais de uma memoria parecida e nao apaguei nada. Me diga o ID exato ou um titulo mais especifico:",
+              formatMemoryTable(resolution.matches)
+            ].join("\n\n")
+          });
+        }
+
+        const deleted = deleteMemoryById(resolution.memory.id);
+        return wrapOk({
+          deleted: Boolean(deleted),
+          memory: deleted,
+          text: deleted
+            ? `Memoria apagada: #${deleted.id} - ${memoryTitle(deleted)} (${deleted.type || "-"})`
+            : `Nao consegui apagar a memoria "${title}".`
+        });
+      }
       case "get_context": {
         const sessionId = input.sessionId || input.groupId || memoryMeta.sessionId || "default";
         const query = input.query || input.text || input.prompt || "";

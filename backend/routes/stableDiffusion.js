@@ -9,6 +9,7 @@ const { loadStableDiffusionConfig } = stableDiffusionConfigModule;
 const { scanStableDiffusionModels } = sdModelScannerModule;
 const SD_TEMP_DIR = path.resolve(process.cwd(), "temp", "stable-diffusion");
 const I2I_TEMP_DIR = path.resolve(process.cwd(), "output", "temp", "i2i");
+const BATCH_I2I_OUTPUT_DIR = path.resolve(process.cwd(), "output", "batch-img2img");
 const ALLOWED_IMAGE_DIRS = [
   I2I_TEMP_DIR,
   SD_TEMP_DIR,
@@ -61,6 +62,31 @@ function validateImagePath(filePath = "", label = "imagem") {
     throw new Error(`Arquivo de ${label} nao encontrado.`);
   }
   return resolvedPath;
+}
+
+function validateBatchImagePath(filePath = "", label = "imagem") {
+  const resolvedPath = path.resolve(String(filePath || "").trim());
+  if (!resolvedPath) return null;
+  const extension = path.extname(resolvedPath).toLowerCase();
+  if (!ALLOWED_IMAGE_EXTENSIONS.has(extension)) {
+    throw new Error(`Extensao invalida para ${label}. Use png, jpg, jpeg ou webp.`);
+  }
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`Arquivo de ${label} nao encontrado.`);
+  }
+  return resolvedPath;
+}
+
+function normalizeBatchImageInputs(input = {}) {
+  const raw = [
+    ...(Array.isArray(input.imagePaths) ? input.imagePaths : []),
+    ...(Array.isArray(input.images) ? input.images : []),
+    ...(Array.isArray(input.files) ? input.files : [])
+  ];
+  return raw
+    .map((item) => typeof item === "string" ? item : (item?.path || item?.filePath || item?.imagePath || ""))
+    .map((item, index) => validateBatchImagePath(item, `imagem ${index + 1}`))
+    .filter(Boolean);
 }
 
 function unwrapCanvasToolResult(result = {}) {
@@ -152,6 +178,7 @@ function prepareImageInputs(input = {}) {
 export default function createStableDiffusionRoutes(context) {
   const router = express.Router();
   const client = createStableDiffusionClient();
+  const batchJobs = new Map();
 
   async function handleGenerateRequest(req, res, modeOverride = null) {
     await context.core?.cacheManager?.runBeforeHeavyTask?.("sd").catch((err) => {
@@ -346,6 +373,106 @@ export default function createStableDiffusionRoutes(context) {
   router.post("/generate", async (req, res) => handleGenerateRequest(req, res));
   router.post("/txt2img", async (req, res) => handleGenerateRequest(req, res, "txt2img"));
   router.post("/img2img", async (req, res) => handleGenerateRequest(req, res, "img2img"));
+
+  router.post("/batch-img2img", async (req, res) => {
+    try {
+      const imagePaths = normalizeBatchImageInputs(req.body || {});
+      if (!imagePaths.length) {
+        throw new Error("Envie ao menos uma imagem para o img2img em lote.");
+      }
+
+      fs.mkdirSync(BATCH_I2I_OUTPUT_DIR, { recursive: true });
+      const jobId = `batch-img2img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const job = {
+        id: jobId,
+        status: "queued",
+        total: imagePaths.length,
+        completed: 0,
+        failed: 0,
+        outputs: [],
+        errors: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        outputDir: BATCH_I2I_OUTPUT_DIR
+      };
+      batchJobs.set(jobId, job);
+      console.log(`[BATCH_IMG2IMG] queued ${jobId} total=${imagePaths.length}`);
+      context.core?.eventBus?.emit("batch-img2img:queued", { jobId, total: imagePaths.length, outputDir: BATCH_I2I_OUTPUT_DIR });
+
+      res.json({
+        success: true,
+        queued: true,
+        jobId,
+        total: imagePaths.length,
+        outputDir: BATCH_I2I_OUTPUT_DIR
+      });
+
+      void (async () => {
+        await context.core?.cacheManager?.runBeforeHeavyTask?.("sd").catch((err) => {
+          console.warn(`[RESOURCE][SD] before batch cleanup failed: ${err.message}`);
+        });
+        job.status = "running";
+        for (let index = 0; index < imagePaths.length; index += 1) {
+          const imagePath = imagePaths[index];
+          try {
+            context.core?.eventBus?.emit("batch-img2img:progress", {
+              jobId,
+              index,
+              total: imagePaths.length,
+              completed: job.completed,
+              status: "processing",
+              imagePath
+            });
+            const payload = {
+              ...normalizeGenerationPayload(req.body || {}, req.body?.artboard || {}),
+              image_path: imagePath,
+              output_dir: BATCH_I2I_OUTPUT_DIR,
+              denoising_strength: Number(req.body?.denoising_strength || req.body?.denoisingStrength || req.body?.strength || 0.55)
+            };
+            const result = await client.generate("img2img", payload);
+            job.completed += 1;
+            job.outputs.push({
+              input: imagePath,
+              file: result.file || "",
+              metadata: result.metadata || {}
+            });
+          } catch (err) {
+            job.failed += 1;
+            job.errors.push({ input: imagePath, error: err.message || String(err) });
+          } finally {
+            job.updatedAt = new Date().toISOString();
+            context.core?.eventBus?.emit("batch-img2img:progress", {
+              jobId,
+              index: index + 1,
+              total: imagePaths.length,
+              completed: job.completed,
+              failed: job.failed,
+              status: "running"
+            });
+          }
+        }
+        job.status = job.failed === imagePaths.length ? "error" : "completed";
+        job.updatedAt = new Date().toISOString();
+        context.core?.eventBus?.emit("batch-img2img:completed", { jobId, job });
+        await context.core?.cacheManager?.runAfterHeavyTask?.("sd").catch((err) => {
+          console.warn(`[RESOURCE][SD] after batch cleanup failed: ${err.message}`);
+        });
+      })();
+    } catch (err) {
+      res.status(500).json({
+        success: false,
+        error: err.message || "Falha ao enfileirar img2img em lote."
+      });
+    }
+  });
+
+  router.get("/batch-img2img/:jobId", (req, res) => {
+    const job = batchJobs.get(req.params.jobId);
+    if (!job) {
+      return res.status(404).json({ success: false, error: "Job batch-img2img nao encontrado." });
+    }
+    return res.json({ success: true, job });
+  });
 
   router.post("/inpaint", async (req, res) => {
     await context.core?.cacheManager?.runBeforeHeavyTask?.("sd").catch((err) => {
