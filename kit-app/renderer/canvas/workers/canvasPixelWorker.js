@@ -83,6 +83,108 @@ function featherImageData(imageData, radius = 6) {
   return ctx.getImageData(0, 0, imageData.width, imageData.height);
 }
 
+function cropMaskToImageData(payload = {}) {
+  const sourceWidth = Math.max(1, Math.round(Number(payload.width || 1)));
+  const sourceHeight = Math.max(1, Math.round(Number(payload.height || 1)));
+  const sx = Math.max(0, Math.round(Number(payload.sx || 0)));
+  const sy = Math.max(0, Math.round(Number(payload.sy || 0)));
+  const sw = Math.max(1, Math.round(Number(payload.sw || 1)));
+  const sh = Math.max(1, Math.round(Number(payload.sh || 1)));
+  const maskData = payload.maskData || new Uint8ClampedArray(sourceWidth * sourceHeight);
+  const imageData = new ImageData(sw, sh);
+  for (let y = 0; y < sh; y += 1) {
+    const sourceY = sy + y;
+    if (sourceY < 0 || sourceY >= sourceHeight) continue;
+    for (let x = 0; x < sw; x += 1) {
+      const sourceX = sx + x;
+      if (sourceX < 0 || sourceX >= sourceWidth) continue;
+      const alpha = maskData[sourceY * sourceWidth + sourceX] || 0;
+      if (alpha <= 0) continue;
+      const offset = (y * sw + x) * 4;
+      imageData.data[offset] = 255;
+      imageData.data[offset + 1] = 255;
+      imageData.data[offset + 2] = 255;
+      imageData.data[offset + 3] = alpha;
+    }
+  }
+  return { imageData };
+}
+
+function transformMask(maskData, width, height, expandPx = 0) {
+  const radius = Math.abs(Math.round(Number(expandPx || 0)));
+  if (!radius) return maskData;
+  const output = makeMask(width, height);
+  const expand = Number(expandPx || 0) > 0;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let value = expand ? 0 : 255;
+      for (let yy = Math.max(0, y - radius); yy <= Math.min(height - 1, y + radius); yy += 1) {
+        for (let xx = Math.max(0, x - radius); xx <= Math.min(width - 1, x + radius); xx += 1) {
+          const sample = maskData[yy * width + xx] || 0;
+          value = expand ? Math.max(value, sample) : Math.min(value, sample);
+        }
+      }
+      output[y * width + x] = value;
+    }
+  }
+  return output;
+}
+
+function makeImageDataFromMask(maskData, width, height) {
+  const imageData = new ImageData(width, height);
+  for (let index = 0; index < maskData.length; index += 1) {
+    const alpha = maskData[index] || 0;
+    if (alpha <= 0) continue;
+    const offset = index * 4;
+    imageData.data[offset] = 255;
+    imageData.data[offset + 1] = 255;
+    imageData.data[offset + 2] = 255;
+    imageData.data[offset + 3] = alpha;
+  }
+  return imageData;
+}
+
+function softMaskToImageData(payload = {}) {
+  const sourceWidth = Math.max(1, Math.round(Number(payload.width || 1)));
+  const sourceHeight = Math.max(1, Math.round(Number(payload.height || 1)));
+  const sx = Math.max(0, Math.round(Number(payload.sx || 0)));
+  const sy = Math.max(0, Math.round(Number(payload.sy || 0)));
+  const sw = Math.max(1, Math.round(Number(payload.sw || sourceWidth)));
+  const sh = Math.max(1, Math.round(Number(payload.sh || sourceHeight)));
+  const featherPx = Math.max(0, Math.round(Number(payload.featherPx || 0)));
+  const expandPx = Math.round(Number(payload.expandPx || 0));
+  let maskData = payload.maskData || new Uint8ClampedArray(sourceWidth * sourceHeight);
+  maskData = transformMask(maskData, sourceWidth, sourceHeight, expandPx);
+
+  let sourceImageData = makeImageDataFromMask(maskData, sourceWidth, sourceHeight);
+  if (featherPx > 0 && typeof OffscreenCanvas !== "undefined") {
+    const source = new OffscreenCanvas(sourceWidth, sourceHeight);
+    source.getContext("2d").putImageData(sourceImageData, 0, 0);
+    const blurred = new OffscreenCanvas(sourceWidth, sourceHeight);
+    const ctx = blurred.getContext("2d");
+    ctx.filter = `blur(${featherPx}px)`;
+    ctx.drawImage(source, 0, 0);
+    sourceImageData = ctx.getImageData(0, 0, sourceWidth, sourceHeight);
+  }
+
+  const cropped = new ImageData(sw, sh);
+  for (let y = 0; y < sh; y += 1) {
+    const sourceY = sy + y;
+    if (sourceY < 0 || sourceY >= sourceHeight) continue;
+    for (let x = 0; x < sw; x += 1) {
+      const sourceX = sx + x;
+      if (sourceX < 0 || sourceX >= sourceWidth) continue;
+      const sourceOffset = (sourceY * sourceWidth + sourceX) * 4;
+      const targetOffset = (y * sw + x) * 4;
+      cropped.data[targetOffset] = sourceImageData.data[sourceOffset];
+      cropped.data[targetOffset + 1] = sourceImageData.data[sourceOffset + 1];
+      cropped.data[targetOffset + 2] = sourceImageData.data[sourceOffset + 2];
+      cropped.data[targetOffset + 3] = sourceImageData.data[sourceOffset + 3];
+    }
+  }
+  return { imageData: cropped };
+}
+
 self.onmessage = (event) => {
   const { id, type, payload = {} } = event.data || {};
   try {
@@ -95,6 +197,10 @@ self.onmessage = (event) => {
       result = countMask(payload.maskData || new Uint8ClampedArray());
     } else if (type === "featherImageData") {
       result = featherImageData(payload.imageData, payload.radius || 6);
+    } else if (type === "cropMaskToImageData") {
+      result = cropMaskToImageData(payload);
+    } else if (type === "softMaskToImageData") {
+      result = softMaskToImageData(payload);
     } else {
       throw new Error(`Operacao desconhecida: ${type}`);
     }

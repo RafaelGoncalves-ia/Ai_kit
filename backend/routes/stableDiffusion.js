@@ -129,8 +129,41 @@ function normalizeGenerationPayload(input = {}, artboard = {}) {
     height: size?.height,
     image_path: input.initImagePath || input.image_path || input.imagePath || null,
     mask_path: input.mask_path || input.maskPath || null,
+    inpaint_area: normalizeInpaintArea(input.inpaint_area || input.inpaintArea),
+    masked_content: normalizeMaskedContent(input.masked_content || input.maskedContent),
+    inpaint_output_mode: normalizeInpaintOutputMode(input.inpaint_output_mode || input.inpaintOutputMode),
     artboard
   };
+}
+
+function normalizeInpaintArea(value = "") {
+  const text = String(value || "").trim();
+  if (text === "whole_picture" || text === "whole-picture" || text === "full") {
+    return "whole_picture";
+  }
+  return "only_masked";
+}
+
+function normalizeMaskedContent(value = "") {
+  const text = String(value || "").trim();
+  if (["fill", "original", "latent_noise", "latent_nothing"].includes(text)) {
+    return text;
+  }
+  return "fill";
+}
+
+function normalizeInpaintOutputMode(value = "") {
+  const text = String(value || "").trim();
+  if (text === "replace" || text === "replaceSelected" || text === "active-layer") {
+    return "replace_original";
+  }
+  if (text === "new-layer" || text === "full-layer" || text === "newLayer") {
+    return "new_full_layer";
+  }
+  if (text === "cropped-layer" || text === "patch") {
+    return "patch_layer";
+  }
+  return ["replace_original", "new_full_layer", "patch_layer"].includes(text) ? text : "new_full_layer";
 }
 
 function writeImageDataUrl(dataUrl = "", prefix = "sd-image") {
@@ -200,6 +233,9 @@ export default function createStableDiffusionRoutes(context) {
           layer: req.body?.sourceLayerId || null,
           imagePath: payload.image_path || null,
           maskPath: payload.mask_path || null,
+          inpaintArea: payload.inpaint_area || null,
+          maskedContent: payload.masked_content || null,
+          inpaintOutputMode: payload.inpaint_output_mode || null,
           width: payload.width || null,
           height: payload.height || null
         });
@@ -223,6 +259,9 @@ export default function createStableDiffusionRoutes(context) {
         artboard,
         image_path: payload.image_path || null,
         mask_path: payload.mask_path || null,
+        inpaint_area: payload.inpaint_area || null,
+        masked_content: payload.masked_content || null,
+        inpaint_output_mode: payload.inpaint_output_mode || null,
         output_file: result.file || null
       };
 
@@ -515,6 +554,9 @@ export default function createStableDiffusionRoutes(context) {
         artboard,
         image_path: imageInputs.imagePath,
         mask_path: imageInputs.maskPath,
+        inpaint_area: normalizeInpaintArea(req.body?.inpaint_area || req.body?.inpaintArea),
+        masked_content: normalizeMaskedContent(req.body?.masked_content || req.body?.maskedContent),
+        inpaint_output_mode: normalizeInpaintOutputMode(req.body?.inpaint_output_mode || req.body?.inpaintOutputMode),
         output_file: result.file || null
       };
 
@@ -522,6 +564,10 @@ export default function createStableDiffusionRoutes(context) {
         success: true,
         mode: "inpaint",
         file: result.file,
+        output: result.file,
+        outputPath: result.file,
+        path: result.file,
+        images: result.file ? [result.file] : [],
         metadata
       });
     } catch (err) {
@@ -578,6 +624,9 @@ export default function createStableDiffusionRoutes(context) {
         artboard,
         image_path: imageInputs.imagePath,
         mask_path: imageInputs.maskPath,
+        inpaint_area: payload.inpaint_area || null,
+        masked_content: payload.masked_content || null,
+        inpaint_output_mode: payload.inpaint_output_mode || null,
         output_file: result.file || null,
         outpaint: req.body?.outpaint || null
       };

@@ -71,6 +71,12 @@ const OUTPAINT_TARGETS = {
   "youtube-thumb": { label: "16:9 Horizontal", ratio: 16 / 9, preset: "youtube-thumb" }
 };
 
+const SelectionCombineMode = Object.freeze({
+  replace: "replace",
+  add: "add",
+  subtract: "subtract"
+});
+
 const TOOLBAR_ICON_BASE = "../assets/icones/Toolsbar";
 const TOOLBAR_CONFIG = [
   makeToolbarItem("move", "Mover", "mover.svg", "move"),
@@ -277,7 +283,16 @@ const sdWidth = document.getElementById("sdWidth");
 const sdHeight = document.getElementById("sdHeight");
 const sdSeed = document.getElementById("sdSeed");
 const sdDenoising = document.getElementById("sdDenoising");
-const sdInpaintInsertMode = document.getElementById("sdInpaintInsertMode");
+const sdInpaintOutputMode = document.getElementById("sdInpaintOutputMode");
+const sdInpaintInsertMode = sdInpaintOutputMode;
+const sdInpaintArea = document.getElementById("sdInpaintArea");
+const sdMaskedContent = document.getElementById("sdMaskedContent");
+const sdInpaintContextMode = sdInpaintArea;
+const sdInpaintFeather = document.getElementById("sdInpaintFeather");
+const sdInpaintExpand = document.getElementById("sdInpaintExpand");
+const sdInpaintPadding = document.getElementById("sdInpaintPadding");
+const sdInpaintContinuity = document.getElementById("sdInpaintContinuity");
+const sdInpaintResultMode = sdInpaintOutputMode;
 const sdOutpaintTarget = document.getElementById("sdOutpaintTarget");
 const sdOutpaintSide = document.getElementById("sdOutpaintSide");
 const aiVideoMode = document.getElementById("aiVideoMode");
@@ -1131,7 +1146,9 @@ const ToolRegistry = {
   }),
   magicWand: makeToolHandler("magicWand", "Varinha magica", "crosshair", {
     onActivate: activateNonSelectingTool,
-    onPointerDown: applyMagicWandSelection
+    onPointerDown: startMagicWandSelection,
+    onPointerMove: updateMagicWandSelection,
+    onPointerUp: finishMagicWandSelection
   }),
   brush: makeToolHandler("brush", "Pincel", "crosshair", {
     onActivate: activateRasterTool,
@@ -4411,6 +4428,48 @@ function createLayerLocalSelectionMaskCanvas(imageObject, rasterCanvas) {
   };
 }
 
+function createImageSelectionMaskFromSceneMask(imageObject, rasterCanvas, sceneMask) {
+  if (!window.SelectionMask || !sceneMask || !imageObject || !rasterCanvas) {
+    return null;
+  }
+  const invertTransform = fabricApi?.util?.invertTransform || fabricApi?.invertTransform;
+  const matrix = imageObject.calcTransformMatrix?.();
+  if (!invertTransform || !matrix) {
+    return null;
+  }
+  const inverse = invertTransform(matrix);
+  const objectWidth = Math.max(1, Number(imageObject.width || rasterCanvas.width || 1));
+  const objectHeight = Math.max(1, Number(imageObject.height || rasterCanvas.height || 1));
+  const scaleX = rasterCanvas.width / objectWidth;
+  const scaleY = rasterCanvas.height / objectHeight;
+  const sceneMaskCanvas = sceneMask.toCanvas?.({
+    foreground: [255, 255, 255],
+    background: [0, 0, 0],
+    foregroundAlpha: 255,
+    backgroundAlpha: 0
+  });
+  if (!sceneMaskCanvas) return null;
+  const localMaskCanvas = makeRasterCanvas(rasterCanvas.width, rasterCanvas.height);
+  const localCtx = localMaskCanvas.getContext("2d");
+  localCtx.save();
+  localCtx.setTransform(
+    scaleX * inverse[0],
+    scaleY * inverse[1],
+    scaleX * inverse[2],
+    scaleY * inverse[3],
+    scaleX * (inverse[0] * sceneMask.offsetX + inverse[2] * sceneMask.offsetY + inverse[4] + objectWidth / 2),
+    scaleY * (inverse[1] * sceneMask.offsetX + inverse[3] * sceneMask.offsetY + inverse[5] + objectHeight / 2)
+  );
+  localCtx.drawImage(sceneMaskCanvas, 0, 0);
+  localCtx.restore();
+  const imageData = localCtx.getImageData(0, 0, localMaskCanvas.width, localMaskCanvas.height);
+  const imageMask = new window.SelectionMask(localMaskCanvas.width, localMaskCanvas.height);
+  for (let index = 0; index < imageMask.data.length; index += 1) {
+    imageMask.data[index] = imageData.data[index * 4 + 3];
+  }
+  return imageMask.isEmpty?.() ? null : imageMask;
+}
+
 function ensureRasterEditTempCanvas(edit, width, height) {
   const nextWidth = Math.max(1, Math.round(width));
   const nextHeight = Math.max(1, Math.round(height));
@@ -4609,6 +4668,25 @@ function getMaskPaintColor() {
 
 function getAiBrushCombineMode(event = null) {
   return getSelectionCombineMode(event);
+}
+
+function isAiBrushRightClick(event = null) {
+  const nativeEvent = event?.e || event || {};
+  return Number(nativeEvent.button) === 2 || Number(nativeEvent.which) === 3;
+}
+
+function isAiBrushManualModeEvent(event = null) {
+  return isAiBrushRightClick(event);
+}
+
+function logAiBrushManualCombineMode(mode = "replace") {
+  if (mode === "add") {
+    console.info("[AI_BRUSH] manual mode combine add");
+  } else if (mode === "subtract") {
+    console.info("[AI_BRUSH] manual mode combine subtract");
+  } else {
+    console.info("[AI_BRUSH] manual mode combine replace");
+  }
 }
 
 function makeBoundsFromPoints(points = [], padding = 0) {
@@ -4822,6 +4900,9 @@ function updateAiBrushStatus(message = "") {
   if (message) {
     showToolNotice(message);
     aiBrushEffectsRenderer?.setStatus?.(message);
+    if (typeof setStableDiffusionStatus === "function") {
+      setStableDiffusionStatus(message);
+    }
   }
 }
 
@@ -4851,55 +4932,64 @@ function hideSelectionOverlayOnly() {
   canvas?.requestRenderAll?.();
 }
 
-function convertSceneGestureToImagePoints(imageObject, sourceCanvas, scenePoints = []) {
-  return sampleGesturePoints(scenePoints)
+function convertSceneGestureToImagePoints(imageObject, sourceCanvas, scenePoints = [], maxPoints = 96) {
+  return sampleGesturePoints(scenePoints, maxPoints)
     .map((point) => scenePointToImagePixel(imageObject, point, sourceCanvas))
     .filter(Boolean);
 }
 
-async function createStrokeFallbackImageMask(width, height, points = []) {
-  if (!window.SelectionMask || points.length < 2) {
-    return null;
+function simplifyContourPoints(points = [], tolerance = 2.4) {
+  if (points.length <= 3) return points.slice();
+  const simplified = [points[0]];
+  let anchor = points[0];
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const point = points[index];
+    if (Math.hypot(point.x - anchor.x, point.y - anchor.y) >= tolerance) {
+      simplified.push(point);
+      anchor = point;
+    }
   }
-  const workerResult = await runCanvasPixelWorker("strokeMask", { width, height, points }).catch(() => null);
-  if (workerResult) {
-    const workerMask = makeSelectionMaskFromWorkerResult(workerResult);
-    if (workerMask && !workerMask.isEmpty()) return workerMask;
-  }
-  const strokeCanvas = makeRasterCanvas(width, height);
-  const ctx = strokeCanvas.getContext("2d");
-  const bounds = makeBoundsFromPoints(points, 0);
-  const brushWidth = Math.max(24, Math.min(96, Math.round(Math.max(bounds?.width || 1, bounds?.height || 1) * 0.18)));
-  ctx.strokeStyle = "#FFFFFF";
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.lineWidth = brushWidth;
-  ctx.beginPath();
-  points.forEach((point, index) => {
-    if (index === 0) ctx.moveTo(point.x, point.y);
-    else ctx.lineTo(point.x, point.y);
-  });
-  ctx.stroke();
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const mask = new window.SelectionMask(width, height);
-  for (let index = 0; index < mask.data.length; index += 1) {
-    mask.data[index] = imageData.data[index * 4 + 3] > 8 ? 255 : 0;
-  }
-  return mask.isEmpty() ? null : mask;
+  simplified.push(points[points.length - 1]);
+  return simplified;
 }
 
-function closePathPoints(points = []) {
+function closeContourPoints(points = [], options = {}) {
   if (points.length < 2) return points;
   const first = points[0];
   const last = points[points.length - 1];
-  const closed = Math.hypot(first.x - last.x, first.y - last.y) <= 8
+  const tolerance = Math.max(24, Math.min(64, Number(options.tolerance ?? 48)));
+  const closed = Math.hypot(first.x - last.x, first.y - last.y) <= tolerance
     ? points.slice()
     : [...points, { ...first }];
-  console.info("[AI_BRUSH] path closed");
+  const finalPoint = closed[closed.length - 1];
+  if (finalPoint.x !== first.x || finalPoint.y !== first.y) {
+    closed.push({ ...first });
+  }
+  console.info("[AI_BRUSH] contour closed", { tolerance });
   return closed;
 }
 
-function calculatePathCentroid(points = []) {
+function calculateMaskCentroid(mask) {
+  if (!mask?.data) return null;
+  let xSum = 0;
+  let ySum = 0;
+  let count = 0;
+  for (let y = 0; y < mask.height; y += 1) {
+    for (let x = 0; x < mask.width; x += 1) {
+      const value = mask.data[y * mask.width + x];
+      if (!value) continue;
+      xSum += x + mask.offsetX + 0.5;
+      ySum += y + mask.offsetY + 0.5;
+      count += 1;
+    }
+  }
+  if (!count) return null;
+  const centroid = { x: xSum / count, y: ySum / count };
+  console.info("[AI_BRUSH] centroid calculated", centroid);
+  return centroid;
+}
+
+function calculateContourCentroid(points = []) {
   const usable = points.length > 1 ? points.slice(0, -1) : points;
   const sum = usable.reduce((acc, point) => ({
     x: acc.x + Number(point.x || 0),
@@ -4911,14 +5001,36 @@ function calculatePathCentroid(points = []) {
   return centroid;
 }
 
-function createPathFallbackImageMask(width, height, points = []) {
-  const closed = closePathPoints(points);
-  if (!window.SelectionMask || closed.length < 3) {
+function createContourCandidateImageMask(width, height, points = []) {
+  if (!window.SelectionMask || points.length < 3) {
     return null;
   }
-  console.info("[AI_BRUSH] fallback path mask used");
-  const mask = window.SelectionMask.fromPolygon(width, height, closed);
+  const mask = window.SelectionMask.fromPolygon(width, height, points);
+  console.info("[AI_BRUSH] contour area created", {
+    bounds: mask.getBounds?.(),
+    pixels: mask.countPixels?.() ?? 0
+  });
   return mask.isEmpty() ? null : mask;
+}
+
+function createContourFallbackImageMask(candidateMask) {
+  if (!candidateMask) return null;
+  const refined = window.MaskRefiner?.refine
+    ? window.MaskRefiner.refine(candidateMask, { smoothRadius: 4, threshold: 74 })
+    : candidateMask.clone?.() || candidateMask;
+  console.info("[AI_BRUSH] segmentation fallback used");
+  return refined?.isEmpty?.() ? candidateMask : refined;
+}
+
+function constrainMaskToGuide(mask, guideMask) {
+  if (!mask?.data || !guideMask?.data || mask.width !== guideMask.width || mask.height !== guideMask.height) {
+    return mask;
+  }
+  const output = mask.clone();
+  for (let index = 0; index < output.data.length; index += 1) {
+    if (!guideMask.data[index]) output.data[index] = 0;
+  }
+  return output.isEmpty?.() ? mask : output;
 }
 
 async function createSceneSelectionMaskFromImageMaskAsync(imageObject, rasterCanvas, imageMask) {
@@ -4957,23 +5069,34 @@ async function createSceneSelectionMaskFromImageMaskAsync(imageObject, rasterCan
 
 async function runAiBrushSegmentation(session) {
   const sourceCanvas = await createRasterCanvasFromSource(getImageSourceForRaster(session.imageObject), session.imageObject.getElement?.());
-  const imagePoints = convertSceneGestureToImagePoints(session.imageObject, sourceCanvas, session.points);
-  if (!imagePoints.length) {
+  const imagePoints = convertSceneGestureToImagePoints(session.imageObject, sourceCanvas, session.points, 160);
+  if (imagePoints.length < 3) {
     throw new Error("Gesto fora da layer raster.");
   }
 
-  const roiBounds = makeBoundsFromPoints(imagePoints, Math.max(36, Math.round(Math.min(sourceCanvas.width, sourceCanvas.height) * 0.04)));
-  const closedImagePath = closePathPoints(imagePoints);
-  const positivePoint = calculatePathCentroid(closedImagePath);
+  const simplifiedContour = simplifyContourPoints(imagePoints);
+  const closedImageContour = closeContourPoints(simplifiedContour);
+  const candidateMask = createContourCandidateImageMask(sourceCanvas.width, sourceCanvas.height, closedImageContour);
+  if (!candidateMask) {
+    throw new Error("Contorno pequeno demais para criar selecao.");
+  }
+  const contourBounds = candidateMask.getBounds?.() || makeBoundsFromPoints(closedImageContour, 0);
+  const roiBounds = makeBoundsFromPoints(closedImageContour, Math.max(24, Math.round(Math.min(sourceCanvas.width, sourceCanvas.height) * 0.025)));
+  const positivePoint = calculateMaskCentroid(candidateMask) || calculateContourCentroid(closedImageContour);
   console.info("[AI_BRUSH] roi bounds", roiBounds);
-  console.info("[AI_BRUSH] segmentation start");
+  console.info("[AI_BRUSH] segmentation requested");
   const imageData = sourceCanvas.getContext("2d").getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
   const context = {
     imageData,
     sourceCanvas,
-    points: imagePoints,
-    closedPath: closedImagePath,
+    points: [positivePoint],
+    contourPoints: closedImageContour,
+    closedPath: closedImageContour,
     positivePoint,
+    bounds: contourBounds,
+    roiBounds,
+    guideMask: candidateMask,
+    candidateMask,
     scenePoints: session.points,
     SelectionMask: window.SelectionMask
   };
@@ -4987,22 +5110,22 @@ async function runAiBrushSegmentation(session) {
   let imageMask = null;
   for (const provider of providers) {
     imageMask = await provider.segment(context);
-    if (imageMask) break;
-  }
-  if (!imageMask) {
-    console.info("[AI_BRUSH] segmentation fallback stroke mask");
-    imageMask = createPathFallbackImageMask(sourceCanvas.width, sourceCanvas.height, closedImagePath)
-      || await createStrokeFallbackImageMask(sourceCanvas.width, sourceCanvas.height, imagePoints);
     if (imageMask) {
-      console.info("[AI_BRUSH] fallback stroke mask used");
+      imageMask = constrainMaskToGuide(imageMask, candidateMask);
+      console.info("[AI_BRUSH] segmentation success");
+      break;
     }
   }
-  console.info("[AI_BRUSH] segmentation done");
+  if (!imageMask) {
+    imageMask = createContourFallbackImageMask(candidateMask);
+  }
   if (!imageMask) {
     throw new Error("Nao foi possivel segmentar a area da Pena IA.");
   }
 
-  const refinedImageMask = imageMask;
+  const refinedImageMask = window.MaskRefiner?.refine
+    ? window.MaskRefiner.refine(imageMask, { smoothRadius: 2, threshold: 84 })
+    : imageMask;
   const sceneMask = await createSceneSelectionMaskFromImageMaskAsync(session.imageObject, sourceCanvas, refinedImageMask);
   if (!sceneMask || sceneMask.isEmpty()) {
     throw new Error("Mascara segmentada vazia.");
@@ -5023,6 +5146,133 @@ function ensureAiBrushUi() {
   }
 }
 
+function createAiBrushManualMaskSession(scenePoint, imageObject, mode) {
+  syncSelectionManagerGeometry();
+  const artboardRect = getArtboardRect();
+  const config = getBrushConfig();
+  const tempMaskCanvas = makeRasterCanvas(artboardWidth, artboardHeight);
+  const tempMaskCtx = tempMaskCanvas.getContext("2d");
+  const session = {
+    state: "drawingManual",
+    imageObject,
+    points: [scenePoint],
+    mode,
+    mask: null,
+    imageMask: null,
+    sourceCanvas: null,
+    tempMaskCanvas,
+    tempMaskCtx,
+    artboardRect,
+    manualBrush: {
+      size: Math.max(1, Number(config.size || 24)),
+      hardness: clampValue(Number(config.hardness ?? 85), 0, 100)
+    },
+    generating: false
+  };
+  drawAiBrushManualStrokeSegment(session, scenePoint, scenePoint);
+  return session;
+}
+
+function toAiBrushManualMaskPoint(session, scenePoint) {
+  const rect = session?.artboardRect || getArtboardRect();
+  return {
+    x: Number(scenePoint.x || 0) - Number(rect.x || 0),
+    y: Number(scenePoint.y || 0) - Number(rect.y || 0)
+  };
+}
+
+function drawAiBrushManualStrokeSegment(session, previousScenePoint, scenePoint) {
+  if (!session?.tempMaskCtx || !scenePoint) return;
+  const ctx = session.tempMaskCtx;
+  const previous = toAiBrushManualMaskPoint(session, previousScenePoint || scenePoint);
+  const point = toAiBrushManualMaskPoint(session, scenePoint);
+  const size = Math.max(1, Number(session.manualBrush?.size || 24));
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = "#FFFFFF";
+  ctx.fillStyle = "#FFFFFF";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = size;
+  ctx.beginPath();
+  ctx.moveTo(previous.x, previous.y);
+  ctx.lineTo(point.x, point.y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function createSelectionMaskFromAiBrushManualCanvas(session) {
+  if (!window.SelectionMask || !session?.tempMaskCanvas) return null;
+  const sourceCanvas = session.tempMaskCanvas;
+  const hardness = clampValue(Number(session.manualBrush?.hardness ?? 85), 0, 100);
+  const featherRadius = hardness >= 100
+    ? 0
+    : Math.max(1, Math.round((100 - hardness) * Number(session.manualBrush?.size || 24) / 220));
+  const maskCanvas = featherRadius > 0 ? makeRasterCanvas(sourceCanvas.width, sourceCanvas.height) : sourceCanvas;
+  if (featherRadius > 0) {
+    const blurCtx = maskCanvas.getContext("2d");
+    blurCtx.filter = `blur(${featherRadius}px)`;
+    blurCtx.drawImage(sourceCanvas, 0, 0);
+    blurCtx.filter = "none";
+  }
+  const imageData = maskCanvas.getContext("2d").getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+  const mask = new window.SelectionMask(maskCanvas.width, maskCanvas.height, {
+    offsetX: session.artboardRect?.x || 0,
+    offsetY: session.artboardRect?.y || 0
+  });
+  for (let index = 0; index < mask.data.length; index += 1) {
+    mask.data[index] = imageData.data[index * 4 + 3];
+  }
+  return mask.isEmpty?.() ? null : mask;
+}
+
+function showAiBrushPromptForSession(session, notice = "Objeto detectado. Digite o prompt e pressione Enter.") {
+  if (!session?.mask) return;
+  session.state = "prompt";
+  const popupPoint = positionPromptForMask(session.mask);
+  aiBrushPromptPopup?.show?.({
+    ...popupPoint,
+    onSubmit: (prompt) => {
+      void submitAiBrushPrompt(prompt);
+    },
+    onCancel: cancelAiBrushSession
+  });
+  console.info("[AI_BRUSH] prompt reopened");
+  showToolNotice(notice);
+}
+
+function finalizeAiBrushSelection(session, rawMask, notice) {
+  if (!session || !rawMask) {
+    aiBrushPromptPopup?.destroy?.();
+    aiBrushEffectsRenderer?.clear?.();
+    activeAiBrushSession = null;
+    showToolNotice("Pena IA: selecao vazia.");
+    return false;
+  }
+  selectionState.type = "ai-brush";
+  SelectionManager.applyMask(rawMask, { mode: session.mode });
+  const finalMask = editor.selectionManager?.getActiveMask?.();
+  if (!finalMask || finalMask.isEmpty?.()) {
+    if (session.mode === "subtract") {
+      console.info("[SELECTION] mask empty after subtract");
+    }
+    aiBrushPromptPopup?.destroy?.();
+    aiBrushEffectsRenderer?.clear?.();
+    activeAiBrushSession = null;
+    showToolNotice("Pena IA: selecao vazia.");
+    return false;
+  }
+  session.mask = finalMask;
+  hideSelectionOverlayOnly();
+  aiBrushEffectsRenderer?.showSelection?.(session.mask);
+  showAiBrushPromptForSession(session, notice);
+  return true;
+}
+
 function startAiBrushGesture(event) {
   if (!canvas) {
     return false;
@@ -5040,16 +5290,35 @@ function startAiBrushGesture(event) {
     return false;
   }
 
-  console.info("[AI_BRUSH] drawing start", {
+  const mode = getAiBrushCombineMode(event);
+  console.info("[AI_BRUSH] selection combine mode", mode);
+  showSelectionCombineFeedback(mode);
+  if (activeAiBrushSession?.state === "prompt") {
+    console.info("[AI_BRUSH] prompt closed for selection update");
+  }
+  aiBrushPromptPopup?.destroy?.();
+  if (isAiBrushManualModeEvent(event)) {
+    console.info("[AI_BRUSH] manual selection mode enabled");
+    logAiBrushManualCombineMode(mode);
+    console.info("[AI_BRUSH] manual stroke start", {
+      layerId: imageObject.layerId || null,
+      point: scenePoint
+    });
+    activeAiBrushSession = createAiBrushManualMaskSession(scenePoint, imageObject, mode);
+    aiBrushEffectsRenderer?.startGesture?.(scenePoint);
+    showToolNotice("Pincel de selecao");
+    event.e?.preventDefault?.();
+    return true;
+  }
+  console.info("[AI_BRUSH] contour drawing start", {
     layerId: imageObject.layerId || null,
     point: scenePoint
   });
-  aiBrushPromptPopup?.destroy?.();
   activeAiBrushSession = {
     state: "drawing",
     imageObject,
     points: [scenePoint],
-    mode: getAiBrushCombineMode(event),
+    mode,
     mask: null,
     imageMask: null,
     sourceCanvas: null,
@@ -5061,7 +5330,7 @@ function startAiBrushGesture(event) {
 }
 
 function updateAiBrushGesture(event) {
-  if (activeAiBrushSession?.state !== "drawing") {
+  if (activeAiBrushSession?.state !== "drawing" && activeAiBrushSession?.state !== "drawingManual") {
     return;
   }
   const point = getScenePoint(event);
@@ -5073,16 +5342,29 @@ function updateAiBrushGesture(event) {
     return;
   }
   activeAiBrushSession.points.push(point);
-  console.info("[AI_BRUSH] drawing move");
+  if (activeAiBrushSession.state === "drawingManual") {
+    drawAiBrushManualStrokeSegment(activeAiBrushSession, previous, point);
+    console.info("[AI_BRUSH] manual stroke update");
+  } else {
+    console.info("[AI_BRUSH] drawing move");
+  }
   aiBrushEffectsRenderer?.updateGesture?.(point);
   event.e?.preventDefault?.();
 }
 
 function finishAiBrushGesture(event) {
-  if (activeAiBrushSession?.state !== "drawing") {
+  if (activeAiBrushSession?.state !== "drawing" && activeAiBrushSession?.state !== "drawingManual") {
     return;
   }
   const session = activeAiBrushSession;
+  if (session.state === "drawingManual") {
+    console.info("[AI_BRUSH] manual stroke end");
+    event?.e?.preventDefault?.();
+    const manualMask = createSelectionMaskFromAiBrushManualCanvas(session);
+    console.info("[AI_BRUSH] manual mask applied");
+    finalizeAiBrushSelection(session, manualMask, "Pincel de selecao ativo. Digite o prompt e pressione Enter.");
+    return;
+  }
   console.info("[AI_BRUSH] drawing end");
   session.state = "segmenting";
   event?.e?.preventDefault?.();
@@ -5090,28 +5372,16 @@ function finishAiBrushGesture(event) {
   aiBrushEffectsRenderer?.setState?.("segmenting");
   scheduleAiBrushWork(async () => {
     try {
-    if (session.points.length < 2) {
-      throw new Error("Rabisque sobre a area que voce quer editar.");
+    if (session.points.length < 3) {
+      throw new Error("Desenhe um contorno ao redor do objeto.");
     }
     const segmentation = await runAiBrushSegmentation(session);
     session.sourceCanvas = segmentation.sourceCanvas;
     session.imageMask = segmentation.imageMask;
     session.mask = segmentation.sceneMask;
-    session.state = "prompt";
-    selectionState.type = "ai-brush";
-    SelectionManager.applyMask(session.mask, session.mode);
-    hideSelectionOverlayOnly();
-    aiBrushEffectsRenderer?.showSelection?.(session.mask);
-    const popupPoint = positionPromptForMask(session.mask);
-    aiBrushPromptPopup?.show?.({
-      ...popupPoint,
-      onSubmit: (prompt) => {
-        void submitAiBrushPrompt(prompt);
-      },
-      onCancel: cancelAiBrushSession
-    });
-    console.info("[AI_BRUSH] prompt opened");
-    showToolNotice("Objeto detectado. Digite o prompt e pressione Enter.");
+    if (finalizeAiBrushSelection(session, session.mask, "Objeto detectado. Digite o prompt e pressione Enter.")) {
+      console.info("[AI_BRUSH] contour selection finalized");
+    }
     } catch (err) {
     session.state = "error";
     console.error("[AI_BRUSH] error", err);
@@ -5138,34 +5408,32 @@ function cancelAiBrushSession() {
 async function submitAiBrushPrompt(prompt) {
   const session = activeAiBrushSession;
   const cleanPrompt = String(prompt || "").trim();
+  console.info("[AI_BRUSH] prompt submit");
   if (!session?.mask || !cleanPrompt || session.generating || session.state !== "prompt") {
+    return;
+  }
+  if (!isRasterEditableImage(session.imageObject) || isMaskLayerObject(session.imageObject)) {
+    showToolNotice("Pena IA precisa de uma layer raster ativa.");
+    aiBrushPromptPopup?.setBusy?.(false);
+    return;
+  }
+  if (!editor.selectionManager?.hasSelection?.() || !session.mask || session.mask.isEmpty?.()) {
+    showToolNotice("Pena IA precisa de uma SelectionMask ativa.");
+    aiBrushPromptPopup?.setBusy?.(false);
+    return;
+  }
+  if (typeof window.kitAPI?.inpaintStableDiffusionImage !== "function") {
+    showToolNotice("Motor de imagem indisponivel para inpaint.");
+    aiBrushPromptPopup?.setBusy?.(false);
     return;
   }
   session.generating = true;
   session.state = "generating";
   aiBrushPromptPopup?.destroy?.();
   aiBrushEffectsRenderer?.showGenerating?.(session.mask);
-  updateAiBrushStatus("Preparando imagem...");
-  console.info("[AI_BRUSH] inpaint start");
+  updateAiBrushStatus("Preparando edicao IA...");
   scheduleAiBrushWork(async () => {
-    try {
-      const result = await runAiBrushInpaintRequest({ prompt: cleanPrompt, session });
-      await compositeAiBrushResultIntoLayer(result.file, session);
-      session.state = "done";
-      console.info("[AI_BRUSH] inpaint done");
-      console.info("[AI_BRUSH] done");
-      aiBrushEffectsRenderer?.completeFlash?.(session.mask);
-      showToolNotice("Edicao IA aplicada dentro da mascara.");
-      activeAiBrushSession = null;
-    } catch (err) {
-      session.generating = false;
-      session.state = "error";
-      console.error("[AI_BRUSH] error", err);
-      aiBrushPromptPopup?.destroy?.();
-      aiBrushEffectsRenderer?.clear?.();
-      showToolNotice(`Erro na Pena IA: ${err.message || err}`);
-      activeAiBrushSession = null;
-    }
+    await runAiBrushInpaint(cleanPrompt);
   });
 }
 
@@ -5195,11 +5463,6 @@ function getAiBrushImageGeneratorConfig(prompt = "") {
   const base = collectStableDiffusionPayload();
   const checkpoint = String(base.checkpoint || sdCheckpoint?.value || "").trim();
   console.info("[AI_BRUSH] using image generator config");
-  console.info("[AI_BRUSH] using image generator flow");
-  console.info("[AI_BRUSH] selected model", checkpoint || "(none)");
-  if (!checkpoint) {
-    throw new Error("Selecione um modelo em Gerar Imagem antes de usar a Pena IA.");
-  }
   return {
     ...base,
     mode: "inpaint",
@@ -5220,123 +5483,287 @@ function getAiBrushImageGeneratorConfig(prompt = "") {
     denoiseStrength: Number(base.denoising_strength || getNumericValue(sdDenoising, 0.55)),
     denoising_strength: Number(base.denoising_strength || getNumericValue(sdDenoising, 0.55)),
     seed: Number(base.seed ?? getNumericValue(sdSeed, -1)),
+    inpaintArea: normalizeInpaintAreaValue(base.inpaintArea || base.inpaint_area || "only_masked"),
+    inpaint_area: normalizeInpaintAreaValue(base.inpaintArea || base.inpaint_area || "only_masked"),
+    inpaintContextMode: normalizeInpaintAreaValue(base.inpaintArea || base.inpaint_area || "only_masked") === "whole_picture" ? "full" : "selection",
+    maskedContent: normalizeMaskedContentValue(base.maskedContent || base.masked_content || "fill"),
+    masked_content: normalizeMaskedContentValue(base.maskedContent || base.masked_content || "fill"),
+    inpaintFeatherPx: Number(base.inpaintFeatherPx ?? 8),
+    inpaintExpandPx: Number(base.inpaintExpandPx ?? 8),
+    inpaintContextPaddingPx: Number(base.inpaintContextPaddingPx ?? 128),
+    inpaintPreserveContinuity: base.inpaintPreserveContinuity !== false,
+    inpaintOutputMode: normalizeInpaintOutputModeValue(base.inpaintOutputMode || base.inpaint_output_mode || base.inpaintResultMode || "new_full_layer"),
+    inpaint_output_mode: normalizeInpaintOutputModeValue(base.inpaintOutputMode || base.inpaint_output_mode || base.inpaintResultMode || "new_full_layer"),
+    inpaintResultMode: normalizeInpaintOutputModeValue(base.inpaintOutputMode || base.inpaint_output_mode || base.inpaintResultMode || "new_full_layer"),
     source: "canvas_ai_brush"
   };
 }
 
-async function runAiBrushInpaintRequest({ prompt, session } = {}) {
-  const sourceObject = session.imageObject;
-  canvas.setActiveObject(sourceObject);
-  const generatorConfig = getAiBrushImageGeneratorConfig(prompt);
-  await yieldAiBrushStep("Preparando imagem...");
-  const sourceCanvas = await createRasterCanvasFromSource(getImageSourceForRaster(sourceObject), sourceObject.getElement?.());
-  console.info("[AI_BRUSH] export base image");
-  const baseDataUrl = sourceCanvas.toDataURL("image/png");
-  const initSaved = await window.kitAPI?.saveCanvasI2ITempPng?.({
-    dataUrl: baseDataUrl,
-    layerId: sourceObject.layerId || "ai-brush-base",
-    name: makeObjectName(sourceObject),
-    width: sourceCanvas.width,
-    height: sourceCanvas.height
-  });
-  if (!initSaved?.filePath) {
-    throw new Error("Nao foi possivel exportar a imagem base da Pena IA.");
+async function waitForImageEngineReady({ timeoutMs = 60000, intervalMs = 750 } = {}) {
+  console.info("[AI_BRUSH] waiting image engine ready");
+  updateAiBrushStatus("Aguardando motor ficar pronto...");
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const health = await window.kitAPI?.getStableDiffusionHealth?.().catch(() => null);
+    if (health?.ready || String(health?.status || "").toLowerCase() === "ready") {
+      console.info("[AI_BRUSH] image engine ready");
+      setAiEngineStatus(
+        "image",
+        "pronto",
+        `${health.counts?.checkpoints || 0} checkpoint(s), ${health.counts?.loras || 0} LoRA(s), ${health.counts?.diffusionModels || 0} diffusion model(s).`
+      );
+      return health;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
   }
-  await yieldAiBrushStep("Exportando mascara...");
-  console.info("[AI_BRUSH] export mask");
-  const clipCanvas = await createSelectionClipCanvasForImageAsync(sourceObject, sourceCanvas);
-  if (!clipCanvas) {
-    throw new Error("Mascara ativa indisponivel para a Pena IA.");
-  }
-  const maskCanvas = await featherCanvasElementAsync(clipCanvas, 6);
-  const maskDataUrl = maskCanvas.toDataURL("image/png");
-  const maskSaved = await window.kitAPI?.saveCanvasI2ITempPng?.({
-    dataUrl: maskDataUrl,
-    layerId: sourceObject.layerId || "ai-brush-mask",
-    name: `${makeObjectName(sourceObject)}-mask`,
-    width: maskCanvas.width,
-    height: maskCanvas.height
-  });
-  if (!maskSaved?.filePath) {
-    throw new Error("Nao foi possivel exportar a mascara da Pena IA.");
-  }
-  await yieldAiBrushStep("Enviando para i2i...");
-  const payload = {
-    ...generatorConfig,
-    mode: "inpaint",
-    uiMode: "magic-edit",
-    prompt,
-    width: sourceCanvas.width,
-    height: sourceCanvas.height,
-    sourceLayerId: sourceObject.layerId || null,
-    initImagePath: initSaved.filePath,
-    imagePath: initSaved.filePath,
-    image_path: initSaved.filePath,
-    maskPath: maskSaved.filePath,
-    mask_path: maskSaved.filePath,
-    image: baseDataUrl,
-    mask: maskDataUrl,
-    baseImageDataUrl: baseDataUrl,
-    maskImageDataUrl: maskDataUrl,
-    targetLayerId: sourceObject.layerId || null,
-    source: "canvas_ai_brush"
-  };
-  if (!String(payload.prompt || "").trim()) {
-    throw new Error("Digite um prompt para editar a area.");
-  }
-  console.info("[AI_BRUSH] send inpaint request");
-  await CanvasStableActions.ensureStableEnabled();
-  await yieldAiBrushStep("Gerando edicao...");
-  if (typeof window.kitAPI?.inpaintStableDiffusionImage !== "function") {
-    throw new Error("Endpoint de inpaint do Gerador de Imagem indisponivel.");
-  }
-  const result = await withAiBrushTimeout(window.kitAPI.inpaintStableDiffusionImage(payload), 180000);
-  console.info("[AI_BRUSH] inpaint response received");
-  if (!result?.file) {
-    throw new Error("Worker nao retornou arquivo de inpaint.");
-  }
-  recordStableDiffusionInpaint({
-    ...(result.metadata || {}),
-    file: result.file,
-    output_file: result.file,
-    prompt,
-    mode: "magic-edit",
-    mask_path: maskSaved.filePath,
-    targetLayerId: sourceObject.layerId || null,
-    insertMode: "masked-replace"
-  });
-  return result;
+  throw new Error("Motor de imagem nao ficou pronto a tempo.");
 }
 
-async function compositeAiBrushResultIntoLayer(filePath, session) {
+function selectDefaultImageModelIfNeeded() {
+  if (sdCheckpoint?.value) {
+    return sdCheckpoint.value;
+  }
+  const option = Array.from(sdCheckpoint?.options || []).find((item) => item.value);
+  if (option) {
+    sdCheckpoint.value = option.value;
+    updateAiGeneratorPanelState();
+    return option.value;
+  }
+  const defaultModel = availableImageModels.find(isImagePrimaryModel);
+  if (defaultModel && sdCheckpoint) {
+    renderImageRegistrySelectors();
+    sdCheckpoint.value = getRegistrySelectValue(defaultModel);
+    updateAiGeneratorPanelState();
+    return sdCheckpoint.value;
+  }
+  return "";
+}
+
+async function ensureImageEngineAndConfig() {
+  const health = await window.kitAPI?.getStableDiffusionHealth?.().catch(() => null);
+  if (!health?.ready) {
+    console.info("[AI_BRUSH] engine inactive, starting image engine");
+    updateAiBrushStatus("Iniciando motor IA...");
+    await startStableDiffusionWorker();
+  }
+  const ready = await waitForImageEngineReady();
+  await refreshStableDiffusionModels().catch(() => null);
+  const selectedModel = selectDefaultImageModelIfNeeded();
+  if (!selectedModel) {
+    throw new Error("Nenhum modelo de imagem disponivel para a Pena IA.");
+  }
+  console.info("[AI_BRUSH] selected model", selectedModel);
+  return {
+    health: ready,
+    checkpoint: selectedModel
+  };
+}
+
+function createAiBrushGeneratorAdapter() {
+  if (!window.AiBrushImageGeneratorAdapter?.create) {
+    throw new Error("Adapter de inpaint da Pena IA indisponivel.");
+  }
+  return window.AiBrushImageGeneratorAdapter.create({
+    status: yieldAiBrushStep,
+    isRasterEditableImage,
+    createRasterCanvasFromSource,
+    getImageSourceForRaster,
+    getGeneratorConfig: getAiBrushImageGeneratorConfig,
+    scenePointToImagePixel,
+    runCanvasPixelWorker,
+    saveTempPng: (payload) => window.kitAPI?.saveCanvasI2ITempPng?.(payload),
+    ensureImageEngineAndConfig,
+    makeObjectName,
+    withTimeout: withAiBrushTimeout,
+    inpaintStableDiffusionImage: (payload) => window.kitAPI?.inpaintStableDiffusionImage?.(payload),
+    startProgressPolling: startStableDiffusionProgressPolling
+  });
+}
+
+async function loadGeneratedImage(normalizedResponse = {}) {
+  const imageSource = String(normalizedResponse.imageSource || "").trim();
+  const imageType = normalizedResponse.imageType || "path";
+  if (!imageSource) {
+    console.error("[AI_BRUSH] no generated image in response", normalizedResponse);
+    throw new Error("Resposta do inpaint nao trouxe imagem gerada.");
+  }
+  if (imageType === "base64") {
+    const image = await loadImageElement(imageSource);
+    console.info("[AI_BRUSH] generated image loaded", { imageType, width: image?.width || 0, height: image?.height || 0 });
+    return image;
+  }
+  if (imageType === "url" && !/^file:/i.test(imageSource)) {
+    if (/^https?:|^blob:|^\//i.test(imageSource)) {
+      const response = await fetch(imageSource);
+      if (!response.ok) {
+        throw new Error(`Nao foi possivel baixar imagem gerada (${response.status}).`);
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const image = await loadImageElement(objectUrl);
+        console.info("[AI_BRUSH] generated image loaded", { imageType, width: image?.width || 0, height: image?.height || 0 });
+        return image;
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
+  }
+  const image = await loadImageElement(toImageUrl(imageSource, currentProjectFilePath || ""));
+  console.info("[AI_BRUSH] generated image loaded", { imageType, width: image?.width || 0, height: image?.height || 0 });
+  return image;
+}
+
+function makeAiBrushResultLayerName(promptText = "") {
+  const cleanPrompt = String(promptText || "").replace(/\s+/g, " ").trim();
+  const shortPrompt = cleanPrompt.length > 36 ? `${cleanPrompt.slice(0, 36).trim()}...` : cleanPrompt;
+  return `Pena IA${shortPrompt ? ` - ${shortPrompt}` : ""}`;
+}
+
+async function runAiBrushInpaint(promptText) {
+  const session = activeAiBrushSession;
+  if (!session) {
+    return null;
+  }
+  try {
+    canvas.setActiveObject(session.imageObject);
+    if (!session.imageMask?.data) {
+      session.sourceCanvas = session.sourceCanvas || await createRasterCanvasFromSource(
+        getImageSourceForRaster(session.imageObject),
+        session.imageObject.getElement?.()
+      );
+      session.imageMask = createImageSelectionMaskFromSceneMask(session.imageObject, session.sourceCanvas, session.mask);
+    }
+    const adapter = createAiBrushGeneratorAdapter();
+    const result = await adapter.run(promptText, {
+      layer: session.imageObject,
+      selectionMask: session.mask,
+      imageMask: session.imageMask,
+      sourceCanvas: session.sourceCanvas
+    });
+    const resultLayer = await compositeAiBrushResultIntoLayer(result, session, result.composition, promptText);
+    recordStableDiffusionInpaint({
+      ...(result.metadata || {}),
+      file: result.normalizedResponse?.imageSource || result.file || "",
+      output_file: result.normalizedResponse?.imageSource || result.file || "",
+      prompt: promptText,
+      mode: "magic-edit",
+      mask_path: result.metadata?.mask_path || "",
+      targetLayerId: session.imageObject?.layerId || null,
+      resultLayerId: resultLayer?.layerId || null,
+      insertMode: "masked-replace"
+    });
+    session.state = "done";
+    console.info("[AI_BRUSH] edit applied");
+    aiBrushEffectsRenderer?.completeFlash?.(session.mask);
+    updateAiBrushStatus("Edicao IA aplicada.");
+    showToolNotice("Edicao IA aplicada.");
+    activeAiBrushSession = null;
+    return result;
+  } catch (err) {
+    session.generating = false;
+    session.state = "error";
+    console.error("[AI_BRUSH] submit error", err);
+    aiBrushPromptPopup?.destroy?.();
+    aiBrushEffectsRenderer?.clear?.();
+    showToolNotice(`Erro na edicao IA: ${err.message || err}`);
+    activeAiBrushSession = null;
+    return null;
+  } finally {
+    stopStableDiffusionProgressPolling();
+  }
+}
+
+async function compositeAiBrushResultIntoLayer(result, session, composition = null, promptText = "") {
   await yieldAiBrushStep("Aplicando resultado...");
-  console.info("[AI_BRUSH] compose masked result");
+  console.info("[AI_BRUSH] composing generated result");
   const layer = session.imageObject;
-  const sourceCanvas = await createRasterCanvasFromSource(getImageSourceForRaster(layer), layer.getElement?.());
-  const resultImage = await loadImageElement(toImageUrl(filePath));
-  const resultCanvas = makeRasterCanvas(sourceCanvas.width, sourceCanvas.height);
-  resultCanvas.getContext("2d").drawImage(resultImage, 0, 0, resultCanvas.width, resultCanvas.height);
-  const clipCanvas = await createSelectionClipCanvasForImageAsync(layer, sourceCanvas);
-  if (!clipCanvas) {
+  const sourceCanvas = composition?.sourceCanvas || await createRasterCanvasFromSource(getImageSourceForRaster(layer), layer.getElement?.());
+  const resultImage = await loadGeneratedImage(result?.normalizedResponse || {
+    imageSource: result?.file || result?.outputPath || result?.path || result?.url || "",
+    imageType: result?.file || result?.outputPath || result?.path ? "path" : "url"
+  });
+  const paddedBounds = composition?.paddedBounds || { x: 0, y: 0, width: sourceCanvas.width, height: sourceCanvas.height };
+  const contentRect = composition?.contentRect || { x: 0, y: 0, width: resultImage.width, height: resultImage.height };
+  const maskCropCanvas = composition?.maskCropCanvas;
+  const outputMode = normalizeInpaintOutputModeValue(composition?.inpaintOptions?.outputMode || composition?.inpaintOptions?.resultLayerMode || "new_full_layer");
+  if (!maskCropCanvas) {
     throw new Error("Mascara ativa indisponivel para aplicar resultado.");
   }
 
   await waitForNextFrame();
-  const isolated = makeRasterCanvas(sourceCanvas.width, sourceCanvas.height);
+  const fullResultCanvas = makeRasterCanvas(sourceCanvas.width, sourceCanvas.height);
+  fullResultCanvas.getContext("2d").drawImage(
+    resultImage,
+    contentRect.x,
+    contentRect.y,
+    contentRect.width,
+    contentRect.height,
+    paddedBounds.x,
+    paddedBounds.y,
+    paddedBounds.width,
+    paddedBounds.height
+  );
+  const isolated = makeRasterCanvas(paddedBounds.width, paddedBounds.height);
   const isolatedCtx = isolated.getContext("2d");
-  isolatedCtx.drawImage(resultCanvas, 0, 0);
+  isolatedCtx.drawImage(fullResultCanvas, paddedBounds.x, paddedBounds.y, paddedBounds.width, paddedBounds.height, 0, 0, isolated.width, isolated.height);
   isolatedCtx.globalCompositeOperation = "destination-in";
-  isolatedCtx.drawImage(clipCanvas, 0, 0, isolated.width, isolated.height);
+  isolatedCtx.drawImage(maskCropCanvas, 0, 0, isolated.width, isolated.height);
+  console.info("[AI_BRUSH] compose with feather");
 
-  const ctx = sourceCanvas.getContext("2d");
-  ctx.drawImage(isolated, 0, 0);
-  layer.rasterSourceSrc = sourceCanvas.toDataURL("image/png");
-  updateRasterImageElement(layer, sourceCanvas, null);
-  canvas.setActiveObject(layer);
+  if (outputMode === "replace_original") {
+    layer.rasterSourceSrc = fullResultCanvas.toDataURL("image/png");
+    updateRasterImageElement(layer, fullResultCanvas, null);
+    canvas.setActiveObject(layer);
+    canvas.requestRenderAll();
+    updateSelectionInfo();
+    markCanvasChanged("ai-brush-inpaint");
+    scheduleAutosave();
+    console.info("[AI_BRUSH] edit applied", { mode: outputMode });
+    return layer;
+  }
+
+  console.info("[AI_BRUSH] creating result layer");
+  let layerCanvas = fullResultCanvas;
+  let resultBounds = { x: 0, y: 0, width: sourceCanvas.width, height: sourceCanvas.height };
+  if (outputMode === "patch_layer") {
+    const patchFullCanvas = makeRasterCanvas(sourceCanvas.width, sourceCanvas.height);
+    patchFullCanvas.getContext("2d").drawImage(isolated, paddedBounds.x, paddedBounds.y);
+    resultBounds = getAlphaBounds(patchFullCanvas) || paddedBounds;
+    layerCanvas = cropRasterCanvas(patchFullCanvas, resultBounds);
+  }
+  const resultLayer = await createFabricImageFromCanvasElement(layerCanvas);
+  resultLayer.set({
+    name: makeAiBrushResultLayerName(promptText),
+    layerName: makeAiBrushResultLayerName(promptText),
+    layerKind: "raster",
+    rasterSourceSrc: layerCanvas.toDataURL("image/png")
+  });
+  applyLayerAlignment(resultLayer, layer, sourceCanvas, resultBounds);
+
+  canvas.add(resultLayer);
+  if (typeof canvas.moveObjectTo === "function") {
+    const objects = canvas.getObjects?.() || [];
+    const targetIndex = objects.indexOf(layer);
+    if (targetIndex >= 0) {
+      canvas.moveObjectTo(resultLayer, Math.min(objects.length - 1, targetIndex + 1));
+    }
+  }
+  resultLayer.setCoords();
+  canvas.setActiveObject(resultLayer);
+  canvas.requestRenderAll();
   updateSelectionInfo();
+  addTimelineItem({
+    type: "image",
+    layerId: resultLayer.layerId,
+    source: result?.normalizedResponse?.imageSource || result?.file || "",
+    label: resultLayer.layerName || resultLayer.name,
+    duration: 5
+  });
   markCanvasChanged("ai-brush-inpaint");
   scheduleAutosave();
-  return layer;
+  console.info("[AI_BRUSH] result layer added", { layerId: resultLayer.layerId || null });
+  return resultLayer;
 }
 
 function createSceneSelectionMaskFromImageMask(imageObject, rasterCanvas, imageMask) {
@@ -5364,37 +5791,86 @@ function createSceneSelectionMaskFromImageMask(imageObject, rasterCanvas, imageM
   return sceneMask;
 }
 
-async function applyMagicWandSelection(event) {
+function getMagicWandScenePoint(event) {
+  const scenePoint = getScenePointFromFabricEvent(event);
+  return scenePoint ? { x: Number(scenePoint.x || 0), y: Number(scenePoint.y || 0) } : null;
+}
+
+function startMagicWandSelection(event) {
   if (!canvas || !window.floodFillSelection) {
     return false;
   }
-
-  const scenePoint = getScenePointFromFabricEvent(event);
-  const point = scenePoint ? { x: Number(scenePoint.x || 0), y: Number(scenePoint.y || 0) } : null;
+  const point = getMagicWandScenePoint(event);
   const imageObject = getActiveRasterLayer() || getCanvasObjectAtScenePoint(point);
   if (!isRasterEditableImage(imageObject)) {
     showToolNotice("Varinha magica precisa de uma layer raster ativa.");
     return false;
   }
+  const mode = getSelectionCombineMode(event);
+  console.info("[MAGIC_WAND] drag selection start");
+  showSelectionCombineFeedback(mode);
+  activeToolPointerState = {
+    kind: "magic-wand-selection",
+    imageObject,
+    points: point ? [point] : [],
+    mode
+  };
+  event.e?.preventDefault?.();
+  return true;
+}
 
-  console.info("[MAGIC_WAND] flood fill start");
-  const sourceCanvas = await createRasterCanvasFromSource(getImageSourceForRaster(imageObject), imageObject.getElement?.());
-  const imagePoint = scenePointToImagePixel(imageObject, point, sourceCanvas);
-  if (!imagePoint) {
+function updateMagicWandSelection(event) {
+  if (activeToolPointerState?.kind !== "magic-wand-selection") {
+    return;
+  }
+  const point = getMagicWandScenePoint(event);
+  if (!point) {
+    return;
+  }
+  const points = activeToolPointerState.points;
+  const previous = points[points.length - 1];
+  if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) < 10) {
+    return;
+  }
+  points.push(point);
+  console.info("[MAGIC_WAND] drag selection point added");
+  event.e?.preventDefault?.();
+}
+
+async function finishMagicWandSelection(event) {
+  if (activeToolPointerState?.kind !== "magic-wand-selection") {
+    return false;
+  }
+  const state = activeToolPointerState;
+  activeToolPointerState = null;
+  const imageObject = state.imageObject;
+  const points = state.points || [];
+  if (!points.length) {
     return false;
   }
 
+  console.info("[MAGIC_WAND] flood fill start");
+  const sourceCanvas = await createRasterCanvasFromSource(getImageSourceForRaster(imageObject), imageObject.getElement?.());
   const ctx = sourceCanvas.getContext("2d");
   const imageData = ctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
-  const workerMask = await runCanvasPixelWorker("floodFill", {
-    imageData,
-    x: imagePoint.x,
-    y: imagePoint.y,
-    tolerance: 32
-  }).catch(() => null);
-  const imageMask = workerMask
-    ? makeSelectionMaskFromWorkerResult(workerMask)
-    : window.floodFillSelection(imageData, imagePoint.x, imagePoint.y, 32);
+  let imageMask = null;
+  for (const point of points.slice(0, 48)) {
+    const imagePoint = scenePointToImagePixel(imageObject, point, sourceCanvas);
+    if (!imagePoint) {
+      continue;
+    }
+    const workerMask = await runCanvasPixelWorker("floodFill", {
+      imageData,
+      x: imagePoint.x,
+      y: imagePoint.y,
+      tolerance: 32
+    }).catch(() => null);
+    const nextMask = workerMask
+      ? makeSelectionMaskFromWorkerResult(workerMask)
+      : window.floodFillSelection(imageData, imagePoint.x, imagePoint.y, 32);
+    imageMask = window.SelectionOps.compose(imageMask, nextMask, "add");
+    await waitForNextFrame();
+  }
   console.info("[MAGIC_WAND] flood fill done");
   const sceneMask = createSceneSelectionMaskFromImageMask(imageObject, sourceCanvas, imageMask);
   if (!sceneMask || sceneMask.isEmpty()) {
@@ -5402,14 +5878,15 @@ async function applyMagicWandSelection(event) {
     return false;
   }
   console.info("[MAGIC_WAND] mask pixels count", sceneMask.countPixels?.() ?? 0);
+  console.info("[MAGIC_WAND] drag selection apply");
 
   selectionTargetLayerId = imageObject.layerId || null;
   selectionState.type = "magic";
-  selectionState.mode = getSelectionCombineMode(event);
-  SelectionManager.applyMask(sceneMask, selectionState.mode);
+  selectionState.mode = state.mode;
+  SelectionManager.applyMask(sceneMask, { mode: state.mode });
   canvas.setActiveObject(imageObject);
   showToolNotice("Selecao criada com varinha magica.");
-  event.e?.preventDefault?.();
+  event?.e?.preventDefault?.();
   return true;
 }
 
@@ -5993,10 +6470,22 @@ function updateSelectionOverlay() {
 
 function getSelectionCombineMode(event = null) {
   const nativeEvent = event?.e || event || {};
-  if (nativeEvent.altKey) return "subtract";
-  if (nativeEvent.shiftKey && nativeEvent.ctrlKey) return "intersect";
-  if (nativeEvent.shiftKey) return "add";
-  return "replace";
+  const mode = nativeEvent.shiftKey === true
+    ? SelectionCombineMode.add
+    : nativeEvent.ctrlKey === true
+      ? SelectionCombineMode.subtract
+      : SelectionCombineMode.replace;
+  console.info(`[SELECTION] combine mode ${mode}`);
+  return mode;
+}
+
+function showSelectionCombineFeedback(mode = SelectionCombineMode.replace) {
+  const labels = {
+    replace: "Substituir selecao",
+    add: "Somar a selecao",
+    subtract: "Subtrair da selecao"
+  };
+  showToolNotice(labels[mode] || labels.replace);
 }
 
 function syncSelectionManagerGeometry() {
@@ -6067,7 +6556,9 @@ const SelectionManager = {
   startSelection(type, point, event = null) {
     const activeObject = getActiveEditableObject();
     selectionTargetLayerId = activeObject?.layerId || null;
-    if (getSelectionCombineMode(event) === "replace") {
+    const mode = getSelectionCombineMode(event);
+    showSelectionCombineFeedback(mode);
+    if (mode === "replace") {
       clearSelection();
     } else if (selectionState.overlay) {
       removeToolOverlay(selectionState.overlay);
@@ -6081,7 +6572,7 @@ const SelectionManager = {
       bounds: makeBoxFromPoints(point, point),
       overlay: createSelectionOverlay(type),
       active: false,
-      mode: getSelectionCombineMode(event)
+      mode
     };
     canvas.add(selectionState.overlay);
     if (activeObject && canvas.getObjects().includes(activeObject)) {
@@ -6103,7 +6594,7 @@ const SelectionManager = {
       return;
     }
     const mask = createSelectionMaskFromBounds(selectionState.bounds, selectionState.type);
-    editor.selectionManager?.apply?.(mask, selectionState.mode || "replace");
+    editor.selectionManager?.applyMask?.(mask, { mode: selectionState.mode || "replace" });
     selectionState.active = true;
     updateSelectionOverlayFromMask();
     showToolNotice("Selecao ativa.");
@@ -6120,8 +6611,9 @@ const SelectionManager = {
   getSelectionMask() {
     return getSelectionMask();
   },
-  applyMask(mask, mode = "replace") {
-    editor.selectionManager?.apply?.(mask, mode);
+  applyMask(mask, options = "replace") {
+    const mode = typeof options === "string" ? options : (options?.mode || "replace");
+    editor.selectionManager?.applyMask?.(mask, { mode });
     updateSelectionOverlayFromMask();
   }
 };
@@ -6191,7 +6683,9 @@ function startLassoSelectionTool(event) {
     return;
   }
 
-  if (getSelectionCombineMode(event) === "replace") {
+  const mode = getSelectionCombineMode(event);
+  showSelectionCombineFeedback(mode);
+  if (mode === "replace") {
     clearSelection();
   } else if (selectionState.overlay) {
     removeToolOverlay(selectionState.overlay);
@@ -6204,7 +6698,7 @@ function startLassoSelectionTool(event) {
     kind: "lasso-selection",
     points: [start],
     overlay,
-    mode: getSelectionCombineMode(event)
+    mode
   };
   event.e?.preventDefault?.();
 }
@@ -6249,7 +6743,7 @@ function finishLassoSelectionTool() {
   removeToolOverlay(overlay);
   selectionState.overlay = null;
   selectionState.type = "mask";
-  SelectionManager.applyMask(mask, mode);
+  SelectionManager.applyMask(mask, { mode });
   activeToolPointerState = null;
   showToolNotice("Selecao de laco ativa.");
 }
@@ -10445,6 +10939,10 @@ function normalizeStableMetadata(metadata = {}, fallback = {}) {
     width: metadata.width || fallback.width || null,
     height: metadata.height || fallback.height || null,
     denoising_strength: metadata.denoising_strength ?? fallback.denoising_strength ?? null,
+    mask_path: metadata.mask_path || fallback.mask_path || fallback.maskPath || "",
+    inpaint_area: metadata.inpaint_area || fallback.inpaint_area || fallback.inpaintArea || "only_masked",
+    masked_content: metadata.masked_content || fallback.masked_content || fallback.maskedContent || "fill",
+    inpaint_output_mode: normalizeInpaintOutputModeValue(metadata.inpaint_output_mode || fallback.inpaint_output_mode || fallback.inpaintOutputMode || "new_full_layer"),
     output_file: metadata.output_file || fallback.output_file || fallback.file || metadata.file || ""
   };
 }
@@ -10847,19 +11345,21 @@ function getSelectedStableI2ISubmode() {
 }
 
 function getStableInsertMode() {
-  const value = String(sdInpaintInsertMode?.value || "new-layer").trim();
-  return ["new-layer", "replace", "variation"].includes(value) ? value : "new-layer";
+  const value = String(sdInpaintOutputMode?.value || sdInpaintInsertMode?.value || "new_full_layer").trim();
+  if (value === "replace" || value === "replaceSelected" || value === "active-layer") {
+    return "replace_original";
+  }
+  if (value === "new-layer" || value === "full-layer" || value === "newLayer") {
+    return "new_full_layer";
+  }
+  if (value === "cropped-layer" || value === "patch") {
+    return "patch_layer";
+  }
+  return ["replace_original", "new_full_layer", "patch_layer"].includes(value) ? value : "new_full_layer";
 }
 
 function getStableOutputMode() {
-  const insertMode = getStableInsertMode();
-  if (insertMode === "replace") {
-    return "replaceSelected";
-  }
-  if (insertMode === "variation") {
-    return "variation";
-  }
-  return "newLayer";
+  return getStableInsertMode();
 }
 
 function getStableUiMode() {
@@ -12220,6 +12720,36 @@ function buildAiPromptWithStyle(prompt = "", style = "") {
   return [promptText, styleText].filter(Boolean).join(", ");
 }
 
+function normalizeInpaintAreaValue(value = "") {
+  const text = String(value || "").trim();
+  if (text === "whole_picture" || text === "whole-picture" || text === "full") {
+    return "whole_picture";
+  }
+  return "only_masked";
+}
+
+function normalizeMaskedContentValue(value = "") {
+  const text = String(value || "").trim();
+  if (["fill", "original", "latent_noise", "latent_nothing"].includes(text)) {
+    return text;
+  }
+  return "fill";
+}
+
+function normalizeInpaintOutputModeValue(value = "") {
+  const text = String(value || "").trim();
+  if (text === "replace" || text === "replaceSelected" || text === "active-layer") {
+    return "replace_original";
+  }
+  if (text === "new-layer" || text === "full-layer" || text === "newLayer") {
+    return "new_full_layer";
+  }
+  if (text === "cropped-layer" || text === "patch") {
+    return "patch_layer";
+  }
+  return ["replace_original", "new_full_layer", "patch_layer"].includes(text) ? text : "new_full_layer";
+}
+
 function collectCanvasVideoPayload() {
   const mode = normalizeVideoModeValue(aiVideoMode?.value || "text_to_video") === "i2v"
     ? "image_to_video"
@@ -12281,6 +12811,18 @@ function collectStableDiffusionPayload() {
     height: sdHeight?.value ? getNumericValue(sdHeight, 0) : undefined,
     seed: getNumericValue(sdSeed, -1),
     denoising_strength: getNumericValue(sdDenoising, 0.55),
+    inpaintArea: normalizeInpaintAreaValue(sdInpaintArea?.value || "only_masked"),
+    inpaint_area: normalizeInpaintAreaValue(sdInpaintArea?.value || "only_masked"),
+    inpaintContextMode: normalizeInpaintAreaValue(sdInpaintArea?.value || "only_masked") === "whole_picture" ? "full" : "selection",
+    maskedContent: normalizeMaskedContentValue(sdMaskedContent?.value || "fill"),
+    masked_content: normalizeMaskedContentValue(sdMaskedContent?.value || "fill"),
+    inpaintFeatherPx: getNumericValue(sdInpaintFeather, 8),
+    inpaintExpandPx: getNumericValue(sdInpaintExpand, 8),
+    inpaintContextPaddingPx: getNumericValue(sdInpaintPadding, 128),
+    inpaintPreserveContinuity: sdInpaintContinuity?.checked !== false,
+    inpaintOutputMode: normalizeInpaintOutputModeValue(sdInpaintOutputMode?.value || "new_full_layer"),
+    inpaint_output_mode: normalizeInpaintOutputModeValue(sdInpaintOutputMode?.value || "new_full_layer"),
+    inpaintResultMode: normalizeInpaintOutputModeValue(sdInpaintOutputMode?.value || "new_full_layer"),
     batch_count: 1,
     batch_size: 1,
     preset: aiPreset?.value || "standard",
@@ -12350,7 +12892,7 @@ function recordStableDiffusionInpaint(metadata = {}) {
     baseImageFile: metadata.image_path || metadata.baseImageFile || "",
     resultFile: metadata.output_file || metadata.file || "",
     targetLayerId: metadata.targetLayerId || null,
-    insertMode: metadata.insertMode || "new-layer"
+    insertMode: normalizeInpaintOutputModeValue(metadata.insertMode || metadata.inpaint_output_mode || "new_full_layer")
   };
 
   currentProject = {
@@ -12588,26 +13130,170 @@ async function insertGeneratedImageCover(filePath, metadata = {}) {
   return image;
 }
 
-async function insertInpaintResult(filePath, metadata = {}, options = {}) {
-  const image = await createFabricImageFromUrl(toImageUrl(filePath));
-  const imageWidth = image.width || artboardWidth;
-  const imageHeight = image.height || artboardHeight;
-  image.set({
-    scaleX: artboardWidth / imageWidth,
-    scaleY: artboardHeight / imageHeight,
-    name: "Inpaint resultado",
-    layerName: "Inpaint resultado"
-  });
-  centerObjectInRect(image, getArtboardRect());
+function drawImageToRasterCanvas(image, width = image?.width || artboardWidth, height = image?.height || artboardHeight) {
+  const canvasElement = makeRasterCanvas(width, height);
+  const ctx = canvasElement.getContext("2d");
+  ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  if (image) {
+    ctx.drawImage(image, 0, 0, canvasElement.width, canvasElement.height);
+  }
+  return canvasElement;
+}
 
-  if (options.insertMode === "replace" && options.targetObject) {
-    options.targetObject.set({
-      visible: false,
-      inpaintOriginalPreserved: true
-    });
+function getAlphaBounds(canvasElement) {
+  if (!canvasElement?.width || !canvasElement?.height) {
+    return null;
+  }
+  const data = canvasElement.getContext("2d").getImageData(0, 0, canvasElement.width, canvasElement.height).data;
+  let minX = canvasElement.width;
+  let minY = canvasElement.height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < canvasElement.height; y += 1) {
+    for (let x = 0; x < canvasElement.width; x += 1) {
+      if (data[(y * canvasElement.width + x) * 4 + 3] <= 0) {
+        continue;
+      }
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  return maxX >= minX && maxY >= minY
+    ? { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 }
+    : null;
+}
+
+function cropRasterCanvas(sourceCanvas, bounds) {
+  const canvasElement = makeRasterCanvas(bounds.width, bounds.height);
+  canvasElement.getContext("2d").drawImage(
+    sourceCanvas,
+    bounds.x,
+    bounds.y,
+    bounds.width,
+    bounds.height,
+    0,
+    0,
+    bounds.width,
+    bounds.height
+  );
+  return canvasElement;
+}
+
+function applyLayerAlignment(image, targetObject, sourceCanvas, bounds = null) {
+  if (!targetObject || !sourceCanvas) {
+    centerObjectInRect(image, getArtboardRect());
+    return;
+  }
+  const fullBounds = bounds || { x: 0, y: 0, width: sourceCanvas.width, height: sourceCanvas.height };
+  const topLeft = imagePixelToScenePoint(targetObject, { x: fullBounds.x, y: fullBounds.y }, sourceCanvas);
+  const topRight = imagePixelToScenePoint(targetObject, { x: fullBounds.x + fullBounds.width, y: fullBounds.y }, sourceCanvas);
+  const bottomLeft = imagePixelToScenePoint(targetObject, { x: fullBounds.x, y: fullBounds.y + fullBounds.height }, sourceCanvas);
+  const sceneWidth = topLeft && topRight ? Math.hypot(topRight.x - topLeft.x, topRight.y - topLeft.y) : fullBounds.width;
+  const sceneHeight = topLeft && bottomLeft ? Math.hypot(bottomLeft.x - topLeft.x, bottomLeft.y - topLeft.y) : fullBounds.height;
+  const sceneAngle = topLeft && topRight
+    ? Math.atan2(topRight.y - topLeft.y, topRight.x - topLeft.x) * 180 / Math.PI
+    : Number(targetObject.angle || 0);
+  image.set({
+    left: topLeft?.x ?? Number(targetObject.left || 0),
+    top: topLeft?.y ?? Number(targetObject.top || 0),
+    originX: "left",
+    originY: "top",
+    angle: sceneAngle,
+    scaleX: sceneWidth / Math.max(1, Number(image.width || fullBounds.width || 1)),
+    scaleY: sceneHeight / Math.max(1, Number(image.height || fullBounds.height || 1)),
+    flipX: Boolean(targetObject.flipX),
+    flipY: Boolean(targetObject.flipY),
+    skewX: Number(targetObject.skewX || 0),
+    skewY: Number(targetObject.skewY || 0)
+  });
+}
+
+async function createInpaintPatchCanvas(resultCanvas, targetObject, metadata = {}) {
+  const sourceCanvas = targetObject
+    ? await createRasterCanvasFromSource(getImageSourceForRaster(targetObject), targetObject.getElement?.())
+    : resultCanvas;
+  let maskCanvas = targetObject ? await createSelectionClipCanvasForImageAsync(targetObject, sourceCanvas) : null;
+  if (!maskCanvas && metadata.mask_path) {
+    const maskImage = await loadImageElement(toImageUrl(metadata.mask_path, currentProjectFilePath || ""));
+    maskCanvas = drawImageToRasterCanvas(maskImage, resultCanvas.width, resultCanvas.height);
+  }
+  if (!maskCanvas) {
+    maskCanvas = makeRasterCanvas(resultCanvas.width, resultCanvas.height);
+    const ctx = maskCanvas.getContext("2d");
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+  }
+  if (maskCanvas.width !== resultCanvas.width || maskCanvas.height !== resultCanvas.height) {
+    const resizedMask = makeRasterCanvas(resultCanvas.width, resultCanvas.height);
+    resizedMask.getContext("2d").drawImage(maskCanvas, 0, 0, resultCanvas.width, resultCanvas.height);
+    maskCanvas = resizedMask;
+  }
+  const transparentCanvas = makeRasterCanvas(resultCanvas.width, resultCanvas.height);
+  const transparentCtx = transparentCanvas.getContext("2d");
+  transparentCtx.drawImage(resultCanvas, 0, 0);
+  transparentCtx.globalCompositeOperation = "destination-in";
+  transparentCtx.drawImage(maskCanvas, 0, 0, transparentCanvas.width, transparentCanvas.height);
+  const bounds = getAlphaBounds(transparentCanvas) || { x: 0, y: 0, width: transparentCanvas.width, height: transparentCanvas.height };
+  return {
+    patchCanvas: cropRasterCanvas(transparentCanvas, bounds),
+    bounds,
+    sourceCanvas
+  };
+}
+
+async function insertInpaintResult(filePath, metadata = {}, options = {}) {
+  const outputMode = normalizeInpaintOutputModeValue(options.outputMode || options.insertMode || metadata.inpaintOutputMode || metadata.inpaint_output_mode);
+  const targetObject = options.targetObject || getStableSourceObject(options);
+  const resultImage = await loadImageElement(toImageUrl(filePath, currentProjectFilePath || ""));
+  const sourceCanvas = targetObject
+    ? await createRasterCanvasFromSource(getImageSourceForRaster(targetObject), targetObject.getElement?.())
+    : null;
+  const resultCanvas = drawImageToRasterCanvas(
+    resultImage,
+    sourceCanvas?.width || resultImage?.width || artboardWidth,
+    sourceCanvas?.height || resultImage?.height || artboardHeight
+  );
+
+  if (outputMode === "replace_original" && targetObject) {
+    const dataUrl = resultCanvas.toDataURL("image/png");
+    targetObject.rasterSourceSrc = dataUrl;
+    updateRasterImageElement(targetObject, resultCanvas, null);
+    canvas.setActiveObject(targetObject);
+    canvas.requestRenderAll();
+    updateSelectionInfo();
+    markCanvasChanged("sd-inpaint-replace");
+    scheduleAutosave();
+    return targetObject;
   }
 
+  let layerCanvas = resultCanvas;
+  let layerBounds = sourceCanvas ? { x: 0, y: 0, width: sourceCanvas.width, height: sourceCanvas.height } : null;
+  let layerName = "Inpaint full layer";
+  if (outputMode === "patch_layer") {
+    const patch = await createInpaintPatchCanvas(resultCanvas, targetObject, metadata);
+    layerCanvas = patch.patchCanvas;
+    layerBounds = patch.bounds;
+    layerName = "Inpaint patch";
+  }
+
+  const image = await createFabricImageFromCanvasElement(layerCanvas);
+  image.set({
+    name: layerName,
+    layerName,
+    layerKind: "raster",
+    rasterSourceSrc: layerCanvas.toDataURL("image/png")
+  });
+  applyLayerAlignment(image, targetObject, sourceCanvas || resultCanvas, layerBounds);
   canvas.add(image);
+  if (targetObject && typeof canvas.moveObjectTo === "function") {
+    const objects = canvas.getObjects?.() || [];
+    const targetIndex = objects.indexOf(targetObject);
+    if (targetIndex >= 0) {
+      canvas.moveObjectTo(image, Math.min(objects.length - 1, targetIndex + 1));
+    }
+  }
   image.setCoords();
   canvas.setActiveObject(image);
   canvas.requestRenderAll();
@@ -12843,7 +13529,7 @@ const CanvasStableActions = {
 
     if (metadata.mode === "inpaint") {
       return insertInpaintResult(result.file, metadata, {
-        insertMode: outputMode === "replaceSelected" ? "replace" : outputMode === "variation" ? "variation" : "new-layer",
+        outputMode,
         targetObject: options.targetObject || getStableSourceObject(options)
       });
     }
@@ -12989,6 +13675,8 @@ const CanvasStableActions = {
       height: options.height ?? (sdHeight?.value ? getNumericValue(sdHeight, 0) : initRaster.height),
       seed: Number(options.seed ?? getNumericValue(sdSeed, -1)),
       denoising_strength: Number(options.denoiseStrength ?? options.denoising_strength ?? getNumericValue(sdDenoising, 0.55)),
+      inpaintOutputMode: normalizeInpaintOutputModeValue(options.outputMode || options.inpaintOutputMode || options.inpaint_output_mode || getStableOutputMode()),
+      inpaint_output_mode: normalizeInpaintOutputModeValue(options.outputMode || options.inpaintOutputMode || options.inpaint_output_mode || getStableOutputMode()),
       artboard: getCanvasStateSummary().artboard,
       sourceLayerId: initRaster.sourceLayerId,
       i2iSourceMode: initRaster.sourceMode,
@@ -13051,7 +13739,7 @@ const CanvasStableActions = {
     }
 
     const metadata = normalizeStableMetadata(result.metadata || {}, payload);
-    const outputMode = options.outputMode || getStableOutputMode();
+    const outputMode = normalizeInpaintOutputModeValue(options.outputMode || payload.inpaint_output_mode || getStableOutputMode());
     const inserted = await this.insertGeneratedImage({
       file: result.file,
       metadata
@@ -13067,7 +13755,8 @@ const CanvasStableActions = {
         file: result.file,
         output_file: result.file,
         targetLayerId: sourceObject?.layerId || null,
-        insertMode: outputMode === "replaceSelected" ? "replace" : outputMode === "variation" ? "variation" : "new-layer"
+        insertMode: outputMode,
+        inpaint_output_mode: outputMode
       });
     } else {
       recordStableDiffusionGeneration({
@@ -13586,7 +14275,7 @@ async function generateStableDiffusionInpaint(options = {}) {
     const result = await CanvasStableActions.generateI2I({
       mode: "inpaint",
       sourceLayerId: options.targetObject?.layerId || options.target?.layerId || options.target?.sourceLayerId,
-      outputMode: options.insertMode === "replace" ? "replaceSelected" : getStableOutputMode()
+      outputMode: normalizeInpaintOutputModeValue(options.outputMode || options.insertMode || getStableOutputMode())
     });
     setStableDiffusionStatus(`Inpaint inserido: ${result.file}`);
     return result;
@@ -14062,7 +14751,7 @@ async function handleCanvasOperationalCommand(action, payload = {}) {
         sdCheckpoint.value = payload.checkpoint;
       }
       if (payload.insertMode && sdInpaintInsertMode) {
-        sdInpaintInsertMode.value = payload.insertMode === "replace" ? "replace" : "new-layer";
+        sdInpaintInsertMode.value = normalizeInpaintOutputModeValue(payload.insertMode);
       }
       {
         CanvasStableActions.openStablePanel();
@@ -14070,7 +14759,7 @@ async function handleCanvasOperationalCommand(action, payload = {}) {
         const result = await CanvasStableActions.generateI2I({
           ...payload,
           mode: "inpaint",
-          outputMode: payload.insertMode === "replace" ? "replaceSelected" : getStableOutputMode()
+          outputMode: normalizeInpaintOutputModeValue(payload.outputMode || payload.insertMode || getStableOutputMode())
         });
         return makeCanvasCommandResult(Boolean(result), result ? "Inpaint gerado e inserido." : "Falha ao executar inpaint.", result || {});
       }
@@ -15458,7 +16147,9 @@ function initFabricCanvas() {
     height: viewport.height,
     backgroundColor: "transparent",
     preserveObjectStacking: true,
-    selection: true
+    selection: true,
+    fireRightClick: true,
+    stopContextMenu: true
   });
   addArtboardObject();
   editor.selectionManager = new window.CanvasSelectionManager();
@@ -15587,6 +16278,11 @@ function initFabricCanvas() {
   canvas.upperCanvasEl?.addEventListener("mouseenter", (event) => {
     if (shouldShowRasterCursor(activeTool)) {
       setRasterCursorPositionFromEvent(event);
+    }
+  });
+  canvas.upperCanvasEl?.addEventListener("contextmenu", (event) => {
+    if (normalizeToolId(activeTool) === "aiBrush") {
+      event.preventDefault();
     }
   });
 
@@ -16127,7 +16823,7 @@ aiVideoAbortButton?.addEventListener("click", () => {
   });
 });
 
-[sdMode, sdI2IMode, sdI2ISizeMode, sdPrompt, sdNegativePrompt, aiStyle, aiPreset, aiImageGenerationType, sdCheckpoint, sdLora, sdVae, aiImageMotionModule, aiImageFrames, aiImageFps, aiImageOutput, sdSampler, sdScheduler, sdSteps, sdCfgScale, sdWidth, sdHeight, sdSeed, sdDenoising, sdInpaintInsertMode, aiVideoEngineType, aiVideoModelFilter, aiVideoMode, aiVideoPreset, aiVideoModel, aiVideoDuration, aiVideoFps, aiVideoSeed, aiVideoPrompt, aiVideoNegativePrompt, aiVideoWorkflow, aiNarrationVoice, aiNarrationText, aiNarrationSubtitle]
+[sdMode, sdI2IMode, sdI2ISizeMode, sdPrompt, sdNegativePrompt, aiStyle, aiPreset, aiImageGenerationType, sdCheckpoint, sdLora, sdVae, aiImageMotionModule, aiImageFrames, aiImageFps, aiImageOutput, sdSampler, sdScheduler, sdSteps, sdCfgScale, sdWidth, sdHeight, sdSeed, sdDenoising, sdInpaintOutputMode, sdInpaintContextMode, sdMaskedContent, sdInpaintFeather, sdInpaintExpand, sdInpaintPadding, sdInpaintContinuity, aiVideoEngineType, aiVideoModelFilter, aiVideoMode, aiVideoPreset, aiVideoModel, aiVideoDuration, aiVideoFps, aiVideoSeed, aiVideoPrompt, aiVideoNegativePrompt, aiVideoWorkflow, aiNarrationVoice, aiNarrationText, aiNarrationSubtitle]
   .filter(Boolean)
   .forEach((input) => {
     input.addEventListener("input", updateAiGeneratorPanelState);

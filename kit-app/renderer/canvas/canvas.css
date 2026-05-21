@@ -1366,6 +1366,16 @@ textarea {
   min-width: 0;
 }
 
+.inpaint-controls .inline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inpaint-controls .inline-toggle input {
+  width: auto;
+}
+
 .export-controls output {
   color: #8e99a8;
   font-size: 11px;

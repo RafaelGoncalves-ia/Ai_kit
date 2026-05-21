@@ -29,7 +29,9 @@
       this.listeners.forEach((listener) => listener(this));
     }
 
-    apply(mask, mode = "replace") {
+    apply(mask, options = "replace") {
+      const mode = typeof options === "string" ? options : (options?.mode || "replace");
+      console.info(`[SELECTION] apply mask ${mode}`);
       if (mode === "invert") {
         const base = this.mask || new window.SelectionMask(this.width, this.height, {
           offsetX: this.offsetX,
@@ -41,6 +43,9 @@
       }
       if (this.mask?.isEmpty?.()) {
         this.mask = null;
+      }
+      if (!this.mask && mode === "subtract") {
+        console.info("[SELECTION] mask empty after subtract");
       }
       this.maskCanvasCache = null;
       this.maskCanvasCacheKey = "";
@@ -55,6 +60,7 @@
       return this.mask;
     }
 
+    applyMask(mask, options = {}) { return this.apply(mask, options); }
     setMask(mask, options = {}) { return this.apply(mask, options.mode || "replace"); }
     replace(mask) { return this.apply(mask, "replace"); }
     add(mask) { return this.apply(mask, "add"); }

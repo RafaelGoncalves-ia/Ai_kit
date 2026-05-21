@@ -24,11 +24,20 @@
         if (event.key === "Enter") {
           event.preventDefault();
           event.stopPropagation();
-          this.onSubmit?.(this.input.value);
+          const value = String(this.input.value || "").trim();
+          if (!value || this.input.disabled) {
+            return;
+          }
+          this.input.disabled = true;
+          this.element?.classList?.add?.("is-generating");
+          this.onSubmit?.(value);
         }
         if (event.key === "Escape") {
           event.preventDefault();
           event.stopPropagation();
+          if (this.input.disabled) {
+            return;
+          }
           this.onCancel?.();
         }
       });
@@ -41,6 +50,13 @@
       this.input = null;
       this.onSubmit = null;
       this.onCancel = null;
+    }
+
+    setBusy(isBusy = false) {
+      if (this.input) {
+        this.input.disabled = Boolean(isBusy);
+      }
+      this.element?.classList?.toggle?.("is-generating", Boolean(isBusy));
     }
   }
 

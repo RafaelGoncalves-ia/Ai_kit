@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from PIL import Image
+from PIL import Image, ImageFilter
 import gc
 import importlib.util
 import json
@@ -47,6 +47,11 @@ try:
     import torch
 except Exception:
     torch = None
+
+try:
+    from safetensors import safe_open
+except Exception:
+    safe_open = None
 
 try:
     from diffusers import (
@@ -107,6 +112,8 @@ loaded = {
     "checkpoint": None,
     "architecture": None,
     "mode": None,
+    "effective_mode": None,
+    "capabilities": None,
     "lora": None,
 }
 
@@ -163,6 +170,8 @@ def unload_model():
     loaded["checkpoint"] = None
     loaded["architecture"] = None
     loaded["mode"] = None
+    loaded["effective_mode"] = None
+    loaded["capabilities"] = None
     loaded["lora"] = None
     clean_cuda_cache()
 
@@ -264,6 +273,92 @@ def normalize_architecture(value, checkpoint):
     return "sdxl" if guessed == "sdxl" else "sd15"
 
 
+def read_unet_in_channels_from_dir(directory):
+    config_path = os.path.join(directory, "unet", "config.json")
+    if not os.path.isfile(config_path):
+        return None
+    try:
+        with open(config_path, "r", encoding="utf-8") as handle:
+            config = json.load(handle)
+        value = config.get("in_channels")
+        return int(value) if value is not None else None
+    except Exception:
+        return None
+
+
+def read_unet_in_channels_from_safetensors(model_path):
+    if safe_open is None:
+        return None
+    candidate_keys = [
+        "model.diffusion_model.input_blocks.0.0.weight",
+        "diffusion_model.input_blocks.0.0.weight",
+        "unet.conv_in.weight",
+        "conv_in.weight",
+    ]
+    try:
+        with safe_open(model_path, framework="pt", device="cpu") as handle:
+            keys = set(handle.keys())
+            for key in candidate_keys:
+                if key in keys:
+                    return int(handle.get_tensor(key).shape[1])
+            for key in keys:
+                if key.endswith("conv_in.weight") or key.endswith("input_blocks.0.0.weight"):
+                    tensor = handle.get_tensor(key)
+                    if len(tensor.shape) >= 2:
+                        return int(tensor.shape[1])
+    except Exception:
+        return None
+    return None
+
+
+def read_unet_in_channels_from_checkpoint(model_path):
+    if torch is None:
+        return None
+    candidate_keys = [
+        "model.diffusion_model.input_blocks.0.0.weight",
+        "diffusion_model.input_blocks.0.0.weight",
+        "unet.conv_in.weight",
+        "conv_in.weight",
+    ]
+    try:
+        payload = torch.load(model_path, map_location="cpu")
+        state_dict = payload.get("state_dict", payload) if isinstance(payload, dict) else payload
+        if not isinstance(state_dict, dict):
+            return None
+        for key in candidate_keys:
+            tensor = state_dict.get(key)
+            if tensor is not None and hasattr(tensor, "shape") and len(tensor.shape) >= 2:
+                return int(tensor.shape[1])
+        for key, tensor in state_dict.items():
+            if (str(key).endswith("conv_in.weight") or str(key).endswith("input_blocks.0.0.weight")) and hasattr(tensor, "shape") and len(tensor.shape) >= 2:
+                return int(tensor.shape[1])
+    except Exception:
+        return None
+    return None
+
+
+def detectSdModelCapabilities(modelPath):
+    model_path = resolve_checkpoint(modelPath)
+    model_type = normalize_architecture(None, model_path)
+    file_name = os.path.basename(str(model_path or "")).lower()
+    unet_in_channels = None
+
+    if os.path.isdir(model_path):
+        unet_in_channels = read_unet_in_channels_from_dir(model_path)
+    elif model_path.lower().endswith(".safetensors"):
+        unet_in_channels = read_unet_in_channels_from_safetensors(model_path)
+    elif model_path.lower().endswith(".ckpt"):
+        unet_in_channels = read_unet_in_channels_from_checkpoint(model_path)
+
+    name_says_inpaint = "inpaint" in file_name or "inpainting" in file_name
+    supports_native_inpaint = unet_in_channels == 9 or (unet_in_channels is None and name_says_inpaint)
+    return {
+        "modelType": model_type,
+        "supportsNativeInpaint": bool(supports_native_inpaint),
+        "unetInChannels": unet_in_channels,
+    }
+
+
 def resolve_checkpoint(value):
     requested = os.path.abspath(str(value or "").strip())
     if requested and DIFFUSION_MODELS_PATH.lower() in requested.lower():
@@ -346,9 +441,15 @@ def enable_memory_optimizations(pipe):
     return pipe
 
 
-def create_pipeline(checkpoint, architecture, mode):
+def create_pipeline(checkpoint, architecture, mode, capabilities=None):
     if AutoPipelineForText2Image is None:
         raise RuntimeError("Diffusers nao esta instalado no ambiente Python do worker.")
+    capabilities = capabilities or detectSdModelCapabilities(checkpoint)
+    effective_mode = "img2img" if mode == "inpaint" and not capabilities.get("supportsNativeInpaint") else mode
+    if mode == "inpaint":
+        print(f"[SD][inpaint] selected model {checkpoint}", flush=True)
+        print(f"[SD][inpaint] model supports native inpaint: {str(bool(capabilities.get('supportsNativeInpaint'))).lower()}", flush=True)
+        print(f"[SD][inpaint] unet in_channels {capabilities.get('unetInChannels')}", flush=True)
 
     kwargs = {
         "torch_dtype": get_dtype(),
@@ -357,17 +458,22 @@ def create_pipeline(checkpoint, architecture, mode):
     }
 
     if os.path.isdir(checkpoint):
-        if mode == "txt2img":
+        if effective_mode == "txt2img":
             pipe = AutoPipelineForText2Image.from_pretrained(checkpoint, **kwargs)
-        elif mode == "img2img":
+        elif effective_mode == "img2img":
+            if mode == "inpaint":
+                print("[SD][inpaint] using img2img masked fallback", flush=True)
             pipe = AutoPipelineForImage2Image.from_pretrained(checkpoint, **kwargs)
         else:
+            print("[SD][inpaint] using native inpaint pipeline", flush=True)
             pipe = AutoPipelineForInpainting.from_pretrained(checkpoint, **kwargs)
+        setattr(pipe, "_kit_effective_mode", effective_mode)
+        setattr(pipe, "_kit_inpaint_fallback", mode == "inpaint" and effective_mode == "img2img")
         pipe = enable_memory_optimizations(pipe)
         return pipe.to(get_device())
 
     kwargs["use_safetensors"] = checkpoint.lower().endswith(".safetensors")
-    original_config = resolve_original_config(checkpoint, architecture, mode)
+    original_config = resolve_original_config(checkpoint, architecture, effective_mode)
     local_diffusers_config = resolve_local_diffusers_config(architecture)
     if original_config:
         kwargs["original_config"] = original_config
@@ -378,24 +484,29 @@ def create_pipeline(checkpoint, architecture, mode):
         kwargs["feature_extractor"] = None
         kwargs["requires_safety_checker"] = False
 
-    if mode == "txt2img":
+    if effective_mode == "txt2img":
         if architecture == "sdxl":
             pipe = StableDiffusionXLPipeline.from_single_file(checkpoint, **kwargs)
         elif StableDiffusionPipeline is not None:
             pipe = StableDiffusionPipeline.from_single_file(checkpoint, **kwargs)
         else:
             pipe = AutoPipelineForText2Image.from_single_file(checkpoint, **kwargs)
-    elif mode == "img2img":
+    elif effective_mode == "img2img":
+        if mode == "inpaint":
+            print("[SD][inpaint] using img2img masked fallback", flush=True)
         if StableDiffusionImg2ImgPipeline is not None and architecture == "sd15":
             pipe = StableDiffusionImg2ImgPipeline.from_single_file(checkpoint, **kwargs)
         else:
             pipe = AutoPipelineForImage2Image.from_single_file(checkpoint, **kwargs)
     else:
+        print("[SD][inpaint] using native inpaint pipeline", flush=True)
         if StableDiffusionInpaintPipeline is not None and architecture == "sd15":
             pipe = StableDiffusionInpaintPipeline.from_single_file(checkpoint, **kwargs)
         else:
             pipe = AutoPipelineForInpainting.from_single_file(checkpoint, **kwargs)
 
+    setattr(pipe, "_kit_effective_mode", effective_mode)
+    setattr(pipe, "_kit_inpaint_fallback", mode == "inpaint" and effective_mode == "img2img")
     pipe = enable_memory_optimizations(pipe)
     return pipe.to(get_device())
 
@@ -505,6 +616,8 @@ def resolve_original_config(checkpoint, architecture, mode):
 def load_pipeline(checkpoint_value, architecture_value, mode, scheduler_name=None, lora_path=None, sampler_name=None):
     checkpoint = resolve_checkpoint(checkpoint_value)
     architecture = normalize_architecture(architecture_value, checkpoint)
+    capabilities = detectSdModelCapabilities(checkpoint)
+    effective_mode = "img2img" if mode == "inpaint" and not capabilities.get("supportsNativeInpaint") else mode
     lora_path = str(lora_path or "").strip() or None
     if lora_path:
         lora_path = os.path.abspath(lora_path)
@@ -514,17 +627,20 @@ def load_pipeline(checkpoint_value, architecture_value, mode, scheduler_name=Non
         or loaded["checkpoint"] != checkpoint
         or loaded["architecture"] != architecture
         or loaded["mode"] != mode
+        or loaded["effective_mode"] != effective_mode
         or loaded["lora"] != lora_path
     )
 
     if needs_reload:
         unload_model()
         update_progress("loading_model", 2, None, None, "Carregando modelo SD")
-        loaded["pipeline"] = create_pipeline(checkpoint, architecture, mode)
+        loaded["pipeline"] = create_pipeline(checkpoint, architecture, mode, capabilities)
         update_progress("loading_model", 24, None, None, "Modelo SD carregado")
         loaded["checkpoint"] = checkpoint
         loaded["architecture"] = architecture
         loaded["mode"] = mode
+        loaded["effective_mode"] = effective_mode
+        loaded["capabilities"] = capabilities
         loaded["lora"] = lora_path
 
         if lora_path and os.path.exists(lora_path):
@@ -557,6 +673,75 @@ def load_image(path_value, mode="RGB"):
     if not image_path or not os.path.exists(image_path):
         raise ValueError("Imagem de entrada nao encontrada.")
     return Image.open(image_path).convert(mode)
+
+
+def normalize_inpaint_area(value):
+    text = str(value or "").strip()
+    if text in ("whole_picture", "whole-picture", "full"):
+        return "whole_picture"
+    return "only_masked"
+
+
+def normalize_masked_content(value):
+    text = str(value or "").strip()
+    if text in ("fill", "original", "latent_noise", "latent_nothing"):
+        return text
+    return "fill"
+
+
+def normalize_inpaint_output_mode(value):
+    text = str(value or "").strip()
+    if text in ("replace", "replaceSelected", "active-layer"):
+        return "replace_original"
+    if text in ("new-layer", "full-layer", "newLayer"):
+        return "new_full_layer"
+    if text in ("cropped-layer", "patch"):
+        return "patch_layer"
+    if text in ("replace_original", "new_full_layer", "patch_layer"):
+        return text
+    return "new_full_layer"
+
+
+def apply_masked_content(image, mask_image, masked_content):
+    mode = normalize_masked_content(masked_content)
+    if mode == "original":
+        return image
+
+    if mode == "latent_nothing":
+        replacement = Image.new("RGB", image.size, (0, 0, 0))
+    elif mode == "latent_noise":
+        replacement = Image.effect_noise(image.size, 100).convert("RGB")
+    else:
+        radius = max(8, min(image.size) // 16)
+        replacement = image.filter(ImageFilter.GaussianBlur(radius=radius))
+
+    return Image.composite(replacement, image, mask_image)
+
+
+def prepare_inpaint_inputs(data, width, height):
+    inpaint_area = normalize_inpaint_area(data.get("inpaint_area") or data.get("inpaintArea"))
+    masked_content = normalize_masked_content(data.get("masked_content") or data.get("maskedContent"))
+    init_image = load_image(data.get("initImagePath") or data.get("image_path") or data.get("imagePath")).resize((width, height))
+    mask_image = load_image(data.get("mask_path") or data.get("maskPath"), "L").resize((width, height))
+    prepared_image = apply_masked_content(init_image, mask_image, masked_content)
+    return {
+        "init_image": init_image,
+        "call_image": prepared_image,
+        "call_mask": mask_image,
+        "compose_mask": mask_image,
+        "inpaint_area": inpaint_area,
+        "masked_content": masked_content,
+        "call_size": (width, height),
+    }
+
+
+def compose_inpaint_result(generated_image, prepared):
+    image = generated_image.convert("RGB")
+    init_image = prepared["init_image"]
+    resized = image.resize(init_image.size)
+    if prepared.get("inpaint_area") == "only_masked":
+        return Image.composite(resized, init_image, prepared["compose_mask"])
+    return resized
 
 
 def save_output(image, metadata):
@@ -678,9 +863,23 @@ def generate(mode):
         init_image = load_image(data.get("initImagePath") or data.get("image_path") or data.get("imagePath")).resize((width, height))
         result = pipe(image=init_image, strength=denoising_strength, **common)
     else:
-        init_image = load_image(data.get("initImagePath") or data.get("image_path") or data.get("imagePath")).resize((width, height))
-        mask_image = load_image(data.get("mask_path") or data.get("maskPath"), "L").resize((width, height))
-        result = pipe(image=init_image, mask_image=mask_image, strength=denoising_strength, **common)
+        prepared = prepare_inpaint_inputs(data, width, height)
+        init_image = prepared["init_image"]
+        call_image = prepared["call_image"]
+        mask_image = prepared["call_mask"]
+        print(
+            f"[SD][inpaint] area={prepared['inpaint_area']} masked_content={prepared['masked_content']} full_image=true",
+            flush=True,
+        )
+        if getattr(pipe, "_kit_inpaint_fallback", False):
+            result = pipe(image=call_image, strength=denoising_strength, **common)
+            generated_image = result.images[0].convert("RGB").resize(prepared["call_size"])
+            image = Image.composite(generated_image, call_image, mask_image)
+            result.images[0] = compose_inpaint_result(image, prepared)
+            print("[SD][inpaint] mask composite done", flush=True)
+        else:
+            result = pipe(image=call_image, mask_image=mask_image, strength=denoising_strength, **common)
+            result.images[0] = compose_inpaint_result(result.images[0], prepared)
 
     image = result.images[0]
     metadata = {
@@ -697,6 +896,9 @@ def generate(mode):
         "steps": steps,
         "cfg_scale": cfg_scale,
         "denoising_strength": denoising_strength if mode != "txt2img" else None,
+        "inpaint_area": normalize_inpaint_area(data.get("inpaint_area") or data.get("inpaintArea")) if mode == "inpaint" else None,
+        "masked_content": normalize_masked_content(data.get("masked_content") or data.get("maskedContent")) if mode == "inpaint" else None,
+        "inpaint_output_mode": normalize_inpaint_output_mode(data.get("inpaint_output_mode") or data.get("inpaintOutputMode")) if mode == "inpaint" else None,
         "architecture": architecture,
         "device": get_device(),
     }
@@ -749,6 +951,8 @@ def health():
             "checkpoint": loaded["checkpoint"],
             "architecture": loaded["architecture"],
             "mode": loaded["mode"],
+            "effectiveMode": loaded["effective_mode"],
+            "capabilities": loaded["capabilities"],
             "lora": loaded["lora"],
         },
         "progress": progress_state,

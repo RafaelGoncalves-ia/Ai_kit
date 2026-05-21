@@ -490,11 +490,43 @@
                 </div>
                 <div class="inpaint-controls">
                   <label>
-                    Insercao do resultado
-                    <select id="sdInpaintInsertMode">
-                      <option value="new-layer">Nova layer</option>
-                      <option value="replace">Substituir preservando original</option>
-                      <option value="variation">Variacao</option>
+                    Inpaint area
+                    <select id="sdInpaintArea">
+                      <option value="only_masked" selected>Only masked</option>
+                      <option value="whole_picture">Whole picture</option>
+                    </select>
+                  </label>
+                  <label>
+                    Masked content
+                    <select id="sdMaskedContent">
+                      <option value="fill" selected>Fill</option>
+                      <option value="original">Original</option>
+                      <option value="latent_noise">Latent noise</option>
+                      <option value="latent_nothing">Latent nothing</option>
+                    </select>
+                  </label>
+                  <label>
+                    Borda suave
+                    <input id="sdInpaintFeather" type="range" min="0" max="50" step="1" value="8">
+                  </label>
+                  <label>
+                    Expandir seleção
+                    <input id="sdInpaintExpand" type="range" min="-20" max="80" step="1" value="8">
+                  </label>
+                  <label>
+                    Entorno da seleção
+                    <input id="sdInpaintPadding" type="range" min="0" max="512" step="8" value="128">
+                  </label>
+                  <label class="inline-toggle">
+                    <input id="sdInpaintContinuity" type="checkbox" checked>
+                    Preservar continuidade
+                  </label>
+                  <label>
+                    Output Mode
+                    <select id="sdInpaintOutputMode">
+                      <option value="replace_original">Replace original</option>
+                      <option value="new_full_layer" selected>New full layer</option>
+                      <option value="patch_layer">Patch layer</option>
                     </select>
                   </label>
                 </div>
@@ -834,6 +866,7 @@ Escuro #20232A</textarea>
   <script src="./ai/segmentation/mobileSamService.js"></script>
   <script src="./ai/segmentation/clipsegService.js"></script>
   <script src="./ai/inpaint/maskExporter.js"></script>
+  <script src="./ai/inpaint/aiBrushImageGeneratorAdapter.js"></script>
   <script src="./ai/inpaint/promptPopup.js"></script>
   <script src="./tools/magicWandTool.js"></script>
   <script src="./tools/aiBrushTool.js"></script>

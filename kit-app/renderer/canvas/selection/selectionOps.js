@@ -2,7 +2,8 @@
   function compose(base, incoming, mode = "replace") {
     if (!incoming && mode !== "clear") return base ? base.clone() : null;
     if (mode === "clear") return null;
-    if (!base || mode === "replace") return incoming.clone();
+    if (mode === "replace") return incoming.clone();
+    if (!base) return mode === "add" ? incoming.clone() : null;
 
     const output = base.clone();
     const sameSpace = base.width === incoming.width
@@ -12,14 +13,14 @@
     if (!sameSpace) return incoming.clone();
 
     for (let index = 0; index < output.data.length; index += 1) {
-      const a = base.data[index] > 0;
-      const b = incoming.data[index] > 0;
+      const a = base.data[index] || 0;
+      const b = incoming.data[index] || 0;
       output.data[index] = mode === "add"
-        ? (a || b ? 255 : 0)
+        ? Math.max(a, b)
         : mode === "subtract"
-          ? (a && !b ? 255 : 0)
+          ? Math.max(0, a - b)
           : mode === "intersect"
-            ? (a && b ? 255 : 0)
+            ? Math.min(a, b)
             : incoming.data[index];
     }
     return output.isEmpty() ? null : output;
