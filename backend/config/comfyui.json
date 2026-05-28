@@ -6,7 +6,7 @@
   "url": "http://127.0.0.1:8188",
   "autoStart": false,
   "lazyStart": true,
-  "idleStopMs": 900000,
+  "idleStopMs": 7200000,
   "workflowsDir": "F:/AI/Ai_kit/backend/workflows/comfy",
   "outputDir": "C:/GitHub/ComfyUI/output",
   "inputDir": "C:/GitHub/ComfyUI/input",

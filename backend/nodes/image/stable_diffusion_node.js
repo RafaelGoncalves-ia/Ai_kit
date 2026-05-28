@@ -30,7 +30,11 @@ export class StableDiffusionNode extends BaseNode {
       width: this.params.width,
       height: this.params.height,
       image_path: nodeInputs.imagePath || "",
-      mask_path: nodeInputs.maskPath || ""
+      mask_path: nodeInputs.maskPath || "",
+      denoising_strength: this.params.denoising_strength || this.params.denoisingStrength || 0.55,
+      inpaint_area: this.params.inpaint_area || this.params.inpaintArea || "only_masked",
+      masked_content: this.params.masked_content || this.params.maskedContent || "fill",
+      inpaint_output_mode: this.params.inpaint_output_mode || this.params.inpaintOutputMode || "new_full_layer"
     });
     return {
       path: result.file || result.path || "",

@@ -1,0 +1,610 @@
+{
+  "2": {
+    "class_type": "UnetLoaderGGUF",
+    "inputs": {
+      "unet_name": "wan2.2-t2v-rapid-aio-v10-nsfw-Q4_K.gguf"
+    },
+    "_meta": {
+      "title": "UnetLoaderGGUF"
+    }
+  },
+  "3": {
+    "class_type": "ConditioningZeroOut",
+    "inputs": {
+      "conditioning": [
+        "12",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "4": {
+    "class_type": "CLIPLoaderGGUF",
+    "inputs": {
+      "clip_name": "umt5-xxl-encoder-Q3_K_S.gguf",
+      "type": "wan"
+    },
+    "_meta": {
+      "title": "CLIPLoaderGGUF"
+    }
+  },
+  "5": {
+    "class_type": "ModelSamplingSD3",
+    "inputs": {
+      "shift": 8.000000000000002
+    },
+    "_meta": {
+      "title": "ModelSamplingSD3"
+    }
+  },
+  "6": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    },
+    "_meta": {
+      "title": "VAELoader"
+    }
+  },
+  "7": {
+    "class_type": "KSampler (Efficient)",
+    "inputs": {
+      "positive": [
+        "60",
+        4
+      ],
+      "negative": [
+        "60",
+        5
+      ],
+      "latent_image": [
+        "60",
+        6
+      ],
+      "seed": -1,
+      "steps": 4,
+      "cfg": 1.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "beta",
+      "denoise": 0.7,
+      "preview_method": "none",
+      "vae_decode": "true (tiled)"
+    },
+    "_meta": {
+      "title": "KSampler (Efficient)"
+    }
+  },
+  "12": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "Girl saying, \"Do you like my new look?\""
+    },
+    "_meta": {
+      "title": "CLIPTextEncode"
+    }
+  },
+  "23": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "kit-1779812197632-5e6b6278.png",
+      "upload": "image"
+    },
+    "_meta": {
+      "title": "LoadImage"
+    }
+  },
+  "39": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything": [
+        "6",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "VAE"
+    }
+  },
+  "40": {
+    "class_type": "Context (rgthree)",
+    "inputs": {},
+    "_meta": {
+      "title": "Context (rgthree)"
+    }
+  },
+  "45": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything": [
+        "74",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Latent"
+    }
+  },
+  "48": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything11": [
+        "12",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "POS"
+    }
+  },
+  "49": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything12": [
+        "127",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "NEG"
+    }
+  },
+  "50": {
+    "class_type": "Context (rgthree)",
+    "inputs": {},
+    "_meta": {
+      "title": "Context (rgthree)"
+    }
+  },
+  "51": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything13": [
+        "kit_wan_i2v",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "NEG"
+    }
+  },
+  "52": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything12": [
+        "kit_wan_i2v",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "POS"
+    }
+  },
+  "53": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything11": [
+        "kit_wan_i2v",
+        2
+      ]
+    },
+    "_meta": {
+      "title": "Latent"
+    }
+  },
+  "54": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything13": [
+        "12",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "POS"
+    }
+  },
+  "55": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything15": [
+        "127",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "NEG"
+    }
+  },
+  "56": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything": [
+        "5",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "MODEL"
+    }
+  },
+  "60": {
+    "class_type": "Context (rgthree)",
+    "inputs": {
+      "base_ctx": [
+        "50",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Context (rgthree)"
+    }
+  },
+  "61": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything": [
+        "4",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Clip"
+    }
+  },
+  "62": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything": [
+        "2",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "MODEL"
+    }
+  },
+  "67": {
+    "class_type": "Context (rgthree)",
+    "inputs": {},
+    "_meta": {
+      "title": "Context (rgthree)"
+    }
+  },
+  "75": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything": [
+        "85",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Image"
+    }
+  },
+  "76": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything": [
+        "12",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "ZERO"
+    }
+  },
+  "82": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "83",
+        0
+      ],
+      "filename_prefix": [
+        "104",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "SaveImage"
+    }
+  },
+  "83": {
+    "class_type": "VHS_SelectEveryNthImage",
+    "inputs": {
+      "select_every_nth": 1,
+      "skip_first_images": 16
+    },
+    "_meta": {
+      "title": "VHS_SelectEveryNthImage"
+    }
+  },
+  "85": {
+    "class_type": "ImageResizeKJv2",
+    "inputs": {
+      "image": [
+        "23",
+        0
+      ],
+      "width": 512,
+      "height": 512,
+      "upscale_method": "lanczos",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu"
+    },
+    "_meta": {
+      "title": "ImageResizeKJv2"
+    }
+  },
+  "91": {
+    "class_type": "easy loraStackApply",
+    "inputs": {},
+    "_meta": {
+      "title": "easy loraStackApply"
+    }
+  },
+  "92": {
+    "class_type": "easy loraStack",
+    "inputs": {
+      "toggle": true,
+      "mode": "simple",
+      "num_loras": 1,
+      "lora_1_name": "wan\\DR34ML4Y_I2V_14B_LOW_V2.safetensors",
+      "lora_1_strength": 0.6,
+      "lora_1_model_strength": 1,
+      "lora_1_clip_strength": 1,
+      "lora_2_name": "None",
+      "lora_2_strength": 1,
+      "lora_2_model_strength": 1,
+      "lora_2_clip_strength": 1,
+      "lora_3_name": "None",
+      "lora_3_strength": 1,
+      "lora_3_model_strength": 1,
+      "lora_3_clip_strength": 1,
+      "lora_4_name": "None",
+      "lora_4_strength": 1,
+      "lora_4_model_strength": 1,
+      "lora_4_clip_strength": 1,
+      "lora_5_name": "None",
+      "lora_5_strength": 1,
+      "lora_5_model_strength": 1,
+      "lora_5_clip_strength": 1,
+      "lora_6_name": "None",
+      "lora_6_strength": 1,
+      "lora_6_model_strength": 1,
+      "lora_6_clip_strength": 1,
+      "lora_7_name": "None",
+      "lora_7_strength": 1,
+      "lora_7_model_strength": 1,
+      "lora_7_clip_strength": 1,
+      "lora_8_name": "None",
+      "lora_8_strength": 1,
+      "lora_8_model_strength": 1,
+      "lora_8_clip_strength": 1,
+      "lora_9_name": "None",
+      "lora_9_strength": 1,
+      "lora_9_model_strength": 1,
+      "lora_9_clip_strength": 1,
+      "lora_10_name": "None",
+      "lora_10_strength": 1,
+      "lora_10_model_strength": 1,
+      "lora_10_clip_strength": 1
+    },
+    "_meta": {
+      "title": "easy loraStack"
+    }
+  },
+  "93": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything11": [
+        "91",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "MODEL"
+    }
+  },
+  "94": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything11": [
+        "91",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "Clip"
+    }
+  },
+  "95": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything": [
+        "92",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Lora Stack"
+    }
+  },
+  "97": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything": [
+        "7",
+        5
+      ]
+    },
+    "_meta": {
+      "title": "Select Every Nth"
+    }
+  },
+  "104": {
+    "class_type": "PrimitiveString",
+    "inputs": {
+      "value": "Kit/wan-video-job-a571b315-6654-4069-b025-dead50a4fb28"
+    },
+    "_meta": {
+      "title": "Filename_Prefix"
+    }
+  },
+  "106": {
+    "class_type": "VRAMCleanup",
+    "inputs": {
+      "anything": [
+        "109",
+        0
+      ],
+      "offload_model": true,
+      "offload_cache": true
+    },
+    "_meta": {
+      "title": "VRAMCleanup"
+    }
+  },
+  "107": {
+    "class_type": "RAMCleanup",
+    "inputs": {
+      "anything": [
+        "109",
+        0
+      ],
+      "clean_file_cache": true,
+      "clean_processes": true,
+      "clean_dlls": true,
+      "retry_times": 3
+    },
+    "_meta": {
+      "title": "RAMCleanup"
+    }
+  },
+  "109": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 512,
+      "height": 512,
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "EmptyLatentImage"
+    }
+  },
+  "115": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "Kit/wan-video-job-a571b315-6654-4069-b025-dead50a4fb28",
+      "format": "video/h264-mp4",
+      "pingpong": false,
+      "save_output": true,
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false
+    },
+    "_meta": {
+      "title": "VHS_VideoCombine"
+    }
+  },
+  "120": {
+    "class_type": "Anything Everywhere",
+    "inputs": {
+      "anything": [
+        "7",
+        5
+      ]
+    },
+    "_meta": {
+      "title": "Video Combine"
+    }
+  },
+  "127": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": ""
+    },
+    "_meta": {
+      "title": "CLIPTextEncode"
+    }
+  },
+  "139": {
+    "class_type": "PreviewImage",
+    "inputs": {
+      "images": [
+        "7",
+        5
+      ]
+    },
+    "_meta": {
+      "title": "PreviewImage"
+    }
+  },
+  "kit_wan_clip_vision": {
+    "class_type": "CLIPVisionLoader",
+    "inputs": {
+      "clip_name": "D\\clip_vision_h.safetensors"
+    },
+    "_meta": {
+      "title": "KIT Wan CLIP Vision"
+    }
+  },
+  "kit_wan_clip_vision_encode": {
+    "class_type": "CLIPVisionEncode",
+    "inputs": {
+      "clip_vision": [
+        "kit_wan_clip_vision",
+        0
+      ],
+      "image": [
+        "85",
+        0
+      ],
+      "crop": "center"
+    },
+    "_meta": {
+      "title": "KIT Wan CLIP Vision Encode"
+    }
+  },
+  "kit_wan_i2v": {
+    "class_type": "WanImageToVideo",
+    "inputs": {
+      "positive": [
+        "12",
+        0
+      ],
+      "negative": [
+        "127",
+        0
+      ],
+      "vae": [
+        "6",
+        0
+      ],
+      "clip_vision_output": [
+        "kit_wan_clip_vision_encode",
+        0
+      ],
+      "start_image": [
+        "85",
+        0
+      ],
+      "width": 480,
+      "height": 832,
+      "length": 17,
+      "batch_size": 1
+    },
+    "_meta": {
+      "title": "KIT Wan I2V"
+    }
+  }
+}

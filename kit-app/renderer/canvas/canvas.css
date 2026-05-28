@@ -36,6 +36,8 @@ textarea {
 }
 
 .canvas-topbar {
+  position: relative;
+  z-index: 120;
   display: grid;
   grid-template-rows: 34px 38px;
   border-bottom: 1px solid #303641;
@@ -371,6 +373,7 @@ textarea {
 
 .toolbar {
   position: fixed;
+  z-index: 130;
   top: 18px;
   left: 14px;
   display: grid;
@@ -539,7 +542,7 @@ textarea {
   position: absolute;
   left: calc(100% + 12px);
   top: 50%;
-  z-index: 50;
+  z-index: 150;
   min-width: max-content;
   max-width: 180px;
   padding: 5px 8px;
@@ -579,7 +582,7 @@ textarea {
   border-radius: 8px;
   background: rgba(23, 26, 31, 0.95);
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
-  z-index: 90;
+  z-index: 140;
 }
 
 .tool-submenu.is-open,
@@ -657,7 +660,7 @@ textarea {
 
 .toolbar-color-panel {
   position: fixed;
-  z-index: 80;
+  z-index: 140;
   display: grid;
   gap: 8px;
   min-width: 154px;
@@ -731,6 +734,8 @@ textarea {
 }
 
 .stage-area {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-rows: 42px minmax(0, 1fr);
   min-width: 0;
@@ -743,6 +748,8 @@ textarea {
 }
 
 .stage-toolbar {
+  position: relative;
+  z-index: 70;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -785,6 +792,10 @@ textarea {
   will-change: transform;
   backface-visibility: hidden;
   contain: layout paint size;
+}
+
+.fabric-board .canvas-container {
+  isolation: isolate;
 }
 
 .fabric-board.is-drag-over::after {
@@ -851,6 +862,8 @@ textarea {
 }
 
 .right-panel {
+  position: relative;
+  z-index: 110;
   display: grid;
   grid-auto-rows: max-content;
   gap: 8px;
@@ -974,9 +987,9 @@ textarea {
 }
 
 .inspector-summary-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   color: #93a0af;
   font-size: 11px;
@@ -988,9 +1001,12 @@ textarea {
   font-size: 12px;
   font-weight: 600;
   text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  justify-self: end;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.25;
 }
 
 .inspector-note {
@@ -1262,8 +1278,20 @@ textarea {
 
 .alignment-controls {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
+}
+
+.alignment-row {
+  display: grid;
+  gap: 6px;
+}
+
+.alignment-row-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.alignment-row-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .brush-controls {
@@ -1309,7 +1337,7 @@ textarea {
 
 .ai-brush-prompt-popup {
   position: fixed;
-  z-index: 40;
+  z-index: 140;
   padding: 8px;
   border: 1px solid rgba(220, 203, 255, 0.42);
   border-radius: 8px;
@@ -1340,11 +1368,11 @@ textarea {
 }
 
 .selection-overlay-canvas {
-  z-index: 20;
+  z-index: 35;
 }
 
 .ai-selection-effects-canvas {
-  z-index: 30;
+  z-index: 36;
 }
 
 .export-controls input[type="range"] {
@@ -1541,6 +1569,39 @@ textarea {
 .video-lora-panel {
   display: grid;
   gap: 8px;
+}
+
+.workflow-params-panel,
+.workflow-advanced-params {
+  display: grid;
+  gap: 8px;
+}
+
+.workflow-param-row {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #2d3642;
+  border-radius: 8px;
+  background: #181d24;
+}
+
+.workflow-param-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.workflow-param-meta strong {
+  color: #edf3fb;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.workflow-param-meta small {
+  color: #8f9baa;
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .video-lora-header {
@@ -1791,6 +1852,7 @@ button.brand-kit-item:focus {
 
 .timeline-panel {
   position: relative;
+  z-index: 120;
   display: grid;
   grid-template-rows: 34px minmax(0, 1fr);
   min-height: 126px;
@@ -1898,14 +1960,28 @@ button.brand-kit-item:focus {
 }
 
 .timeline-global-button {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
   min-height: 26px;
-  padding: 0 9px;
+  padding: 0;
   border: 1px solid #3a424e;
   border-radius: 5px;
   background: #232832;
   color: #eef1f5;
   cursor: pointer;
   font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.timeline-global-button img {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  flex: 0 0 auto;
 }
 
 .timeline-global-button:hover:not(:disabled) {

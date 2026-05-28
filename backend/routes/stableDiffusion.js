@@ -166,6 +166,46 @@ function normalizeInpaintOutputMode(value = "") {
   return ["replace_original", "new_full_layer", "patch_layer"].includes(text) ? text : "new_full_layer";
 }
 
+function makeImageUrl(req, filePath = "") {
+  const resolvedPath = path.resolve(String(filePath || "").trim());
+  if (!resolvedPath || !fs.existsSync(resolvedPath)) {
+    return "";
+  }
+  const outputRoot = path.resolve(process.cwd(), "output");
+  if (!isPathInside(resolvedPath, outputRoot)) {
+    return "";
+  }
+  const relative = path.relative(outputRoot, resolvedPath).split(path.sep).map(encodeURIComponent).join("/");
+  return `${req.protocol}://${req.get("host")}/sd/output/${relative}`;
+}
+
+function normalizeWorkerImageResult(req, result = {}, mode = "txt2img", fallbackOutputMode = "new_full_layer") {
+  const imagePath = result.imagePath || result.file || result.path || result.outputPath || "";
+  const resolvedPath = imagePath ? path.resolve(imagePath) : "";
+  const imageExists = Boolean(resolvedPath && fs.existsSync(resolvedPath));
+  if (!imageExists) {
+    return {
+      ok: false,
+      success: false,
+      error: "Imagem gerada, mas o backend nao retornou o arquivo."
+    };
+  }
+  const outputMode = normalizeInpaintOutputMode(result.outputMode || result.metadata?.inpaint_output_mode || fallbackOutputMode);
+  return {
+    ok: true,
+    success: true,
+    mode,
+    file: resolvedPath,
+    imagePath: resolvedPath,
+    imageUrl: result.imageUrl && /^https?:\/\//i.test(String(result.imageUrl))
+      ? result.imageUrl
+      : makeImageUrl(req, resolvedPath),
+    outputMode,
+    width: Number(result.width || result.metadata?.width || 0) || null,
+    height: Number(result.height || result.metadata?.height || 0) || null
+  };
+}
+
 function writeImageDataUrl(dataUrl = "", prefix = "sd-image") {
   if (String(dataUrl || "").length > MAX_LEGACY_DATA_URL_BYTES) {
     throw new Error("Imagem base64 grande demais. Rasterize para arquivo temporario e envie initImagePath.");
@@ -251,6 +291,11 @@ export default function createStableDiffusionRoutes(context) {
         width: resolvedSize.width,
         height: resolvedSize.height
       });
+      const normalizedResult = normalizeWorkerImageResult(req, result, mode, payload.inpaint_output_mode);
+      if (!normalizedResult.ok) {
+        res.status(500).json(normalizedResult);
+        return;
+      }
       const metadata = {
         ...(result.metadata || {}),
         width: resolvedSize.width,
@@ -262,13 +307,13 @@ export default function createStableDiffusionRoutes(context) {
         inpaint_area: payload.inpaint_area || null,
         masked_content: payload.masked_content || null,
         inpaint_output_mode: payload.inpaint_output_mode || null,
-        output_file: result.file || null
+        output_file: normalizedResult.file || null
       };
 
       res.json({
-        success: true,
-        mode,
-        file: result.file,
+        ...normalizedResult,
+        width: normalizedResult.width || resolvedSize.width,
+        height: normalizedResult.height || resolvedSize.height,
         metadata
       });
     } catch (err) {
@@ -409,6 +454,21 @@ export default function createStableDiffusionRoutes(context) {
     }
   });
 
+  router.get("/output/*", (req, res) => {
+    try {
+      const outputRoot = path.resolve(process.cwd(), "output");
+      const relativePath = String(req.params[0] || "");
+      const requestedPath = path.resolve(outputRoot, relativePath);
+      if (!isPathInside(requestedPath, outputRoot) || !fs.existsSync(requestedPath)) {
+        res.status(404).json({ success: false, ok: false, error: "Arquivo SD nao encontrado." });
+        return;
+      }
+      res.sendFile(requestedPath);
+    } catch (err) {
+      res.status(500).json({ success: false, ok: false, error: err.message || "Falha ao servir imagem SD." });
+    }
+  });
+
   router.post("/generate", async (req, res) => handleGenerateRequest(req, res));
   router.post("/txt2img", async (req, res) => handleGenerateRequest(req, res, "txt2img"));
   router.post("/img2img", async (req, res) => handleGenerateRequest(req, res, "img2img"));
@@ -546,6 +606,11 @@ export default function createStableDiffusionRoutes(context) {
         width: resolvedSize.width,
         height: resolvedSize.height
       });
+      const normalizedResult = normalizeWorkerImageResult(req, result, "inpaint", payload.inpaint_output_mode);
+      if (!normalizedResult.ok) {
+        res.status(500).json(normalizedResult);
+        return;
+      }
       const metadata = {
         ...(result.metadata || {}),
         width: resolvedSize.width,
@@ -557,17 +622,17 @@ export default function createStableDiffusionRoutes(context) {
         inpaint_area: normalizeInpaintArea(req.body?.inpaint_area || req.body?.inpaintArea),
         masked_content: normalizeMaskedContent(req.body?.masked_content || req.body?.maskedContent),
         inpaint_output_mode: normalizeInpaintOutputMode(req.body?.inpaint_output_mode || req.body?.inpaintOutputMode),
-        output_file: result.file || null
+        output_file: normalizedResult.file || null
       };
 
       res.json({
-        success: true,
-        mode: "inpaint",
-        file: result.file,
-        output: result.file,
-        outputPath: result.file,
-        path: result.file,
-        images: result.file ? [result.file] : [],
+        ...normalizedResult,
+        width: normalizedResult.width || resolvedSize.width,
+        height: normalizedResult.height || resolvedSize.height,
+        output: normalizedResult.file,
+        outputPath: normalizedResult.file,
+        path: normalizedResult.file,
+        images: normalizedResult.file ? [normalizedResult.file] : [],
         metadata
       });
     } catch (err) {

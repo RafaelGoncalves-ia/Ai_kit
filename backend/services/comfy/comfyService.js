@@ -4,7 +4,12 @@ import { spawn } from "child_process";
 import { randomUUID } from "crypto";
 import fetch from "node-fetch";
 import { loadComfyConfig } from "./comfyConfig.js";
-import { buildParameterizedWorkflow, getWorkflowUiFields, listComfyWorkflowFiles } from "./comfyWorkflowService.js";
+import {
+  ComfyWorkflowValidationError,
+  buildParameterizedWorkflow,
+  getWorkflowUiFields,
+  listComfyWorkflowFiles
+} from "./comfyWorkflowService.js";
 
 let comfyProcess = null;
 let status = "offline";
@@ -71,6 +76,10 @@ function translateProgressMessage(event = {}) {
     };
   }
   return null;
+}
+
+function isComfyWorkflowValidationLog(line = "") {
+  return /Failed to validate prompt|Required input is missing|Output will be ignored|smaller than min|Value -?\d+ smaller than min/i.test(String(line || ""));
 }
 
 function scheduleIdleStop(config = loadComfyConfig(), logger = () => {}) {
@@ -219,7 +228,24 @@ async function queuePrompt(apiPrompt = {}, jobId = "") {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.error) {
-    throw new Error(data.error?.message || data.error || `ComfyUI /prompt HTTP ${response.status}`);
+    const details = [];
+    for (const [nodeId, nodeError] of Object.entries(data.node_errors || {})) {
+      const errors = [
+        ...(nodeError.errors || []),
+        ...(Array.isArray(nodeError) ? nodeError : [])
+      ];
+      for (const item of errors) {
+        details.push(`node ${nodeId}: ${item.message || item.type || JSON.stringify(item)}`);
+      }
+    }
+    const message = data.error?.message || data.error || `ComfyUI /prompt HTTP ${response.status}`;
+    if (/validate|validation|required input|missing|smaller than min|prompt/i.test(String(message)) || details.length) {
+      throw new ComfyWorkflowValidationError(
+        `Workflow invalido no ComfyUI: ${[message, ...details].filter(Boolean).join("; ")}`,
+        details
+      );
+    }
+    throw new Error(message);
   }
   return data.prompt_id;
 }
@@ -325,8 +351,23 @@ function copyResultFiles(files = [], jobId = "") {
 
 export async function runComfyWorkflowJob({ jobId = randomUUID(), workflowId = "wan2.2", values = {}, onProgress = () => {}, logger = () => {} } = {}) {
   const startedAt = Date.now();
+  const validationLogLines = [];
+  const jobLogger = (message) => {
+    if (isComfyWorkflowValidationLog(message)) {
+      validationLogLines.push(String(message));
+    }
+    logger(message);
+  };
+  const throwIfValidationLogged = () => {
+    if (!validationLogLines.length) return;
+    runningPromptByJob.delete(jobId);
+    throw new ComfyWorkflowValidationError(
+      `Workflow invalido no ComfyUI: o grafo nao executou porque o ComfyUI rejeitou a validacao. ${validationLogLines.slice(0, 8).join("; ")}`,
+      validationLogLines.slice()
+    );
+  };
   onProgress({ status: "preparing_resources", progress: 3, message: "Carregando ComfyUI" });
-  await startComfyUI(logger);
+  await startComfyUI(jobLogger);
 
   const mode = String(values.mode || "").toLowerCase() === "i2v" || values.startImage ? "i2v" : "t2v";
   const patchedValues = {
@@ -341,7 +382,8 @@ export async function runComfyWorkflowJob({ jobId = randomUUID(), workflowId = "
   }
 
   onProgress({ status: "preparing", progress: 8, message: "Enviando workflow Wan" });
-  const parameterized = buildParameterizedWorkflow({ workflowId, values: patchedValues, jobId });
+  const parameterized = buildParameterizedWorkflow({ workflowId, values: patchedValues, jobId, logger: jobLogger });
+  throwIfValidationLogged();
   const promptId = await queuePrompt(parameterized.apiPrompt, jobId);
   runningPromptByJob.set(jobId, promptId);
   onProgress({ status: "loading_model", progress: 12, message: "Carregando modelos" });
@@ -349,20 +391,23 @@ export async function runComfyWorkflowJob({ jobId = randomUUID(), workflowId = "
 
   let history = null;
   while (!history?.[promptId]) {
+    throwIfValidationLogged();
     await sleep(1500);
     history = await getHistory(promptId);
     onProgress(translateProgressMessage({ node: "" }) || { status: "generating", progress: 35, message: "Executando workflow Wan" });
   }
 
   runningPromptByJob.delete(jobId);
+  throwIfValidationLogged();
   onProgress({ status: "saving", progress: 96, message: "Salvando video" });
   const files = findGeneratedFiles(history, promptId, startedAt);
   const copied = copyResultFiles(files, jobId);
   if (!copied.videoPath) {
+    throwIfValidationLogged();
     throw new Error("ComfyUI concluiu, mas nenhum MP4 foi localizado no output.");
   }
   lastActivityAt = Date.now();
-  scheduleIdleStop(loadComfyConfig(), logger);
+  scheduleIdleStop(loadComfyConfig(), jobLogger);
   return {
     success: true,
     engine: "comfyui",

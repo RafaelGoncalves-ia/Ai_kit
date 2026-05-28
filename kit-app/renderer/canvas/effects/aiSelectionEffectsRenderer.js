@@ -8,12 +8,12 @@
   class AiSelectionEffectsRenderer {
     constructor(fabricCanvas, options = {}) {
       this.canvas = fabricCanvas;
-      this.host = options.host || document.body;
+      this.host = options.host || document.querySelector(".fabric-board") || document.body;
       this.element = document.createElement("canvas");
       this.element.className = "ai-selection-effects-canvas";
-      this.element.style.position = "fixed";
+      this.element.style.position = "absolute";
       this.element.style.pointerEvents = "none";
-      this.element.style.zIndex = "30";
+      this.element.style.zIndex = "36";
       this.element.hidden = true;
       this.ctx = this.element.getContext("2d");
       this.mode = "idle";
@@ -46,18 +46,34 @@
       };
     }
 
+    getArtboardViewportBox() {
+      const width = Number(window.artboardWidth || this.canvas?.kitArtboardWidth || 0);
+      const height = Number(window.artboardHeight || this.canvas?.kitArtboardHeight || 0);
+      const tl = this.sceneToViewport({ x: 0, y: 0 });
+      const br = this.sceneToViewport({ x: width || 1, y: height || 1 });
+      return {
+        left: Math.min(tl.x, br.x),
+        top: Math.min(tl.y, br.y),
+        width: Math.max(1, Math.abs(br.x - tl.x)),
+        height: Math.max(1, Math.abs(br.y - tl.y))
+      };
+    }
+
     setViewportBox(bounds) {
-      const pad = 42;
-      const tl = this.sceneToViewport({ x: bounds.left, y: bounds.top });
-      const br = this.sceneToViewport({ x: bounds.left + bounds.width, y: bounds.top + bounds.height });
-      const left = Math.floor(Math.min(tl.x, br.x) - pad);
-      const top = Math.floor(Math.min(tl.y, br.y) - pad);
-      const width = Math.ceil(Math.abs(br.x - tl.x) + pad * 2);
-      const height = Math.ceil(Math.abs(br.y - tl.y) + pad * 2);
+      const hostRect = this.host?.getBoundingClientRect?.() || {
+        left: 0,
+        top: 0,
+        width: window.innerWidth,
+        height: window.innerHeight,
+        right: window.innerWidth,
+        bottom: window.innerHeight
+      };
+      const width = Math.max(1, Math.round(Number(hostRect.width || 0)));
+      const height = Math.max(1, Math.round(Number(hostRect.height || 0)));
       const nextWidth = Math.max(1, width);
       const nextHeight = Math.max(1, height);
-      const nextLeft = `${left}px`;
-      const nextTop = `${top}px`;
+      const nextLeft = "0px";
+      const nextTop = "0px";
       const nextCssWidth = `${nextWidth}px`;
       const nextCssHeight = `${nextHeight}px`;
       if (this.element.style.left !== nextLeft) this.element.style.left = nextLeft;
@@ -66,7 +82,7 @@
       if (this.element.style.height !== nextCssHeight) this.element.style.height = nextCssHeight;
       if (this.element.width !== nextWidth) this.element.width = nextWidth;
       if (this.element.height !== nextHeight) this.element.height = nextHeight;
-      this.localOffset = { x: left, y: top };
+      this.localOffset = { x: Number(hostRect.left || 0), y: Number(hostRect.top || 0) };
       this.element.hidden = false;
     }
 
@@ -215,11 +231,16 @@
       ctx.clearRect(0, 0, width, height);
       const phase = time / 1000;
 
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, width, height);
+      ctx.clip();
       if (this.mode === "gesture" || this.mode === "segmenting") this.drawGesture(ctx);
       if (this.mode === "selection" || this.mode === "generating" || this.mode === "complete") this.drawMaskGlow(ctx, phase);
       if (this.mode === "generating") this.drawGenerating(ctx, phase);
       if (this.mode === "complete") this.drawComplete(ctx);
       this.drawParticles(ctx);
+      ctx.restore();
     }
 
     renderFrame() {

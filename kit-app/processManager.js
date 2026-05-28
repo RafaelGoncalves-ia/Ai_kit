@@ -19,6 +19,7 @@ const HEALTH_CHECK_TIMEOUT_MS = 5000;
 const DEFAULT_VOICE_IDLE_STOP_MS = 30 * 60 * 1000;
 const DEFAULT_XTTS_IDLE_STOP_MS = Math.max(0, Number(process.env.KIT_IDLE_XTTS_TIMEOUT_MS || 0));
 const DEFAULT_STT_IDLE_STOP_MS = Math.max(60000, Number(process.env.KIT_IDLE_STT_TIMEOUT_MS || DEFAULT_VOICE_IDLE_STOP_MS));
+const DEFAULT_COMFYUI_IDLE_STOP_MS = 2 * 60 * 60 * 1000;
 
 const SERVICE_POLICIES = {
   backend: {
@@ -66,7 +67,7 @@ const SERVICE_POLICIES = {
     autoStart: false,
     lazyStart: true,
     startTriggers: ["video_request", "comfyui_request"],
-    idleStopMs: Number(process.env.COMFYUI_IDLE_STOP_MS || 900000),
+    idleStopMs: Number(process.env.COMFYUI_IDLE_STOP_MS || DEFAULT_COMFYUI_IDLE_STOP_MS),
     warmupOnFirstUse: false
   }
 };
@@ -380,6 +381,11 @@ function createProcessManager({ rootDir, onLog, onStatus }) {
     }
 
     const timer = setTimeout(() => {
+      if (serviceKey === "comfyui" && getWanGenerationLock()) {
+        pushLog(serviceKey, "system", `[host] inatividade ignorada: WAN em andamento (${idleStopMs}ms)`);
+        scheduleIdleStop(serviceKey);
+        return;
+      }
       pushLog(serviceKey, "system", `[host] encerrando por inatividade (${idleStopMs}ms)`);
       void ensureStopped(serviceKey);
     }, idleStopMs);

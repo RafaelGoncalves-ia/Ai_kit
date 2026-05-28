@@ -3,6 +3,7 @@ import WakeListeningService from "../../backend/core/audio/WakeListeningService.
 const service = new WakeListeningService({
   sttUrl: "http://localhost:3001/stt",
   chatUrl: "http://localhost:3001/chat",
+  wakeDetectedUrl: "http://localhost:3001/wakeword/detected",
   onNoiseTrigger: async () => {
     window.kitAPI?.startVoice?.();
   },

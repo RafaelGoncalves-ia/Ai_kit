@@ -1,5 +1,3 @@
-2026/05/21-11:25:50.244 3098 Reusing MANIFEST F:\AI\Ai_kit\temp\electron-user-data\Local Storage\leveldb/MANIFEST-000001
-2026/05/21-11:25:50.352 3098 Recovering log #16
-2026/05/21-11:25:50.352 3098 Level-0 table #20: started
-2026/05/21-11:25:50.546 3098 Level-0 table #20: 20051 bytes OK
-2026/05/21-11:25:50.753 3098 Delete type=0 #16
+2026/05/27-19:34:52.699 3ddc Reusing MANIFEST F:\AI\Ai_kit\temp\electron-user-data\Local Storage\leveldb/MANIFEST-000001
+2026/05/27-19:34:52.701 3ddc Recovering log #21
+2026/05/27-19:34:52.702 3ddc Reusing old log F:\AI\Ai_kit\temp\electron-user-data\Local Storage\leveldb/000021.log 

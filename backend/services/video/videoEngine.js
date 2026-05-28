@@ -66,6 +66,10 @@ function numberOrFallback(value, fallback) {
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
+function randomComfySeed() {
+  return Math.floor(Math.random() * 2147483648);
+}
+
 function normalizeVideoMode(value = "") {
   const normalized = String(value || "").trim().toLowerCase();
   if (normalized === "standard-i2v" || normalized === "i2v" || normalized === "image-to-video" || normalized === "image_to_video") {
@@ -456,9 +460,10 @@ export function createVideoEngine(context = {}) {
           mode: workerPayload.mode,
           inputImage: "",
           startImage: workerPayload.startImage,
-          seed: workerPayload.seed >= 0 ? workerPayload.seed : Math.floor(Math.random() * 1000000000000),
+          seed: workerPayload.seed >= 0 ? Math.min(2147483647, workerPayload.seed) : randomComfySeed(),
           filenamePrefix: `Kit/wan-${jobId}`,
-          ...(payload.workflowParams || {})
+          ...(payload.workflowParams || {}),
+          workflowAdvancedParams: Array.isArray(payload.workflowAdvancedParams) ? payload.workflowAdvancedParams : []
         },
         logger: (message) => {
           const latest = safeReadJson(statusPath) || {};
@@ -499,10 +504,14 @@ export function createVideoEngine(context = {}) {
           logs: [...ensureArray(safeReadJson(statusPath)?.logs), "Finalizado"]
         });
       }).catch((err) => {
+        const phase = err.phase || (err.code === "COMFY_WORKFLOW_VALIDATION_FAILED" ? "workflow_validation_failed" : "failed");
         const failed = updateJob(jobId, {
           status: "failed",
+          phase,
+          internalStatus: phase,
           progress: 100,
           error: err.message || String(err),
+          validationDetails: Array.isArray(err.details) ? err.details : undefined,
           finishedAt: new Date().toISOString()
         });
         writeJson(statusPath, {

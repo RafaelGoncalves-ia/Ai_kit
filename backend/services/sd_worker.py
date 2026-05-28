@@ -10,6 +10,7 @@ import time
 import uuid
 import warnings
 import inspect
+import threading
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 warnings.filterwarnings("ignore", category=FutureWarning, module=r"transformers\.utils\.hub")
@@ -54,24 +55,23 @@ except Exception:
     safe_open = None
 
 try:
-    from diffusers import (
-        AutoPipelineForImage2Image,
-        AutoPipelineForInpainting,
-        AutoPipelineForText2Image,
-        DDIMScheduler,
-        DPMSolverMultistepScheduler,
-        EulerAncestralDiscreteScheduler,
-        EulerDiscreteScheduler,
-        LMSDiscreteScheduler,
-        UniPCMultistepScheduler,
-        StableDiffusionImg2ImgPipeline,
-        StableDiffusionInpaintPipeline,
-        StableDiffusionPipeline,
-        StableDiffusionXLPipeline,
-    )
+    import diffusers
+
+    AutoPipelineForText2Image = getattr(diffusers, "AutoPipelineForText2Image", None)
+    DDIMScheduler = getattr(diffusers, "DDIMScheduler", None)
+    DPMSolverMultistepScheduler = getattr(diffusers, "DPMSolverMultistepScheduler", None)
+    EulerAncestralDiscreteScheduler = getattr(diffusers, "EulerAncestralDiscreteScheduler", None)
+    EulerDiscreteScheduler = getattr(diffusers, "EulerDiscreteScheduler", None)
+    LMSDiscreteScheduler = getattr(diffusers, "LMSDiscreteScheduler", None)
+    UniPCMultistepScheduler = getattr(diffusers, "UniPCMultistepScheduler", None)
+    StableDiffusionImg2ImgPipeline = getattr(diffusers, "StableDiffusionImg2ImgPipeline", None)
+    StableDiffusionInpaintPipeline = getattr(diffusers, "StableDiffusionInpaintPipeline", None)
+    StableDiffusionPipeline = getattr(diffusers, "StableDiffusionPipeline", None)
+    StableDiffusionXLImg2ImgPipeline = getattr(diffusers, "StableDiffusionXLImg2ImgPipeline", None)
+    StableDiffusionXLInpaintPipeline = getattr(diffusers, "StableDiffusionXLInpaintPipeline", None)
+    StableDiffusionXLPipeline = getattr(diffusers, "StableDiffusionXLPipeline", None)
 except Exception:
-    AutoPipelineForImage2Image = None
-    AutoPipelineForInpainting = None
+    diffusers = None
     AutoPipelineForText2Image = None
     DDIMScheduler = None
     DPMSolverMultistepScheduler = None
@@ -82,6 +82,8 @@ except Exception:
     StableDiffusionImg2ImgPipeline = None
     StableDiffusionInpaintPipeline = None
     StableDiffusionPipeline = None
+    StableDiffusionXLImg2ImgPipeline = None
+    StableDiffusionXLInpaintPipeline = None
     StableDiffusionXLPipeline = None
 
 
@@ -116,6 +118,13 @@ loaded = {
     "capabilities": None,
     "lora": None,
 }
+
+pipe = None
+current_model = None
+current_pipeline_type = None
+idle_unload_timer = None
+last_generation_completed_at = None
+IDLE_UNLOAD_MS = int(os.environ.get("SD_IDLE_UNLOAD_MS", str(30 * 60 * 1000)))
 
 progress_state = {
     "active": False,
@@ -159,13 +168,51 @@ def get_dtype():
 
 
 def clean_cuda_cache():
-    gc.collect()
     if cuda_available():
         torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
+        if hasattr(torch.cuda, "ipc_collect"):
+            torch.cuda.ipc_collect()
+    gc.collect()
+
+
+def cancel_idle_unload_timer():
+    global idle_unload_timer
+    if idle_unload_timer is not None:
+        try:
+            idle_unload_timer.cancel()
+        except Exception:
+            pass
+        idle_unload_timer = None
+
+
+def schedule_idle_unload():
+    global idle_unload_timer, last_generation_completed_at
+    cancel_idle_unload_timer()
+    if IDLE_UNLOAD_MS <= 0:
+        print("[SD][idle] idle unload disabled", flush=True)
+        return
+
+    last_generation_completed_at = time.time()
+
+    def unload_if_still_idle(expected_completed_at):
+        if loaded.get("pipeline") is None:
+            return
+        if last_generation_completed_at != expected_completed_at:
+            return
+        print(f"[SD][idle] unloading model after {IDLE_UNLOAD_MS}ms idle", flush=True)
+        unload_model()
+
+    idle_unload_timer = threading.Timer(IDLE_UNLOAD_MS / 1000, unload_if_still_idle, [last_generation_completed_at])
+    idle_unload_timer.daemon = True
+    idle_unload_timer.start()
+    print(f"[SD][idle] model will stay loaded for {IDLE_UNLOAD_MS}ms idle", flush=True)
 
 
 def unload_model():
+    global pipe, current_model, current_pipeline_type
+    cancel_idle_unload_timer()
+    pipeline = loaded.get("pipeline")
+    print("[SD][unload] deleting pipeline", flush=True)
     loaded["pipeline"] = None
     loaded["checkpoint"] = None
     loaded["architecture"] = None
@@ -173,7 +220,60 @@ def unload_model():
     loaded["effective_mode"] = None
     loaded["capabilities"] = None
     loaded["lora"] = None
+    pipe = None
+    current_model = None
+    current_pipeline_type = None
+    if pipeline is not None:
+        print("[SD][unload] deleting components", flush=True)
+        for component_name in (
+            "text_encoder",
+            "text_encoder_2",
+            "vae",
+            "unet",
+            "scheduler",
+            "tokenizer",
+            "tokenizer_2",
+            "image_encoder",
+            "controlnet",
+            "adapter",
+            "adapters",
+        ):
+            try:
+                if hasattr(pipeline, component_name):
+                    setattr(pipeline, component_name, None)
+            except Exception:
+                pass
+        try:
+            if hasattr(pipeline, "components"):
+                pipeline.components.clear()
+        except Exception:
+            pass
+        try:
+            pipeline._all_hooks = []
+        except Exception:
+            pass
+        del pipeline
     clean_cuda_cache()
+    print("[SD][unload] cuda cache cleared", flush=True)
+    print("[SD][unload] completed", flush=True)
+
+
+def log_cuda_memory(label):
+    if not cuda_available():
+        print(f"[SD][memory] {label} cuda=false", flush=True)
+        return
+    try:
+        free_bytes, total_bytes = torch.cuda.mem_get_info()
+        used_mb = (total_bytes - free_bytes) / (1024 * 1024)
+        free_mb = free_bytes / (1024 * 1024)
+        allocated_mb = torch.cuda.memory_allocated() / (1024 * 1024)
+        reserved_mb = torch.cuda.memory_reserved() / (1024 * 1024)
+        print(
+            f"[SD][memory] {label} usedMb={used_mb:.2f} freeMb={free_mb:.2f} allocatedMb={allocated_mb:.2f} reservedMb={reserved_mb:.2f}",
+            flush=True,
+        )
+    except Exception as exc:
+        print(f"[SD][memory] {label} error={exc}", flush=True)
 
 
 def find_preview_for_model(model_path):
@@ -441,8 +541,48 @@ def enable_memory_optimizations(pipe):
     return pipe
 
 
+def ensure_pipeline_class(pipeline_class, pipeline_name):
+    if pipeline_class is None:
+        raise RuntimeError(f"Pipeline diffusers indisponivel: {pipeline_name}")
+    return pipeline_class
+
+
+def loader_pipeline_name(architecture, effective_mode):
+    prefix = "SDXL" if architecture == "sdxl" else "SD15"
+    if effective_mode == "img2img":
+        return f"{prefix}_IMG2IMG"
+    if effective_mode == "inpaint":
+        return f"{prefix}_INPAINT"
+    return f"{prefix}_TXT2IMG"
+
+
+def get_pipeline_class(architecture, effective_mode):
+    if effective_mode == "txt2img":
+        if architecture == "sdxl":
+            return ensure_pipeline_class(StableDiffusionXLPipeline, "StableDiffusionXLPipeline")
+        return ensure_pipeline_class(StableDiffusionPipeline or AutoPipelineForText2Image, "StableDiffusionPipeline")
+
+    if effective_mode == "img2img":
+        if architecture == "sdxl":
+            return ensure_pipeline_class(StableDiffusionXLImg2ImgPipeline, "StableDiffusionXLImg2ImgPipeline")
+        return ensure_pipeline_class(StableDiffusionImg2ImgPipeline, "StableDiffusionImg2ImgPipeline")
+
+    if architecture == "sdxl":
+        return ensure_pipeline_class(StableDiffusionXLInpaintPipeline, "StableDiffusionXLInpaintPipeline")
+    return ensure_pipeline_class(StableDiffusionInpaintPipeline, "StableDiffusionInpaintPipeline")
+
+
+def load_pipeline_from_checkpoint(checkpoint, architecture, effective_mode, kwargs):
+    pipeline_name = loader_pipeline_name(architecture, effective_mode)
+    print(f"[SD][loader] pipeline={pipeline_name}", flush=True)
+    pipeline_class = get_pipeline_class(architecture, effective_mode)
+    if os.path.isdir(checkpoint):
+        return pipeline_class.from_pretrained(checkpoint, **kwargs)
+    return pipeline_class.from_single_file(checkpoint, **kwargs)
+
+
 def create_pipeline(checkpoint, architecture, mode, capabilities=None):
-    if AutoPipelineForText2Image is None:
+    if diffusers is None:
         raise RuntimeError("Diffusers nao esta instalado no ambiente Python do worker.")
     capabilities = capabilities or detectSdModelCapabilities(checkpoint)
     effective_mode = "img2img" if mode == "inpaint" and not capabilities.get("supportsNativeInpaint") else mode
@@ -456,17 +596,16 @@ def create_pipeline(checkpoint, architecture, mode, capabilities=None):
         "local_files_only": True,
         "cache_dir": HF_HUB_CACHE,
     }
+    if accelerate_available():
+        kwargs["low_cpu_mem_usage"] = True
 
     if os.path.isdir(checkpoint):
-        if effective_mode == "txt2img":
-            pipe = AutoPipelineForText2Image.from_pretrained(checkpoint, **kwargs)
-        elif effective_mode == "img2img":
-            if mode == "inpaint":
-                print("[SD][inpaint] using img2img masked fallback", flush=True)
-            pipe = AutoPipelineForImage2Image.from_pretrained(checkpoint, **kwargs)
-        else:
+        if mode == "inpaint" and effective_mode == "img2img":
+            print("[SD][inpaint] using img2img masked fallback", flush=True)
+            print("[SD][inpaint] fallback=masked_img2img", flush=True)
+        elif effective_mode == "inpaint":
             print("[SD][inpaint] using native inpaint pipeline", flush=True)
-            pipe = AutoPipelineForInpainting.from_pretrained(checkpoint, **kwargs)
+        pipe = load_pipeline_from_checkpoint(checkpoint, architecture, effective_mode, kwargs)
         setattr(pipe, "_kit_effective_mode", effective_mode)
         setattr(pipe, "_kit_inpaint_fallback", mode == "inpaint" and effective_mode == "img2img")
         pipe = enable_memory_optimizations(pipe)
@@ -484,26 +623,13 @@ def create_pipeline(checkpoint, architecture, mode, capabilities=None):
         kwargs["feature_extractor"] = None
         kwargs["requires_safety_checker"] = False
 
-    if effective_mode == "txt2img":
-        if architecture == "sdxl":
-            pipe = StableDiffusionXLPipeline.from_single_file(checkpoint, **kwargs)
-        elif StableDiffusionPipeline is not None:
-            pipe = StableDiffusionPipeline.from_single_file(checkpoint, **kwargs)
-        else:
-            pipe = AutoPipelineForText2Image.from_single_file(checkpoint, **kwargs)
-    elif effective_mode == "img2img":
-        if mode == "inpaint":
-            print("[SD][inpaint] using img2img masked fallback", flush=True)
-        if StableDiffusionImg2ImgPipeline is not None and architecture == "sd15":
-            pipe = StableDiffusionImg2ImgPipeline.from_single_file(checkpoint, **kwargs)
-        else:
-            pipe = AutoPipelineForImage2Image.from_single_file(checkpoint, **kwargs)
-    else:
+    if mode == "inpaint" and effective_mode == "img2img":
+        print("[SD][inpaint] using img2img masked fallback", flush=True)
+        print("[SD][inpaint] fallback=masked_img2img", flush=True)
+    elif effective_mode == "inpaint":
         print("[SD][inpaint] using native inpaint pipeline", flush=True)
-        if StableDiffusionInpaintPipeline is not None and architecture == "sd15":
-            pipe = StableDiffusionInpaintPipeline.from_single_file(checkpoint, **kwargs)
-        else:
-            pipe = AutoPipelineForInpainting.from_single_file(checkpoint, **kwargs)
+
+    pipe = load_pipeline_from_checkpoint(checkpoint, architecture, effective_mode, kwargs)
 
     setattr(pipe, "_kit_effective_mode", effective_mode)
     setattr(pipe, "_kit_inpaint_fallback", mode == "inpaint" and effective_mode == "img2img")
@@ -614,6 +740,7 @@ def resolve_original_config(checkpoint, architecture, mode):
 
 
 def load_pipeline(checkpoint_value, architecture_value, mode, scheduler_name=None, lora_path=None, sampler_name=None):
+    global pipe, current_model, current_pipeline_type
     checkpoint = resolve_checkpoint(checkpoint_value)
     architecture = normalize_architecture(architecture_value, checkpoint)
     capabilities = detectSdModelCapabilities(checkpoint)
@@ -621,6 +748,7 @@ def load_pipeline(checkpoint_value, architecture_value, mode, scheduler_name=Non
     lora_path = str(lora_path or "").strip() or None
     if lora_path:
         lora_path = os.path.abspath(lora_path)
+    cancel_idle_unload_timer()
 
     needs_reload = (
         loaded["pipeline"] is None
@@ -635,6 +763,7 @@ def load_pipeline(checkpoint_value, architecture_value, mode, scheduler_name=Non
         unload_model()
         update_progress("loading_model", 2, None, None, "Carregando modelo SD")
         loaded["pipeline"] = create_pipeline(checkpoint, architecture, mode, capabilities)
+        pipe = loaded["pipeline"]
         update_progress("loading_model", 24, None, None, "Modelo SD carregado")
         loaded["checkpoint"] = checkpoint
         loaded["architecture"] = architecture
@@ -642,6 +771,8 @@ def load_pipeline(checkpoint_value, architecture_value, mode, scheduler_name=Non
         loaded["effective_mode"] = effective_mode
         loaded["capabilities"] = capabilities
         loaded["lora"] = lora_path
+        current_model = checkpoint
+        current_pipeline_type = mode
 
         if lora_path and os.path.exists(lora_path):
             update_progress("loading_model", 28, None, None, "Aplicando LoRA")
@@ -755,20 +886,33 @@ def save_output(image, metadata):
     }
 
 
+def output_url_for_path(output_path):
+    try:
+        if output_path and os.path.abspath(output_path).startswith(os.path.abspath(OUTPUT_DIR)):
+            return f"/output/{os.path.basename(output_path)}"
+    except Exception:
+        pass
+    return ""
+
+
 def supports_parameter(callable_value, parameter_name):
     try:
-        return parameter_name in inspect.signature(callable_value).parameters
+        parameters = inspect.signature(callable_value).parameters
+        if parameter_name in parameters:
+            return True
+        return any(param.kind == inspect.Parameter.VAR_KEYWORD for param in parameters.values())
     except Exception:
         return False
 
 
-def make_generation_callbacks(steps):
-    safe_steps = max(1, int(steps or 1))
+def build_progress_callback(total_steps):
+    safe_steps = max(1, int(total_steps or 1))
 
     def publish_step(step_index):
         step_number = max(1, min(safe_steps, int(step_index) + 1))
         ratio = step_number / safe_steps
-        percent = 30 + round(ratio * 68)
+        percent = 25 + round(ratio * 70)
+        print(f"[SD][progress] generating {step_number}/{safe_steps}", flush=True)
         update_progress(
             "generating",
             percent,
@@ -787,8 +931,24 @@ def make_generation_callbacks(steps):
     return callback, callback_on_step_end
 
 
+def make_generation_callbacks(steps):
+    return build_progress_callback(steps)
+
+
+@app.route("/output/<path:file_name>", methods=["GET"])
+def output_file(file_name):
+    from flask import send_from_directory
+
+    safe_name = os.path.basename(str(file_name or ""))
+    return send_from_directory(OUTPUT_DIR, safe_name)
+
+
 def xformers_available():
     return importlib.util.find_spec("xformers") is not None
+
+
+def accelerate_available():
+    return importlib.util.find_spec("accelerate") is not None
 
 
 def directory_writable_status(directory_path):
@@ -831,6 +991,11 @@ def generate(mode):
     scheduler = str(data.get("scheduler") or data.get("schedule_type") or "DPMSolverMultistepScheduler")
     sampler = str(data.get("sampler") or "")
     denoising_strength = float(data.get("denoising_strength") or data.get("strength") or 0.55)
+    inpaint_output_mode = normalize_inpaint_output_mode(data.get("inpaint_output_mode") or data.get("inpaintOutputMode"))
+    if mode == "inpaint":
+        print(f"[SD][inpaint] output_mode={inpaint_output_mode}", flush=True)
+    print(f"[SD][generate] steps={steps} width={width} height={height}", flush=True)
+    log_cuda_memory("before_generation")
 
     pipe, checkpoint, architecture, lora_path = load_pipeline(
         data.get("checkpoint") or data.get("model"),
@@ -841,7 +1006,11 @@ def generate(mode):
         sampler,
     )
     generator = get_generator(seed)
-    update_progress("generating", 30, 0, steps, "Gerando imagem")
+    progress_steps = steps
+    if mode in ("img2img", "inpaint"):
+        strength = max(0.0, min(1.0, float(denoising_strength)))
+        progress_steps = max(1, int(steps * strength))
+    update_progress("generating", 25, 0, progress_steps, f"Gerando imagem 0/{progress_steps}")
 
     common = {
         "prompt": prompt,
@@ -850,66 +1019,120 @@ def generate(mode):
         "guidance_scale": cfg_scale,
         "generator": generator,
     }
-    callback, callback_on_step_end = make_generation_callbacks(steps)
+    callback, callback_on_step_end = make_generation_callbacks(progress_steps)
     if supports_parameter(pipe.__call__, "callback_on_step_end"):
         common["callback_on_step_end"] = callback_on_step_end
     elif supports_parameter(pipe.__call__, "callback"):
         common["callback"] = callback
         common["callback_steps"] = 1
 
-    if mode == "txt2img":
-        result = pipe(width=width, height=height, **common)
-    elif mode == "img2img":
-        init_image = load_image(data.get("initImagePath") or data.get("image_path") or data.get("imagePath")).resize((width, height))
-        result = pipe(image=init_image, strength=denoising_strength, **common)
-    else:
-        prepared = prepare_inpaint_inputs(data, width, height)
-        init_image = prepared["init_image"]
-        call_image = prepared["call_image"]
-        mask_image = prepared["call_mask"]
-        print(
-            f"[SD][inpaint] area={prepared['inpaint_area']} masked_content={prepared['masked_content']} full_image=true",
-            flush=True,
-        )
-        if getattr(pipe, "_kit_inpaint_fallback", False):
-            result = pipe(image=call_image, strength=denoising_strength, **common)
-            generated_image = result.images[0].convert("RGB").resize(prepared["call_size"])
-            image = Image.composite(generated_image, call_image, mask_image)
-            result.images[0] = compose_inpaint_result(image, prepared)
-            print("[SD][inpaint] mask composite done", flush=True)
+    result = None
+    image = None
+    init_image = None
+    mask_image = None
+    generated_image = None
+    composite_image = None
+    prepared = None
+    call_image = None
+    output = None
+    try:
+        if mode == "txt2img":
+            result = pipe(width=width, height=height, **common)
+        elif mode == "img2img":
+            init_image = load_image(data.get("initImagePath") or data.get("image_path") or data.get("imagePath")).resize((width, height))
+            result = pipe(image=init_image, strength=denoising_strength, **common)
         else:
-            result = pipe(image=call_image, mask_image=mask_image, strength=denoising_strength, **common)
-            result.images[0] = compose_inpaint_result(result.images[0], prepared)
+            prepared = prepare_inpaint_inputs(data, width, height)
+            init_image = prepared["init_image"]
+            call_image = prepared["call_image"]
+            mask_image = prepared["call_mask"]
+            print(
+                f"[SD][inpaint] area={prepared['inpaint_area']} masked_content={prepared['masked_content']} full_image=true",
+                flush=True,
+            )
+            if getattr(pipe, "_kit_inpaint_fallback", False):
+                result = pipe(image=call_image, strength=denoising_strength, **common)
+                generated_image = result.images[0].convert("RGB").resize(prepared["call_size"])
+                composite_image = Image.composite(generated_image, call_image, mask_image)
+                update_progress("compositing", 96, progress_steps, progress_steps, "Compondo mascara")
+                result.images[0] = compose_inpaint_result(composite_image, prepared)
+                print("[SD][inpaint] mask composite done", flush=True)
+            else:
+                result = pipe(image=call_image, mask_image=mask_image, strength=denoising_strength, **common)
+                update_progress("compositing", 96, progress_steps, progress_steps, "Compondo mascara")
+                result.images[0] = compose_inpaint_result(result.images[0], prepared)
 
-    image = result.images[0]
-    metadata = {
-        "prompt": prompt,
-        "negative_prompt": negative_prompt,
-        "checkpoint": checkpoint,
-        "lora": lora_path,
-        "seed": seed,
-        "mode": mode,
-        "width": width,
-        "height": height,
-        "sampler": sampler or scheduler,
-        "scheduler": scheduler,
-        "steps": steps,
-        "cfg_scale": cfg_scale,
-        "denoising_strength": denoising_strength if mode != "txt2img" else None,
-        "inpaint_area": normalize_inpaint_area(data.get("inpaint_area") or data.get("inpaintArea")) if mode == "inpaint" else None,
-        "masked_content": normalize_masked_content(data.get("masked_content") or data.get("maskedContent")) if mode == "inpaint" else None,
-        "inpaint_output_mode": normalize_inpaint_output_mode(data.get("inpaint_output_mode") or data.get("inpaintOutputMode")) if mode == "inpaint" else None,
-        "architecture": architecture,
-        "device": get_device(),
-    }
-    output = save_output(image, metadata)
-    update_progress("saving", 99, steps, steps, "Salvando imagem")
+        image = result.images[0]
+        metadata = {
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "checkpoint": checkpoint,
+            "lora": lora_path,
+            "seed": seed,
+            "mode": mode,
+            "width": width,
+            "height": height,
+            "sampler": sampler or scheduler,
+            "scheduler": scheduler,
+            "steps": steps,
+            "effective_steps": progress_steps,
+            "cfg_scale": cfg_scale,
+            "denoising_strength": denoising_strength if mode != "txt2img" else None,
+            "inpaint_area": normalize_inpaint_area(data.get("inpaint_area") or data.get("inpaintArea")) if mode == "inpaint" else None,
+            "masked_content": normalize_masked_content(data.get("masked_content") or data.get("maskedContent")) if mode == "inpaint" else None,
+            "inpaint_output_mode": inpaint_output_mode if mode == "inpaint" else None,
+            "architecture": architecture,
+            "device": get_device(),
+        }
+        update_progress("saving", 98, progress_steps, progress_steps, "Salvando imagem")
+        output = save_output(image, metadata)
+        image_path = output.get("file") or ""
+        if not image_path or not os.path.isfile(image_path):
+            update_progress("error", 100, progress_steps, progress_steps, "Imagem gerada, mas arquivo ausente.", False)
+            return jsonify({
+                "status": "error",
+                "ok": False,
+                "success": False,
+                "error": "Imagem gerada, mas o backend nao retornou o arquivo.",
+            }), 500
 
-    if data.get("free_vram_after", True):
         clean_cuda_cache()
+        log_cuda_memory("after_generation")
+        if data.get("autoUnload", data.get("auto_unload", False)):
+            unload_model()
+            log_cuda_memory("after_unload")
+        else:
+            schedule_idle_unload()
 
-    update_progress("completed", 100, steps, steps, "Imagem gerada", False)
-    return jsonify({"status": "ok", **output})
+        update_progress("completed", 100, progress_steps, progress_steps, "Imagem gerada", False)
+        image_url = output_url_for_path(image_path)
+        return jsonify({
+            "status": "ok",
+            "ok": True,
+            "success": True,
+            "file": image_path,
+            "imagePath": image_path,
+            "imageUrl": image_url,
+            "outputMode": inpaint_output_mode if mode == "inpaint" else None,
+            "width": width,
+            "height": height,
+            **output,
+        })
+    finally:
+        try:
+            if result is not None and hasattr(result, "images"):
+                result.images = []
+        except Exception:
+            pass
+        del init_image
+        del mask_image
+        del generated_image
+        del composite_image
+        del prepared
+        del call_image
+        del result
+        del image
+        clean_cuda_cache()
 
 
 @app.route("/health", methods=["GET"])
@@ -990,6 +1213,17 @@ def unload():
     return jsonify({
         "status": "ok",
         "message": "Stable Diffusion model unloaded"
+    })
+
+
+@app.route("/cleanup", methods=["POST"])
+def cleanup():
+    clean_cuda_cache()
+    log_cuda_memory("cleanup")
+    return jsonify({
+        "status": "ok",
+        "message": "Stable Diffusion cache cleaned",
+        "loaded": loaded.get("pipeline") is not None,
     })
 
 

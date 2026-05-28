@@ -1,0 +1,76 @@
+{
+  "aliases": {
+    "Kit": [
+      "ei kit",
+      "ok kit",
+      "acorda kit"
+    ],
+    "Sune": [
+      "ei sune",
+      "ok sune",
+      "acorda sune"
+    ]
+  },
+  "phoneticAliases": {
+    "Kit": [
+      "kit",
+      "quite",
+      "kite",
+      "kiti",
+      "kity",
+      "kitty"
+    ],
+    "Sune": [
+      "sune",
+      "suni",
+      "suny",
+      "sone",
+      "sunê"
+    ]
+  },
+  "negativeSamples": [
+    "aqui",
+    "que",
+    "quente",
+    "quinta",
+    "quinto",
+    "kitnet",
+    "quitei",
+    "sumi",
+    "sono",
+    "soneca",
+    "sonho",
+    "sunset"
+  ],
+  "threshold": 0.78,
+  "confirmWithPhoneticCheck": true,
+  "cooldownMs": 1500,
+  "models": [
+    {
+      "label": "Kit",
+      "path": "models/wakeword/ei_kit.onnx",
+      "aliases": [
+        "ei kit",
+        "ok kit",
+        "acorda kit"
+      ]
+    },
+    {
+      "label": "Sune",
+      "path": "models/wakeword/ei_sune.onnx",
+      "aliases": [
+        "ei sune",
+        "ok sune",
+        "acorda sune"
+      ]
+    }
+  ],
+  "multiLabelModel": {
+    "enabled": false,
+    "path": "",
+    "labels": [
+      "Kit",
+      "Sune"
+    ]
+  }
+}

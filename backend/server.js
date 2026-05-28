@@ -279,6 +279,10 @@ context.core.eventBus.on("llm:mode", (data) => {
   sendSSE({ type: "llm:mode", payload: data });
 });
 
+context.core.eventBus.on("wakeword.detected", (data) => {
+  sendSSE({ type: "wakeword.detected", payload: data });
+});
+
 context.core.eventBus.on("agent_trace_started", (data) => {
   sendSSE({ type: "agent_trace_started", payload: data });
 });
@@ -398,6 +402,18 @@ app.post("/runtime/activity", (req, res) => {
     success: true,
     lastUserInteraction: context.lastUserInteraction
   });
+});
+
+app.post("/wakeword/detected", (req, res) => {
+  const payload = {
+    label: req.body?.label || null,
+    matchedAlias: req.body?.matchedAlias || null,
+    score: Number(req.body?.score || 0),
+    confirmed: req.body?.confirmed === true
+  };
+
+  context.core.eventBus.emit("wakeword.detected", payload);
+  res.json({ success: true, data: payload });
 });
 
 app.post("/llm/warmup", async (req, res) => {

@@ -17,12 +17,16 @@ export default class WakeListeningService {
   constructor({
     sttUrl,
     chatUrl,
+    wakeDetectedUrl = "",
+    onWakeWordDetected = null,
     onNoiseTrigger = null,
     runtimeProvider = async () => ({}),
     logger = createDefaultLogger()
   } = {}) {
     this.sttUrl = sttUrl;
     this.chatUrl = chatUrl;
+    this.wakeDetectedUrl = wakeDetectedUrl;
+    this.onWakeWordDetected = typeof onWakeWordDetected === "function" ? onWakeWordDetected : null;
     this.onNoiseTrigger = typeof onNoiseTrigger === "function" ? onNoiseTrigger : null;
     this.runtimeProvider = runtimeProvider;
     this.logger = typeof logger === "function" ? logger : createDefaultLogger();
@@ -271,7 +275,8 @@ export default class WakeListeningService {
         }
 
         const matchDetail = match.matchType ? ` (${match.matchType}${match.distance !== undefined ? `:${match.distance}` : ""})` : "";
-        this.log(`[WAKE] wake word matched${matchDetail}`);
+        this.log(`[WAKE] wake word matched${matchDetail} score=${match.score ?? 0} confirmed=${match.confirmed === true}`);
+        await this.emitWakeWordDetected(match);
       }
 
       this.state.transition("confirmation");
@@ -484,6 +489,32 @@ export default class WakeListeningService {
       text,
       wakeMatch: match?.match || null
     };
+  }
+
+  async emitWakeWordDetected(match = {}) {
+    const payload = {
+      label: match.label || match.match || null,
+      matchedAlias: match.matchedAlias || match.match || null,
+      score: Number(match.score || 0),
+      confirmed: match.confirmed === true
+    };
+
+    if (this.onWakeWordDetected) {
+      await this.onWakeWordDetected(payload);
+      return payload;
+    }
+
+    if (this.wakeDetectedUrl) {
+      await fetch(this.wakeDetectedUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }).catch((err) => {
+        this.log(`[WAKE] wakeword.detected emit failed: ${err.message}`);
+      });
+    }
+
+    return payload;
   }
 
   async runtimeProviderSafe() {

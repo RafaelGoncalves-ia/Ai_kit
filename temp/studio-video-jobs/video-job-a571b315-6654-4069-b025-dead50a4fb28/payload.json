@@ -1,0 +1,145 @@
+{
+  "id": "video-job-a571b315-6654-4069-b025-dead50a4fb28",
+  "projectId": "",
+  "sceneId": "",
+  "sessionId": "canvas",
+  "source": "canvas",
+  "fileName": "",
+  "prompt": "Girl saying, \"Do you like my new look?\"",
+  "negativePrompt": "",
+  "motionPrompt": "",
+  "duration": 1,
+  "fps": 16,
+  "frames": 16,
+  "sequenceLength": 17,
+  "width": 480,
+  "height": 832,
+  "ratio": "9:16",
+  "preset": "wan_wide_5s",
+  "model": "wan2.2",
+  "modelPath": "",
+  "modelFamily": "wan",
+  "modelRegistryEntry": {
+    "id": "wan2.2",
+    "name": "Wan 2.2 via ComfyUI",
+    "family": "wan",
+    "modelPath": "",
+    "type": "external-comfyui",
+    "available": true
+  },
+  "wanRuntime": "comfyui",
+  "wanDiagnostics": {
+    "runtime": "comfyui",
+    "message": "Runtime Wan nativo foi removido. Use ComfyUI externo."
+  },
+  "quality": "wan_wide_5s",
+  "exportSettings": {
+    "format": "mp4",
+    "videoCodec": "libx264",
+    "pixelFormat": "yuv420p"
+  },
+  "references": [
+    {
+      "path": "G:\\Trabalho\\AD Sune\\sune\\canvas-video-source.png",
+      "source": "canvas-layer",
+      "type": "image"
+    }
+  ],
+  "startImage": "G:\\Trabalho\\AD Sune\\sune\\canvas-video-source.png",
+  "endImage": "",
+  "useLastFrameForChaining": false,
+  "seed": -1,
+  "steps": 4,
+  "cfg": 1.5,
+  "sampler": "euler_ancestral",
+  "scheduler": "beta",
+  "shift": 8,
+  "denoise": 0.7,
+  "motionStrength": 0.5,
+  "imageStrength": 0.65,
+  "loras": [
+    {
+      "id": "canvas-wan-lora-1",
+      "name": "DR34ML4Y I2V 14B LOW V2",
+      "path": "F:\\AI\\models\\loras\\wan\\DR34ML4Y_I2V_14B_LOW_V2.safetensors",
+      "enabled": true,
+      "strength_model": 1,
+      "strength_clip": 1,
+      "weight": 1
+    }
+  ],
+  "outputPath": "F:\\AI\\Ai_kit\\output\\video\\canvas\\video-video-job-a571b315-6654-4069-b025-dead50a4fb28.mp4",
+  "thumbnailPath": "F:\\AI\\Ai_kit\\output\\video\\canvas\\video-video-job-a571b315-6654-4069-b025-dead50a4fb28.png",
+  "lastFramePath": "F:\\AI\\Ai_kit\\output\\video\\canvas\\video-video-job-a571b315-6654-4069-b025-dead50a4fb28-last-frame.png",
+  "projectAssetDir": "F:\\AI\\Ai_kit\\workspace\\projects\\studio\\assets\\video",
+  "workingDir": "F:\\AI\\Ai_kit\\temp\\studio-video-jobs\\video-job-a571b315-6654-4069-b025-dead50a4fb28",
+  "mode": "i2v",
+  "pipeline": {
+    "id": "standard-I2V",
+    "mode": "i2v",
+    "sourceStrategy": "start-image",
+    "supports": [
+      "interpolation",
+      "startFrame",
+      "endFrame",
+      "chaining",
+      "frame-guidance"
+    ]
+  },
+  "conditioning": {
+    "preferredMode": "i2v",
+    "startImage": "G:\\Trabalho\\AD Sune\\sune\\canvas-video-source.png",
+    "endImage": "",
+    "primaryReference": {
+      "id": "reference-1",
+      "label": "canvas-video-source.png",
+      "path": "G:\\Trabalho\\AD Sune\\sune\\canvas-video-source.png",
+      "type": "image",
+      "source": "canvas-layer",
+      "role": "",
+      "isImage": true,
+      "exists": true
+    },
+    "references": [
+      {
+        "id": "reference-1",
+        "label": "canvas-video-source.png",
+        "path": "G:\\Trabalho\\AD Sune\\sune\\canvas-video-source.png",
+        "type": "image",
+        "source": "canvas-layer",
+        "role": "",
+        "isImage": true,
+        "exists": true
+      }
+    ],
+    "loras": [
+      {
+        "id": "canvas-wan-lora-1",
+        "name": "DR34ML4Y I2V 14B LOW V2",
+        "path": "F:\\AI\\models\\loras\\wan\\DR34ML4Y_I2V_14B_LOW_V2.safetensors",
+        "weight": 1
+      }
+    ],
+    "logs": [
+      "preferred-mode:i2v",
+      "references:1",
+      "loras:1",
+      "start-image:payload"
+    ]
+  },
+  "output": {
+    "assetDir": "F:\\AI\\Ai_kit\\output\\video\\canvas",
+    "outputPath": "F:\\AI\\Ai_kit\\output\\video\\canvas\\video-video-job-a571b315-6654-4069-b025-dead50a4fb28.mp4",
+    "thumbnailPath": "F:\\AI\\Ai_kit\\output\\video\\canvas\\video-video-job-a571b315-6654-4069-b025-dead50a4fb28.png",
+    "lastFramePath": "F:\\AI\\Ai_kit\\output\\video\\canvas\\video-video-job-a571b315-6654-4069-b025-dead50a4fb28-last-frame.png",
+    "ratio": "9:16"
+  },
+  "summaryLogs": [
+    "pipeline:i2v",
+    "source:start-image",
+    "preferred-mode:i2v",
+    "references:1",
+    "loras:1",
+    "start-image:payload"
+  ]
+}

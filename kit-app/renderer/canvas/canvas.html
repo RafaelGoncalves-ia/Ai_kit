@@ -268,13 +268,19 @@
             <div id="propertyAlignGroup" class="inspector-group" hidden>
               <h3>Alinhar</h3>
               <div class="alignment-controls" aria-label="Alinhamento do objeto selecionado">
-                <button type="button" class="icon-button" data-align-action="center" title="Centralizar"><img src="../assets/icones/alinhar-ao-centro.svg" alt=""><span class="sr-only">Centralizar</span></button>
-                <button type="button" class="icon-button" data-align-action="center-h" title="Centralizar horizontal"><img src="../assets/icones/alinhar-ao-centro.svg" alt=""><span class="sr-only">Centralizar horizontal</span></button>
-                <button type="button" class="icon-button" data-align-action="center-v" title="Centralizar vertical"><img src="../assets/icones/alinhar-ao-centro.svg" alt=""><span class="sr-only">Centralizar vertical</span></button>
-                <button type="button" class="icon-button" data-align-action="left" title="Alinhar a esquerda"><img src="../assets/icones/alinhar-a-esquerda.svg" alt=""><span class="sr-only">Alinhar a esquerda</span></button>
-                <button type="button" class="icon-button" data-align-action="right" title="Alinhar a direita"><img src="../assets/icones/alinhar-a-direita.svg" alt=""><span class="sr-only">Alinhar a direita</span></button>
-                <button type="button" class="icon-button" data-align-action="top" title="Alinhar ao topo"><img src="../assets/icones/timeline/um-passo-atras.svg" alt=""><span class="sr-only">Alinhar ao topo</span></button>
-                <button type="button" class="icon-button" data-align-action="bottom" title="Alinhar a base"><img src="../assets/icones/timeline/um-passo-a-frente.svg" alt=""><span class="sr-only">Alinhar a base</span></button>
+                <div class="alignment-row alignment-row-3">
+                  <button type="button" class="icon-button" data-align-action="left" title="Alinhar a esquerda"><img src="../assets/icones/alinhar-a-esquerda.svg" alt=""><span class="sr-only">Alinhar a esquerda</span></button>
+                  <button type="button" class="icon-button" data-align-action="center" title="Centralizar"><img src="../assets/icones/alinhar-ao-centro.svg" alt=""><span class="sr-only">Centralizar</span></button>
+                  <button type="button" class="icon-button" data-align-action="right" title="Alinhar a direita"><img src="../assets/icones/alinhar-a-direita.svg" alt=""><span class="sr-only">Alinhar a direita</span></button>
+                </div>
+                <div class="alignment-row alignment-row-2">
+                  <button type="button" class="icon-button" data-align-action="bottom" title="Alinhar a base"><img src="../assets/icones/alinhar-baixo.svg" alt=""><span class="sr-only">Alinhar a base</span></button>
+                  <button type="button" class="icon-button" data-align-action="top" title="Alinhar ao topo"><img src="../assets/icones/alinhar-up.svg" alt=""><span class="sr-only">Alinhar ao topo</span></button>
+                </div>
+                <div class="alignment-row alignment-row-2">
+                  <button type="button" class="icon-button" data-align-action="center-h" title="Centralizar horizontal"><img src="../assets/icones/distribute-spacing-horizontal.svg" alt=""><span class="sr-only">Centralizar horizontal</span></button>
+                  <button type="button" class="icon-button" data-align-action="center-v" title="Centralizar vertical"><img src="../assets/icones/distribute-spacing-vertical.svg" alt=""><span class="sr-only">Centralizar vertical</span></button>
+                </div>
               </div>
             </div>
           </div>
@@ -443,7 +449,7 @@
                 <div id="sdInpaintMaskContext" class="inspector-note">Quando o modo for inpaint, o SD usara a mascara de inpaint do canvas. Essa mascara e separada da mascara de layer.</div>
               </div>
               <details class="ai-advanced-details">
-                <summary>Configuracoes avancadas</summary>
+                <summary>Opcoes avancadas</summary>
                 <label id="sdLoraRow">
                   LoRA
                   <select id="sdLora"></select>
@@ -649,7 +655,7 @@
                 <input id="aiVideoSeed" type="number" step="1" value="-1">
               </label>
               <details class="ai-advanced-details">
-                <summary>Opcoes avancadas</summary>
+                <summary>Configuracoes avancadas</summary>
                 <label>
                   Preset
                   <select id="aiVideoPreset">
@@ -666,6 +672,12 @@
                   <img id="aiVideoLoraPreview" alt="Preview da LoRA de video">
                 </div>
                 <div id="aiVideoWorkflowFields" class="video-lora-panel"></div>
+                <div class="workflow-params-panel">
+                  <div class="video-lora-header">
+                    <span>Parametros do Workflow</span>
+                  </div>
+                  <div id="aiVideoWorkflowAdvancedParams" class="workflow-advanced-params"></div>
+                </div>
               </details>
               <button id="aiVideoGenerateButton" type="button" class="ai-generate-button" data-ai-video-action="generate">
                 Gerar video
@@ -819,13 +831,13 @@ Escuro #20232A</textarea>
         <div class="timeline-tools" aria-label="Ferramentas da timeline">
           <button id="timelineSnapButton" class="timeline-player-button timeline-toggle-button" type="button" data-timeline-action="toggle-snap" title="Ima / Snap" aria-label="Ima / Snap" aria-pressed="false"><img src="../assets/icones/magnetismo.svg" alt=""></button>
           <button id="timelineAutoKeyframeButton" class="timeline-player-button timeline-toggle-button" type="button" data-timeline-action="toggle-auto-keyframe" title="Keyframe automatico" aria-label="Keyframe automatico" aria-pressed="false"><img src="../assets/icones/timeline/relogio.svg" alt=""></button>
-          <button class="timeline-global-button" type="button" data-timeline-action="add-keyframe">Adicionar marcador</button>
-          <button class="timeline-global-button" type="button" data-timeline-action="remove-keyframe">Remover marcador</button>
-          <button class="timeline-global-button" type="button" data-timeline-action="link-items">Grudar</button>
-          <button class="timeline-global-button" type="button" data-timeline-action="unlink-items">Desgrudar</button>
+          <button class="timeline-global-button" type="button" data-timeline-action="add-keyframe" title="Adicionar marcador" aria-label="Adicionar marcador"><img src="../assets/icones/adicionar-marker-plus.svg" alt=""><span class="sr-only">Adicionar marcador</span></button>
+          <button class="timeline-global-button" type="button" data-timeline-action="remove-keyframe" title="Remover marcador" aria-label="Remover marcador"><img src="../assets/icones/remover-marcador.svg" alt=""><span class="sr-only">Remover marcador</span></button>
+          <button class="timeline-global-button" type="button" data-timeline-action="link-items" title="Grudar" aria-label="Grudar"><img src="../assets/icones/grudar.svg" alt=""><span class="sr-only">Grudar</span></button>
+          <button class="timeline-global-button" type="button" data-timeline-action="unlink-items" title="Desgrudar" aria-label="Desgrudar"><img src="../assets/icones/desgrudar.svg" alt=""><span class="sr-only">Desgrudar</span></button>
         </div>
-        <button class="timeline-global-button" type="button" data-timeline-action="add-slide">Novo Slide</button>
-        <button class="timeline-global-button" type="button" data-timeline-action="remove-slide">Apagar Slide</button>
+        <button class="timeline-global-button" type="button" data-timeline-action="add-slide" title="Novo Slide" aria-label="Novo Slide"><img src="../assets/icones/novo%20Slide.svg" alt=""><span class="sr-only">Novo Slide</span></button>
+        <button class="timeline-global-button" type="button" data-timeline-action="remove-slide" title="Apagar Slide" aria-label="Apagar Slide"><img src="../assets/icones/excluir-slide.svg" alt=""><span class="sr-only">Apagar Slide</span></button>
         <span id="timelineStatus">1 slide</span>
       </div>
       <div id="timelineKeyframeEditor" class="timeline-keyframe-editor" hidden>
@@ -843,10 +855,10 @@ Escuro #20232A</textarea>
           <option value="easeInOut">easeInOut</option>
           <option value="hold">hold</option>
         </select></label>
-        <button class="timeline-global-button" type="button" data-keyframe-preset="fade-in">Fade in</button>
-        <button class="timeline-global-button" type="button" data-keyframe-preset="fade-out">Fade out</button>
-        <button class="timeline-global-button" type="button" data-keyframe-preset="mute">Mudo</button>
-        <button class="timeline-global-button" type="button" data-keyframe-preset="normal-volume">Volume normal</button>
+        <button class="timeline-global-button" type="button" data-keyframe-preset="fade-in" title="Fade in" aria-label="Fade in"><img src="../assets/icones/fade-in.svg" alt=""><span class="sr-only">Fade in</span></button>
+        <button class="timeline-global-button" type="button" data-keyframe-preset="fade-out" title="Fade out" aria-label="Fade out"><img src="../assets/icones/fade-out.svg" alt=""><span class="sr-only">Fade out</span></button>
+        <button class="timeline-global-button" type="button" data-keyframe-preset="mute" title="Mudo" aria-label="Mudo"><img src="../assets/icones/mudo.svg" alt=""><span class="sr-only">Mudo</span></button>
+        <button class="timeline-global-button" type="button" data-keyframe-preset="normal-volume" title="Volume normal" aria-label="Volume normal"><img src="../assets/icones/timeline/volume.svg" alt=""><span class="sr-only">Volume normal</span></button>
       </div>
       <div id="timelineTrack" class="timeline-track"></div>
     </footer>

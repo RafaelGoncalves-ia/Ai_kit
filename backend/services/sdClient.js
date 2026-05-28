@@ -156,6 +156,13 @@ export function createStableDiffusionClient(options = {}) {
         body: "{}"
       });
     },
+    async cleanup() {
+      return request("/cleanup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}"
+      });
+    },
     async generate(mode, payload = {}) {
       const normalizedMode = ["txt2img", "img2img", "inpaint"].includes(mode) ? mode : "txt2img";
       return request(`/${normalizedMode}`, {

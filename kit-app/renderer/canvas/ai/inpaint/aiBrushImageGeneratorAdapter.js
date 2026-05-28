@@ -74,6 +74,8 @@
     const firstImage = Array.isArray(response.images) ? response.images.find(Boolean) : "";
     const source = response.image
       || response.imageBase64
+      || response.imagePath
+      || response.imageUrl
       || response.output
       || response.outputPath
       || response.path
@@ -385,11 +387,13 @@
 
       await yieldStep(deps.status, "Enviando para inpaint...");
       console.info("[AI_BRUSH] inpaint request sent");
+      console.info("[CANVAS][SD] inpaint request started");
       deps.startProgressPolling?.();
       await yieldStep(deps.status, "Gerando edicao IA...");
       const result = await deps.withTimeout(deps.inpaintStableDiffusionImage(payload), 180000);
       console.info("[AI_BRUSH] inpaint response raw", result);
       console.info("[AI_BRUSH] inpaint response received");
+      console.info("[CANVAS][SD] inpaint response received");
       const normalizedResponse = normalizeInpaintResponse(result || {});
       console.info("[AI_BRUSH] normalized response", normalizedResponse);
 

@@ -13,9 +13,70 @@ function escapeRegExp(value = "") {
 }
 
 function buildCandidateList(config = {}) {
+  return buildWakeWordCandidates(config).map((candidate) => candidate.alias);
+}
+
+function ensureArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function pushAliasCandidate(candidates, seen, label, alias, source = "alias") {
+  const normalizedAlias = normalizeText(alias);
+  const normalizedLabel = normalizeText(label);
+  if (!normalizedAlias || !normalizedLabel) {
+    return;
+  }
+
+  const key = `${normalizedLabel}:${normalizedAlias}`;
+  if (seen.has(key)) {
+    return;
+  }
+
+  seen.add(key);
+  candidates.push({
+    label: normalizedLabel,
+    displayLabel: String(label || "").trim() || normalizedLabel,
+    alias: normalizedAlias,
+    source,
+    tokenCount: normalizedAlias.split(/\s+/).filter(Boolean).length
+  });
+}
+
+function buildWakeWordCandidates(config = {}) {
+  const candidates = [];
+  const seen = new Set();
+  const aliases = config.aliases && typeof config.aliases === "object" ? config.aliases : {};
+  const phoneticAliases = config.phoneticAliases && typeof config.phoneticAliases === "object"
+    ? config.phoneticAliases
+    : {};
+
+  for (const [label, values] of Object.entries(aliases)) {
+    for (const alias of ensureArray(values)) {
+      pushAliasCandidate(candidates, seen, label, alias, "alias");
+    }
+  }
+
+  for (const [label, values] of Object.entries(phoneticAliases)) {
+    for (const alias of ensureArray(values)) {
+      pushAliasCandidate(candidates, seen, label, alias, "phonetic");
+    }
+  }
+
+  for (const item of ensureArray(config.wakeWords)) {
+    pushAliasCandidate(candidates, seen, item, item, "legacy");
+  }
+
+  for (const item of ensureArray(config.wakeWordVariants)) {
+    pushAliasCandidate(candidates, seen, item, item, "legacy-variant");
+  }
+
+  return candidates.sort((a, b) => b.alias.length - a.alias.length);
+}
+
+function buildNegativeList(config = {}) {
   return [
-    ...(Array.isArray(config.wakeWords) ? config.wakeWords : []),
-    ...(Array.isArray(config.wakeWordVariants) ? config.wakeWordVariants : [])
+    ...ensureArray(config.negativeSamples),
+    ...ensureArray(config.negativeWakeWords)
   ]
     .map((item) => normalizeText(item))
     .filter(Boolean);
@@ -54,7 +115,8 @@ function findCompactMatch(normalizedTranscript = "", candidates = []) {
   }
 
   for (const candidate of candidates) {
-    const candidateCompact = compactText(candidate);
+    const candidateValue = typeof candidate === "string" ? candidate : candidate.alias;
+    const candidateCompact = compactText(candidateValue);
     if (!candidateCompact) {
       continue;
     }
@@ -62,7 +124,8 @@ function findCompactMatch(normalizedTranscript = "", candidates = []) {
     if (transcriptCompact.includes(candidateCompact)) {
       return {
         matched: true,
-        match: candidate,
+        match: candidateValue,
+        candidate,
         transcript: normalizedTranscript,
         matchType: "compact"
       };
@@ -78,7 +141,8 @@ function findFuzzyMatch(normalizedTranscript = "", candidates = []) {
   let best = null;
 
   for (const candidate of candidates) {
-    const candidateCompact = compactText(candidate);
+    const candidateValue = typeof candidate === "string" ? candidate : candidate.alias;
+    const candidateCompact = compactText(candidateValue);
     if (!candidateCompact || candidateCompact.length < 4) {
       continue;
     }
@@ -88,7 +152,7 @@ function findFuzzyMatch(normalizedTranscript = "", candidates = []) {
       windows.add(transcriptCompact);
     }
 
-    const candidateTokenCount = candidate.split(/\s+/).filter(Boolean).length;
+    const candidateTokenCount = candidateValue.split(/\s+/).filter(Boolean).length;
     for (let start = 0; start < tokens.length; start += 1) {
       for (let size = 1; size <= Math.max(candidateTokenCount + 1, 2); size += 1) {
         const slice = tokens.slice(start, start + size).join("");
@@ -106,7 +170,8 @@ function findFuzzyMatch(normalizedTranscript = "", candidates = []) {
       if (distance <= threshold && (!best || distance < best.distance)) {
         best = {
           matched: true,
-          match: candidate,
+          match: candidateValue,
+          candidate,
           transcript: normalizedTranscript,
           matchType: "fuzzy",
           distance
@@ -118,35 +183,112 @@ function findFuzzyMatch(normalizedTranscript = "", candidates = []) {
   return best;
 }
 
+function scoreMatch(match, candidate) {
+  if (!match?.matched || !candidate) {
+    return 0;
+  }
+
+  const aliasLength = compactText(candidate.alias).length;
+  const isShortSingleToken = candidate.tokenCount === 1 && aliasLength <= 3;
+
+  let score = 0;
+  if (match.matchType === "exact") {
+    score = candidate.tokenCount > 1 ? 0.98 : 0.92;
+  } else if (match.matchType === "compact") {
+    score = candidate.tokenCount > 1 ? 0.9 : 0.8;
+  } else if (match.matchType === "fuzzy") {
+    const maxLen = Math.max(aliasLength, compactText(match.transcript).length, 1);
+    score = Math.max(0, 1 - (Number(match.distance || 0) / maxLen));
+    if (candidate.tokenCount > 1) {
+      score = Math.max(score, 0.82);
+    }
+  }
+
+  if (candidate.source === "phonetic") {
+    score -= 0.04;
+  }
+
+  if (isShortSingleToken) {
+    score = Math.min(score, 0.65);
+  }
+
+  return Math.max(0, Math.min(1, Number(score.toFixed(3))));
+}
+
+function findNegativeMatch(normalizedTranscript = "", negatives = []) {
+  if (!normalizedTranscript || !negatives.length) {
+    return null;
+  }
+
+  for (const negative of negatives) {
+    const pattern = new RegExp(`(^|\\s)${escapeRegExp(negative)}(?=\\s|$)`, "i");
+    if (pattern.test(normalizedTranscript)) {
+      return negative;
+    }
+  }
+
+  const compactTranscript = compactText(normalizedTranscript);
+  return negatives.find((negative) => compactTranscript === compactText(negative)) || null;
+}
+
+function buildMatchResult(match, candidate, config, normalizedTranscript) {
+  const threshold = Number(config.threshold || 0.78);
+  const score = scoreMatch(match, candidate);
+  const negativeMatch = findNegativeMatch(normalizedTranscript, buildNegativeList(config));
+  const shouldConfirm = config.confirmWithPhoneticCheck !== false;
+  const confirmed = shouldConfirm
+    ? score >= threshold && !(negativeMatch && score < 0.9)
+    : !(negativeMatch && score < 0.9);
+
+  return {
+    matched: confirmed,
+    match: candidate?.alias || match?.match || null,
+    label: candidate?.displayLabel || candidate?.label || null,
+    matchedAlias: candidate?.alias || match?.match || null,
+    score,
+    confirmed,
+    transcript: normalizedTranscript,
+    matchType: match?.matchType || "none",
+    distance: match?.distance,
+    negativeMatch: negativeMatch || null
+  };
+}
+
 export function matchWakeWord(transcript = "", config = {}) {
   const normalizedTranscript = normalizeText(transcript);
-  const candidates = buildCandidateList(config);
+  const candidates = buildWakeWordCandidates(config);
 
   for (const candidate of candidates) {
-    const pattern = new RegExp(`(^|\\s)${escapeRegExp(candidate)}(?=\\s|$)`, "i");
+    const pattern = new RegExp(`(^|\\s)${escapeRegExp(candidate.alias)}(?=\\s|$)`, "i");
     if (pattern.test(normalizedTranscript)) {
-      return {
+      const match = {
         matched: true,
-        match: candidate,
+        match: candidate.alias,
+        candidate,
         transcript: normalizedTranscript,
         matchType: "exact"
       };
+      return buildMatchResult(match, candidate, config, normalizedTranscript);
     }
   }
 
   const compactMatch = findCompactMatch(normalizedTranscript, candidates);
   if (compactMatch) {
-    return compactMatch;
+    return buildMatchResult(compactMatch, compactMatch.candidate, config, normalizedTranscript);
   }
 
   const fuzzyMatch = findFuzzyMatch(normalizedTranscript, candidates);
   if (fuzzyMatch) {
-    return fuzzyMatch;
+    return buildMatchResult(fuzzyMatch, fuzzyMatch.candidate, config, normalizedTranscript);
   }
 
   return {
     matched: false,
     match: null,
+    label: null,
+    matchedAlias: null,
+    score: 0,
+    confirmed: false,
     transcript: normalizedTranscript,
     matchType: "none"
   };

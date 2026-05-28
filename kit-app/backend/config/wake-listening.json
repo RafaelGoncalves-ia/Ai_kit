@@ -1,25 +1,96 @@
 {
   "enabled": false,
   "wakeWords": [
-    "sune",
-    "kit sune"
+    "ei kit",
+    "ok kit",
+    "acorda kit",
+    "ei sune",
+    "ok sune"
   ],
   "wakeWordVariants": [
-    "kit",
-    "quiti",
     "kite",
     "quite",
     "kiti",
     "kity",
-    "sun",
-    "tsune",
-    "zune",
-    "sane",
-    "sani",
+    "kitty",
+    "sune",
     "suni",
     "suny",
-    "suno"
+    "sone"
   ],
+  "aliases": {
+    "Kit": [
+      "ei kit",
+      "ok kit",
+      "acorda kit"
+    ],
+    "Sune": [
+      "ei sune",
+      "ok sune",
+      "acorda sune"
+    ]
+  },
+  "phoneticAliases": {
+    "Kit": [
+      "kit",
+      "quite",
+      "kite",
+      "kiti",
+      "kity",
+      "kitty"
+    ],
+    "Sune": [
+      "sune",
+      "suni",
+      "suny",
+      "sone",
+      "sunê"
+    ]
+  },
+  "negativeSamples": [
+    "aqui",
+    "que",
+    "quente",
+    "quinta",
+    "quinto",
+    "kitnet",
+    "quitei",
+    "sumi",
+    "sono",
+    "soneca",
+    "sonho",
+    "sunset"
+  ],
+  "threshold": 0.78,
+  "confirmWithPhoneticCheck": true,
+  "models": [
+    {
+      "label": "Kit",
+      "path": "models/wakeword/ei_kit.onnx",
+      "aliases": [
+        "ei kit",
+        "ok kit",
+        "acorda kit"
+      ]
+    },
+    {
+      "label": "Sune",
+      "path": "models/wakeword/ei_sune.onnx",
+      "aliases": [
+        "ei sune",
+        "ok sune",
+        "acorda sune"
+      ]
+    }
+  ],
+  "multiLabelModel": {
+    "enabled": false,
+    "path": "",
+    "labels": [
+      "Kit",
+      "Sune"
+    ]
+  },
   "confirmationMode": "voice",
   "confirmationAudio": "F:/AI/Ai_kit/voz/kit/fala.wav",
   "fallbackAudio": "F:/AI/Ai_kit/voz/kit/bip.wav",
