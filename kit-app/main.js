@@ -1955,6 +1955,150 @@ ipcMain.handle("canvas:i2i:save-temp-png", async (event, payload = {}) => {
   };
 });
 
+ipcMain.handle("canvas:batch-editor:select-folder", async (event, options = {}) => {
+  const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+    title: options.title || "Selecionar pasta",
+    properties: ["openDirectory", "createDirectory"]
+  });
+  if (result.canceled || !result.filePaths[0]) {
+    return null;
+  }
+  return {
+    path: result.filePaths[0]
+  };
+});
+
+function isValidBatchEditorImageExtension(ext = "", options = {}) {
+  const normalizedExt = String(ext || "").toLowerCase();
+  return (options.allowPng !== false && normalizedExt === ".png") ||
+    (options.allowJpg !== false && (normalizedExt === ".jpg" || normalizedExt === ".jpeg"));
+}
+
+function scanBatchEditorDirectory(originDir = "", options = {}) {
+  if (!String(originDir || "").trim()) {
+    return [];
+  }
+  const originRoot = path.resolve(String(originDir || "").trim());
+  if (!originRoot || !fs.existsSync(originRoot) || !fs.statSync(originRoot).isDirectory()) {
+    return [];
+  }
+
+  const destinationRoot = String(options.destination || "").trim()
+    ? path.resolve(String(options.destination || "").trim())
+    : "";
+  const recursive = options.recursive !== false;
+  const pendingDirs = [originRoot];
+  const files = [];
+
+  while (pendingDirs.length) {
+    const currentDir = pendingDirs.shift();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    } catch (err) {
+      console.warn("[Batch Editor] Falha ao varrer pasta:", currentDir, err.message || err);
+      continue;
+    }
+
+    for (const entry of entries) {
+      const sourcePath = path.resolve(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        if (recursive) {
+          pendingDirs.push(sourcePath);
+        }
+        continue;
+      }
+
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      const ext = path.extname(entry.name).toLowerCase();
+      if (!isValidBatchEditorImageExtension(ext, options)) {
+        continue;
+      }
+
+      const relativePath = recursive
+        ? path.relative(originRoot, sourcePath)
+        : entry.name;
+      files.push({
+        sourcePath,
+        inputPath: sourcePath,
+        relativePath,
+        outputPath: destinationRoot ? path.join(destinationRoot, relativePath) : relativePath,
+        fileName: entry.name,
+        name: entry.name,
+        ext,
+        status: "pendente",
+        progress: 0,
+        error: ""
+      });
+    }
+  }
+
+  return files
+    .sort((a, b) => String(a.relativePath).localeCompare(String(b.relativePath), "pt-BR", { sensitivity: "base" }))
+    .map((item, index) => ({
+      ...item,
+      id: `batch-file-${index}`
+    }));
+}
+
+ipcMain.handle("canvas:batch-editor:scan-files", async (event, payload = {}) => {
+  const origin = String(payload.origin || "").trim();
+  const files = scanBatchEditorDirectory(origin, {
+    destination: payload.destination || "",
+    recursive: payload.recursive !== false,
+    allowPng: payload.allowPng !== false,
+    allowJpg: payload.allowJpg !== false
+  });
+  return {
+    success: true,
+    origin: origin ? path.resolve(origin) : "",
+    destination: payload.destination ? path.resolve(String(payload.destination || "")) : "",
+    total: files.length,
+    files
+  };
+});
+
+ipcMain.handle("canvas:batch-editor:save-image", async (event, payload = {}) => {
+  const dataUrl = String(payload.dataUrl || "");
+  const targetPath = String(payload.targetPath || payload.filePath || "").trim();
+  const match = dataUrl.match(/^data:image\/(png|jpeg);base64,(.+)$/);
+  if (!targetPath) {
+    throw new Error("Caminho de destino vazio.");
+  }
+  if (!match?.[1] || !match?.[2]) {
+    throw new Error("Imagem do Batch Editor invalida.");
+  }
+
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  const tempPath = path.join(
+    path.dirname(targetPath),
+    `.${path.basename(targetPath)}.${Date.now().toString(36)}.tmp`
+  );
+  fs.writeFileSync(tempPath, Buffer.from(match[2], "base64"));
+  fs.renameSync(tempPath, targetPath);
+  return {
+    filePath: targetPath
+  };
+});
+
+ipcMain.handle("canvas:batch-editor:save-log", async (event, payload = {}) => {
+  const targetDir = String(payload.targetDir || "").trim();
+  const requestedPath = String(payload.filePath || "").trim();
+  const text = String(payload.text || "");
+  if (!targetDir && !requestedPath) {
+    throw new Error("Pasta de destino vazia para log.");
+  }
+  const filePath = requestedPath || path.join(targetDir, `batch-editor-log-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, text, "utf8");
+  return {
+    filePath
+  };
+});
+
 function runFfmpeg(args = []) {
   return new Promise((resolve, reject) => {
     const ffmpeg = spawn("ffmpeg", args, { windowsHide: true });

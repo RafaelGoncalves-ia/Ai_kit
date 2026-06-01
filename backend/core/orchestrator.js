@@ -1,3 +1,6 @@
+import { isThemeActive } from "./sessionThemes/SessionThemeManager.js";
+import { isContextualLeagueQuestion } from "./sessionThemes/TopicDetector.js";
+
 function detectIntent(text) {
   const lower = String(text || "")
     .toLowerCase()
@@ -101,7 +104,23 @@ export default function createOrchestrator(context) {
     return agentRouteInitPromise;
   }
 
-  async function resolveRouteDecision({ input, hasMedia }) {
+  async function resolveRouteDecision({ input, hasMedia, sessionId = "default" }) {
+    const lolCoachSkill = context.core?.skillManager?.get?.("lolCoach");
+    if (!hasMedia && lolCoachSkill?.parseCommand?.(input)) {
+      return {
+        route: "realtime",
+        reason: "lolCoach_local_context"
+      };
+    }
+
+    const session = context.sessions?.[sessionId];
+    if (!hasMedia && session && isThemeActive(session, "league_of_legends") && isContextualLeagueQuestion(input)) {
+      return {
+        route: "realtime",
+        reason: "session_theme_league_of_legends"
+      };
+    }
+
     const intent = detectIntent(input);
 
     if (!intent.requiresLongTask || hasMedia) {
@@ -170,7 +189,8 @@ export default function createOrchestrator(context) {
 
       const decision = await resolveRouteDecision({
         input: normalizedInput,
-        hasMedia
+        hasMedia,
+        sessionId
       });
 
       if (decision.route === "agent") {

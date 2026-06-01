@@ -1,0 +1,52 @@
+{
+  "top": {
+    "lane": "top",
+    "goals": ["wave control", "side pressure", "short favorable trades"],
+    "commonThreats": ["jungle timing", "long lane all-in"],
+    "wavePrinciples": ["do not perma-push without vision", "thin wave before recall"],
+    "visionPrinciples": ["ward river or tri based on side"],
+    "roamRules": ["move after shove or teleport window"],
+    "commonMistakes": ["fighting big enemy wave", "overextending without jungle info"],
+    "importantTimers": ["level 2", "level 6", "first recall"]
+  },
+  "jungle": {
+    "lane": "jungle",
+    "goals": ["path efficiently", "play for form or objective windows", "track enemy jungler"],
+    "commonThreats": ["invade", "losing tempo", "failed forced ganks"],
+    "wavePrinciples": ["gank when ally wave allows follow-up"],
+    "visionPrinciples": ["control river before objectives"],
+    "roamRules": ["cross-map when opposite side is lost"],
+    "commonMistakes": ["forcing low value ganks", "ignoring lane priority"],
+    "importantTimers": ["scuttle", "grubs", "dragon", "form timing"]
+  },
+  "mid": {
+    "lane": "mid",
+    "goals": ["control wave center", "trade around cooldowns", "move with priority"],
+    "commonThreats": ["jungle gank", "roam punish", "all-in level 6"],
+    "wavePrinciples": ["crash before roam", "hold wave near safe side when threatened"],
+    "visionPrinciples": ["ward one side and lean to it"],
+    "roamRules": ["roam after shove or enemy recall"],
+    "commonMistakes": ["wasting key cc", "pushing without ward"],
+    "importantTimers": ["level 3", "level 6", "lost chapter recall"]
+  },
+  "adc": {
+    "lane": "adc",
+    "goals": ["farm safely", "scale item spikes", "position behind frontline"],
+    "commonThreats": ["engage support", "jungle dive"],
+    "wavePrinciples": ["respect level 2", "avoid freeze against engage"],
+    "visionPrinciples": ["track river and tri"],
+    "roamRules": ["rotate after bot tower or objective setup"],
+    "commonMistakes": ["hitting frontline too early without spacing"],
+    "importantTimers": ["level 2", "first item", "dragon"]
+  },
+  "support": {
+    "lane": "support",
+    "goals": ["control vision", "protect or engage based on class", "enable wave state"],
+    "commonThreats": ["bad roam timing", "face-checking"],
+    "wavePrinciples": ["help level 2", "do not break freezes accidentally"],
+    "visionPrinciples": ["ward objective approach before spawn"],
+    "roamRules": ["roam after crash or ADC safe reset"],
+    "commonMistakes": ["roaming while ADC is trapped"],
+    "importantTimers": ["level 2", "level 6", "dragon setup"]
+  }
+}

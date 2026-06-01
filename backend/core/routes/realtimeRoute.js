@@ -5,6 +5,12 @@ import {
 import { deriveEmotionFromState, getRouteBehavior } from "../personalityConfig.js";
 import { ensureOrchestratorRuntime } from "../../utils/runtimeState.js";
 import { buildHelpText, isHelpCommand } from "../CommandHelp.js";
+import { updateSessionThemes, isThemeActive } from "../sessionThemes/SessionThemeManager.js";
+import {
+  updateActiveEntities,
+  enrichLeagueQueryWithEntities
+} from "../sessionThemes/ActiveEntityTracker.js";
+import { isContextualLeagueQuestion } from "../sessionThemes/TopicDetector.js";
 
 export default function createRealtimeRoute(context) {
   const state = context.state;
@@ -1066,8 +1072,20 @@ export default function createRealtimeRoute(context) {
       }
 
       const audioSkill = context.core.skillManager.get("audio");
+      const lolCoachSkill = context.core.skillManager.get("lolCoach");
       const llmMode = context.services?.ai?.getMode?.()?.requested || "fast";
       const fastMode = llmMode === "fast";
+      const sessionThemeState = updateSessionThemes({ session, text });
+      const leagueThemeActive = isThemeActive(session, "league_of_legends");
+
+      if (leagueThemeActive) {
+        updateActiveEntities({
+          session,
+          text,
+          themeId: "league_of_legends",
+          lolCoachService: lolCoachSkill?.service
+        });
+      }
 
       const memoryResult = await context.invokeTool("memory_access", {
         action: "get_context",
@@ -1100,6 +1118,72 @@ export default function createRealtimeRoute(context) {
           memoryContext,
           sessionId
         });
+      }
+
+      let lolCoachContext = null;
+      const explicitLolCoachIntent = lolCoachSkill?.parseCommand?.(text);
+      const autoLolCoachIntent = (
+        !explicitLolCoachIntent &&
+        leagueThemeActive &&
+        (
+          sessionThemeState.detected?.theme === "league_of_legends" ||
+          isContextualLeagueQuestion(text)
+        )
+      )
+        ? {
+          type: "lolCoach",
+          action: "context",
+          text: enrichLeagueQueryWithEntities(text, session),
+          originalText: text,
+          sessionTheme: sessionThemeState.primaryTheme
+        }
+        : null;
+      const lolCoachIntent = explicitLolCoachIntent || autoLolCoachIntent;
+      if (lolCoachIntent) {
+        emitStatus(lolCoachIntent.action === "update" ? "atualizando base do LoL..." : "lendo base local do LoL...");
+        const lolCoachInput = (
+          lolCoachIntent.action === "context" &&
+          leagueThemeActive &&
+          explicitLolCoachIntent
+        )
+          ? {
+            ...lolCoachIntent,
+            text: enrichLeagueQueryWithEntities(lolCoachIntent.text || text, session),
+            originalText: text,
+            sessionTheme: sessionThemeState.primaryTheme
+          }
+          : lolCoachIntent;
+        const lolCoachResult = await lolCoachSkill.execute({
+          input: lolCoachInput,
+          context,
+          services: context.services,
+          tools: context.tools,
+          invokeTool: context.invokeTool,
+          skills: context.core.skillManager
+        });
+
+        if (lolCoachResult?.type === "status" || !lolCoachResult?.success) {
+          const reply = lolCoachResult?.message || "Base do LoL ainda não existe. Use: Kit, atualizar dados do LoL.";
+          context.core.responseQueue.enqueue({
+            text: reply,
+            speak: true,
+            priority: 1,
+            source: "realtime-lolCoach",
+            allowGeneric: true,
+            sessionId,
+            userFacing: true
+          });
+          emitStatus(null);
+
+          return {
+            handled: true,
+            type: "lolCoach",
+            response: reply,
+            result: lolCoachResult
+          };
+        }
+
+        lolCoachContext = lolCoachResult.runtimeContext || null;
       }
 
       if (intent.helpCommand) {
@@ -1201,7 +1285,7 @@ export default function createRealtimeRoute(context) {
         throw new Error("Nao encontrei midia valida para analisar.");
       }
 
-      let webSearchPlan = buildWebSearchPlan({
+      let webSearchPlan = lolCoachContext ? null : buildWebSearchPlan({
         text,
         mediaContext,
         intent
@@ -1255,6 +1339,7 @@ export default function createRealtimeRoute(context) {
         memoryContext,
         searchResult,
         mediaContext,
+        lolCoachContext,
         sessionId,
         realtimeThinkingEnabled
       });
@@ -1584,7 +1669,7 @@ Resposta natural:
     return null;
   }
 
-  async function generateResponse({ text, memoryContext, searchResult, mediaContext, sessionId, realtimeThinkingEnabled = false }) {
+  async function generateResponse({ text, memoryContext, searchResult, mediaContext, lolCoachContext = null, sessionId, realtimeThinkingEnabled = false }) {
     if (shouldPreferDirectMediaReply(text, mediaContext)) {
       if (context.config?.system?.realtimeStreamingEnabled !== false) {
         emitSyntheticRealtimeStream({
@@ -1604,6 +1689,7 @@ Resposta natural:
       memoryContext,
       searchResult,
       mediaContext,
+      lolCoachContext,
       usePersona: true
     });
 
@@ -1645,7 +1731,7 @@ Resposta natural:
     };
   }
 
-  async function buildPrompt({ text, memoryContext, searchResult, mediaContext, usePersona = true }) {
+  async function buildPrompt({ text, memoryContext, searchResult, mediaContext, lolCoachContext = null, usePersona = true }) {
     const personalityConfig = context.config?.personality || {};
     const base = personalityConfig.base || {};
     const routeBehavior = getRouteBehavior("realtime");
@@ -1665,6 +1751,7 @@ Resposta natural:
     const trimmedMemoryContext = truncateSection(memoryContext, hasVisualContext ? 700 : 500);
     const trimmedSearchResult = truncateSection(searchResult, 700);
     const trimmedMediaSummary = truncateSection(mediaContext?.summary || "", hasVisualContext ? 2200 : 500);
+    const trimmedLolCoachContext = truncateSection(lolCoachContext?.contextText || "", 1800);
     const realtimeInstructions = (routeBehavior.instructions || [])
       .map((instruction) => `- ${instruction}`)
       .join("\n");
@@ -1709,6 +1796,19 @@ ${promptSections.visualContextTitle || "Contexto de midia analisada"}:
 
 Use esse contexto de midia junto com a instrucao textual. Se a analise estiver insuficiente, diga isso explicitamente e nao invente.
 ` : "";
+    const lolCoachLayer = trimmedLolCoachContext ? `
+Contexto tecnico local de LoL:
+${trimmedLolCoachContext}
+
+Metadados lolCoach:
+- Camada: ${lolCoachContext.layer}
+- Intent: ${lolCoachContext.intent}
+- Patch fonte: ${lolCoachContext.sourcePatch}
+- Politica de personalidade: ${lolCoachContext.personalityPolicy}
+- Restricoes de resposta: ${JSON.stringify(lolCoachContext.responseConstraints || {})}
+
+Use o contexto tecnico acima como base factual para League of Legends. A personalidade, tom e estilo continuam vindo exclusivamente da rota atual da KIT.
+` : "";
     const currentDateTime = buildCurrentDateTimeContext();
     const temporalLayer = `
 Data e hora atuais:
@@ -1725,6 +1825,7 @@ ${temporalLayer}
 ${memoryLayer}
 ${searchLayer}
 ${mediaLayer}
+${lolCoachLayer}
 
 Instrucao do usuario:
 ${effectiveUserText}
@@ -1738,6 +1839,7 @@ ${isVisualComparison ? "Se o pedido for comparar imagem de cima e de baixo, resp
 ${trimmedSearchResult ? "Quando houver resultado de pesquisa web, priorize essas fontes acima da memoria do modelo. Se algo nao estiver confirmado nas fontes, diga que nao conseguiu confirmar." : ""}
 ${trimmedSearchResult ? "Se a pergunta pedir o ultimo, a ultima, o mais recente ou o atual, compare as fontes e prefira a informacao mais recente, dando prioridade a dominio oficial quando existir." : ""}
 ${trimmedSearchResult ? "Se voce usar a pesquisa web para responder, termine com uma secao 'Fontes:' citando de 1 a 3 URLs ou dominios das fontes usadas." : ""}
+${trimmedLolCoachContext ? "Para LoL, nao diga que pesquisou na web; esta resposta usa cache local. Respeite as restricoes de resposta do lolCoach sem expor JSON cru." : ""}
 Se houver imagem ou tela no contexto, responda com base nela.
 Resposta:
 `;

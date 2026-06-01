@@ -1,0 +1,26 @@
+{
+  "early": {
+    "timeRange": "0-14",
+    "mainGoals": ["lane stability", "first recall quality", "safe vision"],
+    "commonRisks": ["overforcing", "dying before first objective"],
+    "itemPriorityLogic": ["core component", "survival if matchup demands it"],
+    "objectivePriority": ["grubs", "first dragon when lane priority exists"],
+    "responseStyle": "short and practical"
+  },
+  "mid": {
+    "timeRange": "14-25",
+    "mainGoals": ["objective setup", "side wave management", "second item spike"],
+    "commonRisks": ["fighting without vision", "late resets"],
+    "itemPriorityLogic": ["complete core", "buy counter item if enemy threat is fed"],
+    "objectivePriority": ["dragon stacking", "baron vision"],
+    "responseStyle": "decision focused"
+  },
+  "late": {
+    "timeRange": "25+",
+    "mainGoals": ["do not get picked", "play win condition", "protect carry or flank"],
+    "commonRisks": ["one death loses objective", "face-check"],
+    "itemPriorityLogic": ["survivability and penetration beat greedy damage if fights decide game"],
+    "objectivePriority": ["baron", "elder", "soul"],
+    "responseStyle": "risk aware"
+  }
+}

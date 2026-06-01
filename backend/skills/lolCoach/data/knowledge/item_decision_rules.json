@@ -1,0 +1,34 @@
+{
+  "anti_heal": {
+    "trigger": ["enemy sustain", "healing support", "drain tank"],
+    "usefulAgainst": ["Swain", "Aatrox", "Soraka", "Yuumi", "Rhaast"],
+    "recommendedStats": ["grievous_wounds"],
+    "examples": ["Morellonomicon for AP", "Executioner line for AD"],
+    "avoidWhen": ["enemy healing is low"],
+    "explanation": "Anti-heal is efficient when healing changes fight outcome, not as a blind default."
+  },
+  "anti_tank": {
+    "trigger": ["two or more tanks", "high health", "high resistances"],
+    "usefulAgainst": ["Sion", "Ornn", "Sejuani"],
+    "recommendedStats": ["percent_pen", "max_health_damage", "sustain"],
+    "examples": ["armor penetration for AD", "magic penetration for AP"],
+    "avoidWhen": ["enemy team is mostly squishy"],
+    "explanation": "Percent penetration and sustained damage gain value into stacked durability."
+  },
+  "burst_survival": {
+    "trigger": ["assassin threat", "hard all-in", "fed AD melee"],
+    "usefulAgainst": ["Yasuo", "Yone", "Zed"],
+    "recommendedStats": ["stasis", "armor", "health", "shield"],
+    "examples": ["Zhonyas-style stasis for AP users"],
+    "avoidWhen": ["you are never threatened in fight"],
+    "explanation": "Surviving the first engage often matters more than greedy damage."
+  },
+  "snowball_damage": {
+    "trigger": ["ahead", "enemy squishy", "low resistances"],
+    "usefulAgainst": ["marksman", "mage", "enchanter"],
+    "recommendedStats": ["flat_pen", "burst_damage", "ability_haste"],
+    "examples": ["lethality for AD assassins", "magic penetration for AP burst"],
+    "avoidWhen": ["enemy frontline is the problem"],
+    "explanation": "Flat burst gains value when targets have low durability."
+  }
+}

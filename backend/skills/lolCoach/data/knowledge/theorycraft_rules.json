@@ -1,0 +1,10 @@
+{
+  "competitive_guardrail": {
+    "rule": "Do not present forbidden champion stats as competitive recommendations.",
+    "confidence": "rules_based"
+  },
+  "offmeta_policy": {
+    "rule": "If the user explicitly asks for off-meta, mark it experimental and separate safe recommendation from risk.",
+    "confidence": "rules_based"
+  }
+}

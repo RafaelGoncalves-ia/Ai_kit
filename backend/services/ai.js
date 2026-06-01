@@ -597,6 +597,42 @@ export default function createAIService(context) {
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 
+  async function isModelLoaded(model) {
+    if (!model) {
+      return false;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+
+    try {
+      const response = await fetch(`${OLLAMA_URL}/api/ps`, {
+        signal: controller.signal
+      });
+      const data = await response.json().catch(() => ({}));
+      const loadedModels = Array.isArray(data?.models) ? data.models : [];
+
+      return loadedModels.some((item) => {
+        const loadedName = item?.model || item?.name;
+        if (loadedName !== model) {
+          return false;
+        }
+
+        if (!item?.expires_at) {
+          return true;
+        }
+
+        const expiresAt = Date.parse(item.expires_at);
+        return !Number.isFinite(expiresAt) || expiresAt > Date.now() + 5000;
+      });
+    } catch (err) {
+      logger.warn(`[LLM][MODE] nao consegui verificar modelo carregado: ${err.message}`);
+      return false;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async function loadMode(modeId, reason = "manual_selection") {
     const mode = LLM_MODES[modeId];
     if (!mode) {
@@ -664,9 +700,14 @@ export default function createAIService(context) {
 
     const target = LLM_MODES[normalizedTarget];
     if (currentMode === normalizedTarget && currentModel === target.model) {
-      console.log(`[LLM][MODE] active=${normalizedTarget} model=${target.model.split(":").pop()} reason=${reason} keep_alive=${target.keepAlive}`);
-      emitModeChanged({ reason });
-      return { ok: true, mode: normalizedTarget, model: target.model, unchanged: true };
+      if (await isModelLoaded(target.model)) {
+        console.log(`[LLM][MODE] active=${normalizedTarget} model=${target.model.split(":").pop()} reason=${reason} keep_alive=${target.keepAlive}`);
+        emitModeChanged({ reason });
+        return { ok: true, mode: normalizedTarget, model: target.model, unchanged: true };
+      }
+
+      console.log(`[LLM][MODE] reload=${normalizedTarget} model=${target.model.split(":").pop()} reason=${reason} keep_alive=${target.keepAlive}`);
+      return await loadMode(normalizedTarget, reason);
     }
 
     const previousMode = currentMode;
@@ -716,7 +757,14 @@ export default function createAIService(context) {
     }
 
     if (currentMode === normalizedTarget && currentModel === LLM_MODES[normalizedTarget].model) {
-      return { ok: true, mode: normalizedTarget, model: currentModel };
+      if (await isModelLoaded(currentModel)) {
+        return { ok: true, mode: normalizedTarget, model: currentModel };
+      }
+
+      logger.info(
+        `[LLM][MODE] estado indicava ${normalizedTarget}, mas o modelo nao esta carregado; aquecendo antes da chamada`
+      );
+      return switchMode(normalizedTarget, `${reason}_reload`);
     }
 
     return switchMode(normalizedTarget, reason);

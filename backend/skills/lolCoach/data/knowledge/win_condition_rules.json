@@ -1,0 +1,20 @@
+{
+  "snowball_lane": {
+    "whenApplies": ["winning matchup", "early spike", "enemy vulnerable pre-6"],
+    "howToPlay": ["trade around cooldowns", "crash wave before roam", "convert kill pressure into objective"],
+    "commonMistakes": ["forcing when key cooldown is down", "overpushing without vision"],
+    "shortAdvice": "Win lane through controlled trades, then move first."
+  },
+  "pick_before_objective": {
+    "whenApplies": ["burst or cc comp", "enemy squishy carries"],
+    "howToPlay": ["set vision early", "wait in fog", "force numbers advantage"],
+    "commonMistakes": ["starting objective before vision control"],
+    "shortAdvice": "Create a pick before objective instead of flipping the fight."
+  },
+  "front_to_back": {
+    "whenApplies": ["strong ADC", "frontline available", "enemy engage"],
+    "howToPlay": ["protect carry", "hit closest target", "save peel cooldowns"],
+    "commonMistakes": ["diving past frontline"],
+    "shortAdvice": "Let the carry deal damage while frontline and peel buy time."
+  }
+}

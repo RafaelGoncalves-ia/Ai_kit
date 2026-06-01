@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "savedAt": "2026-05-27T22:42:50.399Z",
+  "savedAt": "2026-06-01T06:53:41.495Z",
   "filePath": null,
   "project": {
     "schema": "kit.project.v1",
@@ -47,7 +47,7 @@
     "metadata": {
       "app": "KIT IA",
       "module": "Canvas KIT IA",
-      "updatedFromCanvasAt": "2026-05-27T22:42:50.399Z"
+      "updatedFromCanvasAt": "2026-06-01T06:53:41.495Z"
     },
     "ai": {
       "prompts": [],
@@ -68,7 +68,7 @@
             "objects": []
           },
           "createdAt": "2026-05-27T21:45:13.735Z",
-          "updatedAt": "2026-05-27T22:42:50.399Z"
+          "updatedAt": "2026-06-01T06:53:41.494Z"
         }
       ],
       "items": [],

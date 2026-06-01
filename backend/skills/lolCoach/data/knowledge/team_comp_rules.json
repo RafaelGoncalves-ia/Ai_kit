@@ -1,0 +1,23 @@
+{
+  "squishy_comp": {
+    "detectionHints": ["three or more squishy champions"],
+    "threats": ["burst race", "pick potential"],
+    "counterplay": ["frontloaded burst", "flanks", "vision denial"],
+    "itemLogic": ["flat penetration", "damage", "ability haste"],
+    "championPreference": ["assassin", "burst mage", "hard engage"]
+  },
+  "tank_comp": {
+    "detectionHints": ["two or more tanks or juggernauts"],
+    "threats": ["frontline durability", "extended fights"],
+    "counterplay": ["percent penetration", "sustained damage", "anti-heal if drain exists"],
+    "itemLogic": ["armor_pen", "magic_pen", "max_health_damage", "sustain"],
+    "championPreference": ["sustained DPS", "drain fighter", "battle mage"]
+  },
+  "heavy_engage": {
+    "detectionHints": ["multiple engage and cc classes"],
+    "threats": ["initial engage decides fight"],
+    "counterplay": ["spacing", "stasis", "peel", "vision before objective"],
+    "itemLogic": ["survivability", "tenacity", "stasis"],
+    "championPreference": ["disengage", "frontline", "anti-engage"]
+  }
+}

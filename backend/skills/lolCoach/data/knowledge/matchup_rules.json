@@ -1,0 +1,14 @@
+{
+  "Vex": {
+    "Yasuo": {
+      "lane": "mid",
+      "difficulty": "favorable_if_disciplined",
+      "why": ["Vex punishes dashes", "Yasuo suffers when fear is held for his engage"],
+      "playPattern": ["hold fear/passive", "short trades", "avoid extended melee range"],
+      "avoid": ["wasting fear without reason", "standing in melee range", "perma-pushing without vision"],
+      "items": ["lost_chapter_item", "zhonyas_if_threatened", "magic_pen"],
+      "runes": ["electrocute", "taste_of_blood"],
+      "shortAdvice": "Hold fear to punish Yasuo dash. Short trades, controlled wave, and stasis if his all-in becomes the main threat."
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "effective_physical_damage": {
+    "formula": "damageMultiplier = 100 / (100 + armor)",
+    "type": "approximation"
+  },
+  "effective_magic_damage": {
+    "formula": "damageMultiplier = 100 / (100 + magicResist)",
+    "type": "approximation"
+  },
+  "armor_after_lethality": {
+    "formula": "effectiveArmor = max(0, armor - lethality)",
+    "type": "approximation"
+  },
+  "resistance_after_percent_pen": {
+    "formula": "effectiveResistance = resistance * (1 - percentPen)",
+    "type": "approximation"
+  },
+  "max_health_damage_value": {
+    "logic": "Gains value against champions with high maximum health.",
+    "type": "heuristic"
+  },
+  "flat_burst_value": {
+    "logic": "Gains value against fragile targets.",
+    "type": "heuristic"
+  }
+}

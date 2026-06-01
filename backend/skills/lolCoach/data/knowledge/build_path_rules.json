@@ -1,0 +1,23 @@
+{
+  "ap_burst_mage": {
+    "requiredStats": ["ability_power", "magic_pen", "ability_haste"],
+    "optionalStats": ["mana", "stasis"],
+    "forbiddenStats": ["attack_damage", "critical_strike", "lethality"],
+    "goodAgainst": ["squishy_comp", "mobile_champions"],
+    "reasoning": ["AP burst scales with magic penetration and cooldown access."]
+  },
+  "ad_assassin_burst": {
+    "requiredStats": ["lethality", "attack_damage", "ability_haste"],
+    "optionalStats": ["armor_pen"],
+    "forbiddenStats": ["ability_power", "critical_strike"],
+    "goodAgainst": ["squishy_comp", "low_armor"],
+    "reasoning": ["Flat penetration and AD maximize frontloaded burst."]
+  },
+  "bruiser_sustain": {
+    "requiredStats": ["health", "ability_haste", "sustain"],
+    "optionalStats": ["armor_pen", "magic_resist", "armor"],
+    "forbiddenStats": ["pure_lethality_against_tanks"],
+    "goodAgainst": ["tank_comp", "extended_fight"],
+    "reasoning": ["Durability and sustain win long fights against frontline."]
+  }
+}

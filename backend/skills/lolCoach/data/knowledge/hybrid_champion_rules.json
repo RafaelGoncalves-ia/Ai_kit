@@ -1,0 +1,18 @@
+{
+  "Kayn": {
+    "paths": {
+      "shadow_assassin": {
+        "goodAgainst": ["squishy_comp", "low_cc", "low_armor", "frontloaded_burst"],
+        "preferredStats": ["lethality", "attack_damage", "ability_haste"],
+        "avoidStats": ["health_stack", "slow_scaling_defense"],
+        "playPattern": "burst_and_escape"
+      },
+      "rhaast": {
+        "goodAgainst": ["tank_comp", "bruiser_comp", "extended_fight", "anti_tank_efficiency"],
+        "preferredStats": ["health", "ability_haste", "armor_pen", "sustain"],
+        "avoidStats": ["pure_lethality_against_tanks"],
+        "playPattern": "extended_fight_drain"
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "electrocute": {
+    "archetype": ["burst", "assassin", "short_trade"],
+    "goodWhen": ["short burst trades", "kill threat matters"],
+    "badWhen": ["extended DPS fight", "cannot proc reliably"],
+    "examples": ["Vex burst lane"],
+    "explanation": "Electrocute rewards short controlled trades and all-in windows."
+  },
+  "comet": {
+    "archetype": ["poke", "artillery_mage"],
+    "goodWhen": ["repeatable poke", "long range lane"],
+    "badWhen": ["enemy dodges easily", "all-in lane"],
+    "examples": ["Lux poke"],
+    "explanation": "Comet is better when poke is frequent and safe."
+  },
+  "conqueror": {
+    "archetype": ["fighter", "skirmisher", "extended_fight"],
+    "goodWhen": ["long fights", "melee DPS"],
+    "badWhen": ["one-shot burst pattern"],
+    "examples": ["Rhaast path"],
+    "explanation": "Conqueror rewards extended fights and repeated damage."
+  }
+}

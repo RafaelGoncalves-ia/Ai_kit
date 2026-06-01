@@ -1,0 +1,2744 @@
+{
+  "Aatrox": {
+    "id": "Aatrox",
+    "name": "Aatrox",
+    "tags": [
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Antes defensores honrados de Shurima contra o temido Vazio, Aatrox e seus irmãos acabaram se tornando uma ameaça ainda maior para Runeterra, e a única coisa capaz de derrotá-los foi um tipo de feitiçaria mortal e traiçoe"
+  },
+  "Ahri": {
+    "id": "Ahri",
+    "name": "Ahri",
+    "tags": [
+      "Mage",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "A ligação de Ahri com a magia do mundo espiritual é inata. Ela é uma vastaya com traços de raposa, capaz de manipular as emoções de sua presa e consumir sua essência, devorando também as memórias e as percepções de cada "
+  },
+  "Akali": {
+    "id": "Akali",
+    "name": "Akali",
+    "tags": [
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Abandonando a Ordem Kinkou e seu título de Punho das Sombras, Akali agora ataca sozinha, pronta para ser a arma mortal que seu povo precisa. Embora ela mantenha tudo o que aprendeu com seu mestre Shen, ela se comprometeu"
+  },
+  "Akshan": {
+    "id": "Akshan",
+    "name": "Akshan",
+    "tags": [
+      "Marksman",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Akshan ri da cara do perigo, lutando contra o mal com carisma, determinação e desejo de vingança, mas, estranhamente, sem vestir uma camisa sequer. É extremamente habilidoso na arte do combate furtivo, capaz de sumir da "
+  },
+  "Alistar": {
+    "id": "Alistar",
+    "name": "Alistar",
+    "tags": [
+      "Tank",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um poderoso guerreiro com uma temível reputação, Alistar busca vingança por seu clã, morto pelas mãos do império de Noxus. Apesar de ter sido escravizado e forçado a uma vida de gladiador, sua vontade indestrutível o imp"
+  },
+  "Ambessa": {
+    "id": "Ambessa",
+    "name": "Ambessa",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Todos que conhecem o nome Medarda respeitam e temem a líder da família, Ambessa. Como general noxiana, ela incorpora uma combinação mortal de força implacável e determinação destemida em batalha. Seu papel como matriarca"
+  },
+  "Amumu": {
+    "id": "Amumu",
+    "name": "Amumu",
+    "tags": [
+      "Tank",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Reza a lenda que Amumu é uma alma solitária e melancólica da antiga Shurima que vaga sem rumo pelo mundo em busca de um amigo. Amaldiçoado por um feitiço ancestral para permanecer só pela eternidade, seu toque traz a mor"
+  },
+  "Anivia": {
+    "id": "Anivia",
+    "name": "Anivia",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Anivia é um espírito alado e benevolente que suporta infinitos ciclos de vida, morte e renascimento para proteger Freljord. Uma semideusa nascida de ventos impiedosos e frios brutais, ela carrega esses poderes elementais"
+  },
+  "Annie": {
+    "id": "Annie",
+    "name": "Annie",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Perigosa, mas adoravelmente precoce, Annie é uma pequena maga com imenso poder piromaníaco. Mesmo isolada nas sombras das montanhas ao norte de Noxus, ela causa estranhamento com sua magia. Sua afinidade natural com o fo"
+  },
+  "Aphelios": {
+    "id": "Aphelios",
+    "name": "Aphelios",
+    "tags": [
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Emergindo da sombra do luar com suas armas em mãos, Aphelios abate os inimigos de sua fé em absoluto silêncio, comunicando-se apenas pela destreza de sua mira e pelo disparo de cada arma. Embora viva sob o efeito de um v"
+  },
+  "Ashe": {
+    "id": "Ashe",
+    "name": "Ashe",
+    "tags": [
+      "Marksman",
+      "Support"
+    ],
+    "likelyRoles": [
+      "adc",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "A mãe de guerra Glacinata da tribo de Avarosa, Ashe comanda a horda mais populosa do norte. Estoica, inteligente e idealista, mesmo que desconfortável com seu papel de liderança, ela canaliza as magias ancestrais de sua "
+  },
+  "AurelionSol": {
+    "id": "AurelionSol",
+    "name": "Aurelion Sol",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Aurelion Sol costumava agraciar a vasta imensidão vazia dos cosmos com maravilhas celestiais concebidas por ele mesmo. Agora, ele é forçado a usar seu incrível poder a mando de um império espacial remoto que o enganou e "
+  },
+  "Aurora": {
+    "id": "Aurora",
+    "name": "Aurora",
+    "tags": [
+      "Mage",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Desde que nasceu, Aurora vive com uma habilidade inigualável de viajar entre os reinos dos mortais e dos espíritos. Determinada a aprender mais sobre os habitantes do reino espiritual, ela deixou seu lar para trás com o "
+  },
+  "Azir": {
+    "id": "Azir",
+    "name": "Azir",
+    "tags": [
+      "Mage",
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Azir foi um imperador mortal de Shurima em uma era muito antiga e um homem orgulhoso que esteve a um passo da imortalidade. Sua insolência fez com que fosse traído e assassinado no momento de seu maior triunfo, mas agora"
+  },
+  "Bard": {
+    "id": "Bard",
+    "name": "Bardo",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Viajante de galáxias distantes, Bardo é um agente do acaso que luta para manter um equilíbrio em que a vida possa suportar a indiferença do caos. Muitos habitantes de Runeterra entoam canções que louvam sua extraordinári"
+  },
+  "Belveth": {
+    "id": "Belveth",
+    "name": "Bel'Veth",
+    "tags": [
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Bel'Veth, uma imperatriz tenebrosa nascida da essência de uma cidade devorada, é o fim da própria Runeterra... E o início de uma realidade monstruosa criada à sua imagem. Guiada por eras de história, conhecimento e lembr"
+  },
+  "Blitzcrank": {
+    "id": "Blitzcrank",
+    "name": "Blitzcrank",
+    "tags": [
+      "Tank",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Blitzcrank é um autômato enorme e praticamente indestrutível de Zaun, construído originalmente para lidar com lixo tóxico. No entanto, ele achou seu propósito principal muito restritivo e modificou sua própria forma para"
+  },
+  "Brand": {
+    "id": "Brand",
+    "name": "Brand",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "A criatura conhecida como Brand já se chamou Kegan Rodhe, um membro da gélida Freljord, e é hoje uma lição do que a tentação por poderes maiores pode fazer. Enquanto buscava uma das lendárias Runas Globais, Kegan traiu s"
+  },
+  "Braum": {
+    "id": "Braum",
+    "name": "Braum",
+    "tags": [
+      "Tank",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Abençoado com bíceps gigantescos e um coração maior ainda, Braum é um amado herói de Freljord. Cada salão de hidromel ao norte de Guardageada brinda sua força lendária que teria derrubado uma floresta de carvalhos em uma"
+  },
+  "Briar": {
+    "id": "Briar",
+    "name": "Briar",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "A incontrolável sede de sangue de Briar, um experimento fracassado da Rosa Negra, exigia uma estrutura especial para controlar sua mente frenética. Após anos de confinamento, essa arma viva se libertou de todas as restri"
+  },
+  "Caitlyn": {
+    "id": "Caitlyn",
+    "name": "Caitlyn",
+    "tags": [
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Conhecida como sua melhor pacificadora, Caitlyn Kiramman também é a melhor escolha de Piltover para livrar a cidade de seus elementos criminosos elusivos. É comum que ela faça dupla com Vi, agindo como um contraponto de "
+  },
+  "Camille": {
+    "id": "Camille",
+    "name": "Camille",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Munida para agir além dos limites da lei, Camille é a chefe de inteligência do Clã Ferros e uma elegante agente de elite, responsável pelo bom funcionamento da máquina de Piltover e de Zaun, seu submundo. Adaptável e pre"
+  },
+  "Cassiopeia": {
+    "id": "Cassiopeia",
+    "name": "Cassiopeia",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Cassiopeia é uma criatura mortal dedicada a manipular os outros para fazer suas vontades sinistras. A mais bela e mais nova filha da nobre família Du Couteau de Noxus aventurou-se pelas criptas profundas sob Shurima em b"
+  },
+  "Chogath": {
+    "id": "Chogath",
+    "name": "Cho'Gath",
+    "tags": [
+      "Tank",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "support"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "A partir do momento em que Cho'Gath emergiu da terra para a luz do sol ofuscante de Runeterra, a besta foi motivada por pura fome insaciável. A mais perfeita expressão do desejo do Vazio de consumir toda a vida, a biolog"
+  },
+  "Corki": {
+    "id": "Corki",
+    "name": "Corki",
+    "tags": [
+      "Marksman",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Corki, o piloto yordle, ama duas coisas acima de qualquer outra: voar e seu glamoroso bigode... não necessariamente nessa ordem. Depois de deixar Bandópolis, ele se estabeleceu em Piltover e se apaixonou pelas máquinas m"
+  },
+  "Darius": {
+    "id": "Darius",
+    "name": "Darius",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Não há símbolo maior do poder de Noxus do que Darius, o mais temido e experiente comandante da nação. Vindo de origens humildes para se tornar a Mão de Noxus, ele corta seu caminho através dos inimigos do império; muitos"
+  },
+  "Diana": {
+    "id": "Diana",
+    "name": "Diana",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Empunhando sua espada lunar crescente, Diana luta como uma guerreira dos Lunari, um credo quase extinto nas terras ao redor do Monte Targon. Vestida com uma armadura brilhante da cor da neve de inverno noturna, ela é a p"
+  },
+  "Draven": {
+    "id": "Draven",
+    "name": "Draven",
+    "tags": [
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Em Noxus, guerreiros conhecidos como Desafiadores lutam um contra o outro em uma arena onde sangue é derramado e a força é testada, mas nenhum foi tão celebrado como Draven. Antes um soldado, ele descobriu que as multidõ"
+  },
+  "DrMundo": {
+    "id": "DrMundo",
+    "name": "Dr. Mundo",
+    "tags": [
+      "Tank",
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Completamente maluco, tragicamente perigoso e terrivelmente roxo, Dr. Mundo é o que mantém muitos zaunitas dentro de casa nas noites mais escuras. Hoje se diz médico, mas ele já foi um paciente do manicômio mais infame d"
+  },
+  "Ekko": {
+    "id": "Ekko",
+    "name": "Ekko",
+    "tags": [
+      "Assassin",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Prodígio das ruas violentas de Zaun, Ekko é capaz de manipular o tempo e reverter qualquer situação a seu favor. Ele usa sua própria invenção, o Revo-Z, para explorar as possíveis ramificações da realidade, criando o mom"
+  },
+  "Elise": {
+    "id": "Elise",
+    "name": "Elise",
+    "tags": [
+      "Assassin",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Elise é uma predadora mortal que vive em um palácio escuro e reservado nas profundezas da cidade mais antiga de Noxus. Ela já foi mortal um dia, dama de uma família antes poderosa, mas a mordida de uma aranha peçonhenta "
+  },
+  "Evelynn": {
+    "id": "Evelynn",
+    "name": "Evelynn",
+    "tags": [
+      "Assassin",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Nas ruelas sombrias de Runeterra, a criatura demoníaca Evelynn busca sua próxima vítima. Ela atrai presas com sua voluptuosa aparência de fêmea humana, mas assim que a vítima sucumbe ao seu charme, a verdadeira forma de "
+  },
+  "Ezreal": {
+    "id": "Ezreal",
+    "name": "Ezreal",
+    "tags": [
+      "Marksman",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um aventureiro arrojado, com um talento nato nas artes mágicas, Ezreal desbrava catacumbas soterradas, envolve-se com antigas maldições e supera com facilidade as situações mais improváveis. Sua coragem e ousadia não têm"
+  },
+  "Fiddlesticks": {
+    "id": "Fiddlesticks",
+    "name": "Fiddlesticks",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Algo despertou em Runeterra. Algo ancestral. Algo terrível. O eterno terror conhecido como Fiddlesticks vaga pelos confins do mundo mortal, atraído por áreas dominadas por uma paranoia palpável, onde se alimenta de vítim"
+  },
+  "Fiora": {
+    "id": "Fiora",
+    "name": "Fiora",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "A duelista mais temida de toda Valoran, Fiora é renomada tanto por suas maneiras bruscas e perspicácia quanto pela velocidade de sua rapieira de aço. Nascida na Casa Laurent no reino de Demacia, Fiora tomou o controle da"
+  },
+  "Fizz": {
+    "id": "Fizz",
+    "name": "Fizz",
+    "tags": [
+      "Assassin",
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Fizz é um yordle anfíbio que vive entre os recifes que rodeiam Águas de Sentina. É comum que ele busque e devolva os dízimos jogados no mar por capitães supersticiosos, mas mesmo o mais velho dos marinheiros sabe que não"
+  },
+  "Galio": {
+    "id": "Galio",
+    "name": "Galio",
+    "tags": [
+      "Tank",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "support"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Do lado de fora da reluzente cidade de Demacia, Galio, o colosso de pedra, vigia com zelo. Construído como bastião contra magos inimigos, ele geralmente permanece imóvel por décadas até que a presença de uma magia podero"
+  },
+  "Gangplank": {
+    "id": "Gangplank",
+    "name": "Gangplank",
+    "tags": [
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Tão inesperado quanto brutal, o autointitulado Rei dos Ladrões conhecido como Gangplank é temido por todos os mares. Ele já reinou na cidade portuária de Águas de Sentina e, apesar de seu reinado ter terminado, existem a"
+  },
+  "Garen": {
+    "id": "Garen",
+    "name": "Garen",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um guerreiro nobre e orgulhoso, Garen faz parte da Vanguarda Destemida. Popular entre seus companheiros e respeitado o suficiente por seus inimigos, sua reputação é nada mais do que o esperado de um herdeiro da prestigio"
+  },
+  "Gnar": {
+    "id": "Gnar",
+    "name": "Gnar",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Gnar é um yordle primitivo cujas artimanhas brincalhonas podem irromper em uma raiva infantil em um instante, transformando-o em uma besta gigantesca determinada a destruir. Congelada em Gelo Verdadeiro por milênios, ess"
+  },
+  "Gragas": {
+    "id": "Gragas",
+    "name": "Gragas",
+    "tags": [
+      "Fighter",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Alegre e imponente em igual medida, Gragas é um mestre cervejeiro colossal e barulhento que está sempre em busca de novos modos de animar todo mundo. Oriundo de regiões desconhecidas, ele procura, nas terras imaculadas d"
+  },
+  "Graves": {
+    "id": "Graves",
+    "name": "Graves",
+    "tags": [
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Malcolm Graves, mercenário, apostador e bandido de renome, é um homem procurado em cada uma das cidades e impérios que visitou. Apesar do seu temperamento explosivo, ele é dono de uma noção rigorosa de honra entre crimin"
+  },
+  "Gwen": {
+    "id": "Gwen",
+    "name": "Gwen",
+    "tags": [
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Uma boneca que ganhou vida por magia, Gwen empunha as mesmas ferramentas que um dia a criaram. Valorizando todo instante, ela carrega a força do amor de sua criadora a cada passo e comanda a Névoa Sagrada, uma magia prot"
+  },
+  "Hecarim": {
+    "id": "Hecarim",
+    "name": "Hecarim",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Hecarim é a fusão espectral de homem e animal, amaldiçoado a cavalgar entre as almas dos vivos por toda a eternidade. Quando as Ilhas das Bênçãos caíram nas sombras, esse cavaleiro orgulhoso foi obliterado pelas energias"
+  },
+  "Heimerdinger": {
+    "id": "Heimerdinger",
+    "name": "Heimerdinger",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "O excêntrico Professor Cecil B. Heimerdinger é um dos inventores mais inovadores e estimados que o mundo já viu. Como o membro mais antigo do Conselho de Piltover, ele já viu o melhor e o pior do desejo insaciável da cid"
+  },
+  "Hwei": {
+    "id": "Hwei",
+    "name": "Hwei",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Hwei é um pintor melancólico que cria obras de arte geniais para combater os criminosos de Ionia e trazer conforto às vítimas deles. Por trás de sua melancolia, esconde-se uma mente emocionalmente dilacerada, assombrada "
+  },
+  "Illaoi": {
+    "id": "Illaoi",
+    "name": "Illaoi",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "O poderoso porte físico de Illaoi só perde para sua fé indomável. Como profetisa do Grande Cráquem, ela usa um gigantesco totem dourado para arrancar o espírito de seus inimigos de seus corpos e estilhaçar a sua percepçã"
+  },
+  "Irelia": {
+    "id": "Irelia",
+    "name": "Irelia",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "A ocupação noxiana de Ionia produziu muitos heróis, mas nenhum era mais improvável do que a jovem Irelia de Navori. Treinada nas antigas danças de Ionia, ela adaptou sua arte à guerra, usando movimentos graciosos e cuida"
+  },
+  "Ivern": {
+    "id": "Ivern",
+    "name": "Ivern",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Ivern Bramblefoot, conhecido por muitos como o Protetor Verde, é um peculiar meio-homem, meio-árvore que vagueia pelas florestas de Runeterra, cultivando vida por onde ele passa. Ele conhece os segredos do mundo natural,"
+  },
+  "Janna": {
+    "id": "Janna",
+    "name": "Janna",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Armada com o poder das ventanias de Runeterra, Janna é um misterioso e elemental espírito de vento que protege os desfavorecidos de Zaun. Alguns acreditam que Janna surgiu a partir dos clamores dos marinheiros de Runeter"
+  },
+  "JarvanIV": {
+    "id": "JarvanIV",
+    "name": "Jarvan IV",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "O Príncipe Jarvan, descendente da Dinastia Lumescudo, é o atual herdeiro do trono de Demacia. Criado para ser um exemplo das grandes virtudes de sua nação, ele é forçado a equilibrar as grandes expectativas colocadas sob"
+  },
+  "Jax": {
+    "id": "Jax",
+    "name": "Jax",
+    "tags": [
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Incomparável tanto por suas habilidades com armamentos incomuns quanto pelo seu sarcasmo mordaz, Jax é o último mestre de armas de Icathia conhecido. Depois de sua terra natal ter sido derrotada por sua própria arrogânci"
+  },
+  "Jayce": {
+    "id": "Jayce",
+    "name": "Jayce",
+    "tags": [
+      "Fighter",
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Jayce Talis é um inventor brilhante que, ao lado do amigo Viktor, fez as primeiras grandes descobertas no campo da tecnologia hextec. Glorificado em Piltover, ele tenta fazer jus à reputação de ''Homem do Progresso'', ma"
+  },
+  "Jhin": {
+    "id": "Jhin",
+    "name": "Jhin",
+    "tags": [
+      "Marksman",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Jhin é um meticuloso psicopata criminoso que acredita que o assassinato é uma arte. Outrora um prisioneiro ioniano, mas libertado por membros obscuros do conselho regimental de Ionia, o assassino serial agora trabalha co"
+  },
+  "Jinx": {
+    "id": "Jinx",
+    "name": "Jinx",
+    "tags": [
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Jinx, uma criminosa desequilibrada e impulsiva da Subferia, é atormentada pelas consequências de seu passado, mas isso não a impede de deixar sua marca caótica de pandemônio em Piltover e Zaun. Ela usa um arsenal de arma"
+  },
+  "Kaisa": {
+    "id": "Kaisa",
+    "name": "Kai'Sa",
+    "tags": [
+      "Marksman",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Capturada pelo Vazio quando era apenas uma criança, Kai'Sa conseguiu sobreviver por pura persistência e força de vontade. Suas experiências fizeram dela uma caçadora mortal e, para alguns, o prenúncio de um futuro que se"
+  },
+  "Kalista": {
+    "id": "Kalista",
+    "name": "Kalista",
+    "tags": [
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um espectro de ira e retaliação, Kalista é o espírito imortal da vingança, um pesadelo blindado invocado da Ilhas das Sombras para caçar desertores e traidores. Os traídos podem clamar em sangue para serem vingados, mas "
+  },
+  "Karma": {
+    "id": "Karma",
+    "name": "Karma",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Nenhum mortal representa melhor as tradições espirituais de Ionia do que Karma. Ela é a incorporação de uma alma reencarnada inúmeras vezes, que leva todas as memórias acumuladas para cada nova vida e que foi agraciada c"
+  },
+  "Karthus": {
+    "id": "Karthus",
+    "name": "Karthus",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Sendo o presságio do fim, Karthus é um espírito imortal cujas canções assombradoras são um prelúdio para o terror de sua aparição horripilante. Os vivos temem a eternidade dos mortos-vivos, mas Karthus vê apenas beleza e"
+  },
+  "Kassadin": {
+    "id": "Kassadin",
+    "name": "Kassadin",
+    "tags": [
+      "Assassin",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Cortando uma trilha de fogo pelos lugares mais sombrios do mundo, Kassadin sabe que seus dias estão contados. Outrora um aventureiro e guia shurimane, ele escolheu criar uma família perto das tribos pacíficas do sul, até"
+  },
+  "Katarina": {
+    "id": "Katarina",
+    "name": "Katarina",
+    "tags": [
+      "Assassin",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Decisiva em seus julgamentos e letal em combate, Katarina é a assassina de maior calibre de Noxus. Filha mais velha do lendário General Du Couteau, Katarina é reconhecida por seus assassinatos eficientes contra inimigos "
+  },
+  "Kayle": {
+    "id": "Kayle",
+    "name": "Kayle",
+    "tags": [
+      "Mage",
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Nascida de um Aspecto targonense no auge das Guerras Rúnicas, Kayle honrava o legado de sua mãe lutando por justiça com asas de chamas divinas. Ela e sua irmã gêmea, Morgana, foram as protetoras de Demacia por muitos ano"
+  },
+  "Kayn": {
+    "id": "Kayn",
+    "name": "Kayn",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Inigualável praticante da letal magia sombria, Shieda Kayn luta para alcançar seu verdadeiro destino: um dia comandar a Ordem das Sombras rumo a uma nova era de supremacia ioniana. Indiferente à maquiavélica degradação q"
+  },
+  "Kennen": {
+    "id": "Kennen",
+    "name": "Kennen",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Mais do que um protetor rápido como um raio do equilíbrio ioniano, Kennen é o único yordle membro da Kinkou. Apesar da sua estatura pequena e peluda, ele anseia por ir contra qualquer ameaça com uma tempestade desenfread"
+  },
+  "Khazix": {
+    "id": "Khazix",
+    "name": "Kha'Zix",
+    "tags": [
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "O Vazio cresce e o Vazio se adapta, e nenhuma de suas outras criaturas incorpora isso tão bem quanto Kha'Zix. A evolução é o que impulsiona a essência desse horror mutável, nascido para sobreviver e destruir os mais fort"
+  },
+  "Kindred": {
+    "id": "Kindred",
+    "name": "Kindred",
+    "tags": [
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Distintos, mas nunca separados, os Kindred representam as essências gêmeas da morte. O arco da Ovelha propicia uma rápida transição do mundo mortal para aqueles que aceitam seu destino. O Lobo caça aqueles que fogem de s"
+  },
+  "Kled": {
+    "id": "Kled",
+    "name": "Kled",
+    "tags": [
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um guerreiro tão destemido quanto irascível, o yordle Kled representa a bravata furiosa de Noxus. Ele é um ícone amado pelos soldados do império, rejeitado por seus oficiais e abominado pela nobreza. Muitos dizem que Kle"
+  },
+  "KogMaw": {
+    "id": "KogMaw",
+    "name": "Kog'Maw",
+    "tags": [
+      "Marksman",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Vomitado para fora de uma aparição podre do Vazio nas profundezas das terras desertas de Icathia, Kog'Maw é uma criatura inquisitiva e pútrida com uma boca cáustica gigantesca. Essa criatura do Vazio em particular precis"
+  },
+  "KSante": {
+    "id": "KSante",
+    "name": "K'Sante",
+    "tags": [
+      "Tank",
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Corajoso e desafiador, K'Sante enfrenta feras colossais e Ascendentes cruéis para proteger seu lar, Nazumah — um cobiçado oásis no meio das areias de Shurima. Entretanto, após uma desavença com seu antigo parceiro, K'San"
+  },
+  "Leblanc": {
+    "id": "Leblanc",
+    "name": "LeBlanc",
+    "tags": [
+      "Assassin",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Misteriosa mesmo para os outros membros da Rosa Negra, LeBlanc é somente um dos muitos nomes de uma mulher pálida que tem manipulado pessoas e eventos desde os primeiros dias de Noxus. Usando sua magia para espelhar a si"
+  },
+  "LeeSin": {
+    "id": "LeeSin",
+    "name": "Lee Sin",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um mestre das artes marciais ancestrais de Ionia, Lee Sin é um lutador de princípios fortes que canaliza a essência do espírito do dragão para enfrentar qualquer desafio. Apesar de ter perdido a visão há muitos anos, o m"
+  },
+  "Leona": {
+    "id": "Leona",
+    "name": "Leona",
+    "tags": [
+      "Tank",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Impregnada pelas chamas do sol, Leona é uma guerreira sagrada de Solari que defende o Monte Targon com sua Lâmina Zênite e a Proteção da Aurora. Sua pele brilha com fogo solar enquanto seus olhos queimam com o poder do A"
+  },
+  "Lillia": {
+    "id": "Lillia",
+    "name": "Lillia",
+    "tags": [
+      "Fighter",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Extremamente tímida, Lillia, a faunesa feérica, percorre saltitante as florestas de Ionia. Sempre escondida a pouca distância dos humanos — cuja misteriosa natureza lhe causa fascínio e, ao mesmo tempo, receio — Lillia e"
+  },
+  "Lissandra": {
+    "id": "Lissandra",
+    "name": "Lissandra",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "A magia de Lissandra transforma o poder bruto do gelo em algo sombrio e terrível. Com a força do seu gelo sombrio, ela faz mais do que congelar — ela perfura e destrói todos que se opões a ela. Entre os aterrorizados hab"
+  },
+  "Lucian": {
+    "id": "Lucian",
+    "name": "Lucian",
+    "tags": [
+      "Marksman",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Lucian, um Sentinela da Luz, é um caçador de aparições e espectros que usa suas pistolas relicárias para persegui-los implacavelmente e, por fim, aniquilá-los. Após a captura de sua esposa pelas mãos do espectro Thresh, "
+  },
+  "Lulu": {
+    "id": "Lulu",
+    "name": "Lulu",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "A maga yordle Lulu é conhecida por conjurar ilusões de sonhos e criaturas fantasiosas enquanto vaga por Runeterra com seu silfo companheiro, Pix. Lulu transforma a realidade por capricho, distorcendo o que ela vê como re"
+  },
+  "Lux": {
+    "id": "Lux",
+    "name": "Lux",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Luxanna Stemmaguarda nasceu em Demacia, um reino insular onde habilidades mágicas são vistas com medo e desconfiança. Capaz de dobrar a luz à sua vontade, ela cresceu temendo ser descoberta e exilada, e foi forçada a man"
+  },
+  "Malphite": {
+    "id": "Malphite",
+    "name": "Malphite",
+    "tags": [
+      "Tank",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "support"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Uma criatura gigantesca de pedra viva, Malphite pena para impor ordem abençoada em um mundo caótico. Nascido como um fragmento servil de um obelisco de outro mundo conhecido como Monolito, ele usou sua tremenda força ele"
+  },
+  "Malzahar": {
+    "id": "Malzahar",
+    "name": "Malzahar",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um vidente fanático dedicado à unificação de toda a vida, Malzahar realmente acredita que o Vazio que recém surgiu é o caminho para a salvação de Runeterra. Na desolação do deserto de Shurima, ele seguiu as vozes que sus"
+  },
+  "Maokai": {
+    "id": "Maokai",
+    "name": "Maokai",
+    "tags": [
+      "Tank",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Maokai é um grande ente enfurecido que luta contra os terrores sobrenaturais da Ilhas das Sombras. Ele se transformou em uma força vingativa depois que um cataclisma mágico destruiu seu lar, sobrevivendo apenas através d"
+  },
+  "MasterYi": {
+    "id": "MasterYi",
+    "name": "Master Yi",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Master Yi treinou seu corpo e afiou sua mente para que pensamento e ação se tornassem quase um só. Embora ele prefira recorrer à violência como último recurso, a leveza e a velocidade de sua espada garantem uma resolução"
+  },
+  "Mel": {
+    "id": "Mel",
+    "name": "Mel",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Mel Medarda é a suposta herdeira da família Medarda, que já foi uma das mais poderosas em Noxus. Sob a aparência de uma aristocrata elegante, ela esconde uma política talentosa que faz questão de saber cada detalhe a res"
+  },
+  "Milio": {
+    "id": "Milio",
+    "name": "Milio",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Milio é um menino de Ixtal com um coração enorme e caloroso. Apesar da pouca idade, dominou o axioma do fogo e descobriu algo novo: o fogo tranquilizante. Com esse novo poder, Milio quer ajudar sua família a escapar do e"
+  },
+  "MissFortune": {
+    "id": "MissFortune",
+    "name": "Miss Fortune",
+    "tags": [
+      "Marksman",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Uma capitã de Águas de Sentina famosa por sua aparência e impiedade, Sarah Fortune chama atenção entre os criminosos calejados da cidade portuária. Ainda criança, ela viu o Rei dos Ladrões, Gangplank, assassinar sua famí"
+  },
+  "MonkeyKing": {
+    "id": "MonkeyKing",
+    "name": "Wukong",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Wukong é um trapaceiro vastaya que usa sua força, agilidade e inteligência para confundir os oponentes e deixar a situação a seu favor. Depois de encontrar uma eterna amizade no guerreiro conhecido como Master Yi, Wukong"
+  },
+  "Mordekaiser": {
+    "id": "Mordekaiser",
+    "name": "Mordekaiser",
+    "tags": [
+      "Fighter",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Morto e renascido duas vezes, Mordekaiser é um cruel comandante de uma época perdida. Ele usa a arte da necromancia para aprisionar almas e torná-las submissas pela eternidade. Hoje em dia, poucos se lembram das primeira"
+  },
+  "Morgana": {
+    "id": "Morgana",
+    "name": "Morgana",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Dividida entre sua natureza mortal e celestial, Morgana prendeu as asas para preservar sua humanidade e inflige sua dor e amargura nos desonestos e corruptos. Ela rejeita as leis e tradições que considera injustas e luta"
+  },
+  "Naafiri": {
+    "id": "Naafiri",
+    "name": "Naafiri",
+    "tags": [
+      "Assassin",
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Pelas areias de Shurima, um coro de uivos ressoa. É o chamado dos cães das dunas, predadores vorazes que formam matilhas e disputam o direito de caçar nessas terras áridas. Entre eles, uma matilha se destaca, pois é movi"
+  },
+  "Nami": {
+    "id": "Nami",
+    "name": "Nami",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Uma jovem e obstinada vastaya dos mares, Nami é uma das primeiras integrantes da tribo Marai a sair das ondas e se aventurar na terra seca, onde seus antigos acordos com os targonianos foram quebrados. Com nenhuma outra "
+  },
+  "Nasus": {
+    "id": "Nasus",
+    "name": "Nasus",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Nasus é um majestoso Ascendente com cabeça de chacal da antiga Shurima; uma figura heroica considerada semideus pelo povo do deserto. Ferozmente inteligente, ele foi um guardião do conhecimento e estrategista sem igual c"
+  },
+  "Nautilus": {
+    "id": "Nautilus",
+    "name": "Nautilus",
+    "tags": [
+      "Tank",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "O golias armadurado conhecido como Nautilus, uma lenda solitária, tão velha quantos as primeiras docas que afundaram em Águas de Sentina, vaga pelas águas escuras da costa das Ilhas da Chama Azul. Levado por uma traição "
+  },
+  "Neeko": {
+    "id": "Neeko",
+    "name": "Neeko",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Nativa de uma tribo vastaya há muito esquecida, Neeko consegue se misturar em qualquer multidão, assumindo a aparência dos outros e até mesmo absorvendo parte de seu estado emocional para identificar de imediato quem é a"
+  },
+  "Nidalee": {
+    "id": "Nidalee",
+    "name": "Nidalee",
+    "tags": [
+      "Assassin",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Criada na mais profunda das selvas, Nidalee é uma rastreadora especialista que pode se transformar em um puma à sua vontade. Nem animal nem mulher, ela defende com ferocidade seu território de todo e qualquer invasor, co"
+  },
+  "Nilah": {
+    "id": "Nilah",
+    "name": "Nilah",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Nilah, uma guerreira asceta de uma terra distante, busca os oponentes mais gigantescos e mortais do mundo para poder desafiá-los e destruí-los. Tendo conquistado seu poder após enfrentar o demônio da alegria, que estava "
+  },
+  "Nocturne": {
+    "id": "Nocturne",
+    "name": "Nocturne",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Uma fusão demoníaca provinda dos pesadelos que assombram todas as mentes sencientes, a coisa conhecida como Nocturne se tornou uma força primordial de puro terror. De aspecto caótico e líquido, ele é uma sombra sem rosto"
+  },
+  "Nunu": {
+    "id": "Nunu",
+    "name": "Nunu e Willump",
+    "tags": [
+      "Tank",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "support"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Era uma vez um garoto que queria provar a todos que poderia ser um herói indo matar um terrível monstro... mas que no fim descobriu que esse monstro era um solitário yeti mágico que só queria um amigo. Unidos por um anti"
+  },
+  "Olaf": {
+    "id": "Olaf",
+    "name": "Olaf",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Uma força desenfreada de destruição, Olaf e seus machados não querem nada além de morrer em um combate glorioso. Vindo da brutal península de Freljord, Lokfar, ele recebeu uma profecia que dizia que ele teria uma morte p"
+  },
+  "Orianna": {
+    "id": "Orianna",
+    "name": "Orianna",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Orianna já foi uma menina curiosa de carne e osso, mas agora é uma maravilha tecnológica composta inteiramente de engrenagens. Ela ficou terrivelmente doente depois de um acidente em um dos distritos inferiores de Zaun e"
+  },
+  "Ornn": {
+    "id": "Ornn",
+    "name": "Ornn",
+    "tags": [
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "support",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Ornn é o espírito Freljordano da forja e da artesania. Ele trabalha na solidão de uma enorme fornalha, construída a marteladas por entre as cavernas de lava do vulcão Pedra-Lar. Lá, ele aquece caldeirões de pedra fundida"
+  },
+  "Pantheon": {
+    "id": "Pantheon",
+    "name": "Pantheon",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Antes um relutante portador do Aspecto da Guerra, Atreus conseguiu sobreviver quando o poder celestial dentro dele foi morto, recusando-se a sucumbir a um golpe que arrancou estrelas do céu. Com o tempo, ele aprendeu a u"
+  },
+  "Poppy": {
+    "id": "Poppy",
+    "name": "Poppy",
+    "tags": [
+      "Tank",
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Runeterra não está em falta de campeões valentes, mas poucos são tão tenazes quanto Poppy. Carregando o lendário martelo de Orlon, uma arma que tem o dobro de seu tamanho, essa yordle determinada tem passado muitos anos "
+  },
+  "Pyke": {
+    "id": "Pyke",
+    "name": "Pyke",
+    "tags": [
+      "Support",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um arpoador renomado vindo das Docas da Matança nas Águas de Sentina, Pyke deveria ter encontrado sua morte na barriga de um gigante Peixe-Jaula... mas, ainda assim, ele retornou. Agora, vagando pelos becos úmidos de sua"
+  },
+  "Qiyana": {
+    "id": "Qiyana",
+    "name": "Qiyana",
+    "tags": [
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Na cidade-selva de Ixaocan, Qiyana planeja seu próprio e implacável caminho até o trono de Yun Tal. Última na fila para suceder seus pais, ela enfrenta qualquer um no seu caminho com uma confiança impetuosa e domínio sem"
+  },
+  "Quinn": {
+    "id": "Quinn",
+    "name": "Quinn",
+    "tags": [
+      "Marksman",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Quinn é uma cavaleira patrulheira de elite de Demacia que cumpre missões perigosas no coração do território inimigo. Ela e sua águia lendária, Valor, possuem um vínculo inquebrável e seus inimigos muitas vezes são mortos"
+  },
+  "Rakan": {
+    "id": "Rakan",
+    "name": "Rakan",
+    "tags": [
+      "Support"
+    ],
+    "likelyRoles": [
+      "support"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Inconsistente e charmoso, Rakan é um conhecido encrenqueiro vastaya e o melhor dançarino de batalha da história da tribo Lhotlan. Para os humanos das montanhas de Ionia, seu nome sempre foi sinônimo de festivais mirabola"
+  },
+  "Rammus": {
+    "id": "Rammus",
+    "name": "Rammus",
+    "tags": [
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "support",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Idolatrado por muitos, dispensado por alguns e misterioso para todos, Rammus é um ser curioso e enigmático. Protegido por um casco espetado, ele inspira teorias cada vez mais divergentes sobre sua origem por onde quer qu"
+  },
+  "RekSai": {
+    "id": "RekSai",
+    "name": "Rek'Sai",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "A predadora perfeita, Rek'Sai é uma criatura do Vazio sem piedade que anda por túneis no subsolo para emboscar e devorar vítimas desavisadas. Sua fome insaciável já destruiu regiões inteiras do outrora gigantesco império"
+  },
+  "Rell": {
+    "id": "Rell",
+    "name": "Rell",
+    "tags": [
+      "Tank",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Produto de um experimento brutal nas mãos da Rosa Negra, Rell é uma arma humana rebelde que está determinada a destruir Noxus. Sua infância foi repleta de sofrimento e horror; a jovem teve que suportar procedimentos inde"
+  },
+  "Renata": {
+    "id": "Renata",
+    "name": "Renata Glasc",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Renata Glasc emergiu das cinzas de seu antigo lar com nada além da pesquisa alquímica de seus pais e seu próprio nome. Décadas se passaram, e ela se tornou a Baronesa da Química mais rica de Zaun, uma magnata que consoli"
+  },
+  "Renekton": {
+    "id": "Renekton",
+    "name": "Renekton",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Renekton é um aterrorizante e furioso ser Ascendente dos desertos escaldantes de Shurima. Ele já foi o guerreiro mais estimado de todo o seu império, levando os exércitos da nação a inúmeras vitórias. No entanto, após a "
+  },
+  "Rengar": {
+    "id": "Rengar",
+    "name": "Rengar",
+    "tags": [
+      "Assassin",
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Rengar é um feroz caçador de troféus vastaya que gosta da emoção proporcionada pela caça e pelo abate de criaturas perigosas. Ele vasculha o mundo em busca das feras mais perigosas que pode encontrar, procurando principa"
+  },
+  "Riven": {
+    "id": "Riven",
+    "name": "Riven",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Outrora mestra das espadas nos esquadrões de Noxus, agora Riven é uma expatriada em uma terra que um dia já tentou conquistar. Depois de alcançar os altos escalões do exército usando a força de sua convicção e sua brutal"
+  },
+  "Rumble": {
+    "id": "Rumble",
+    "name": "Rumble",
+    "tags": [
+      "Fighter",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Rumble é um jovem inventor irritadiço. Usando nada além de suas próprias mãos e uma pilha de sucata, o yordle briguento construiu um mecha colossal montado com um arsenal de arpões eletrificados e foguetes incendiários. "
+  },
+  "Ryze": {
+    "id": "Ryze",
+    "name": "Ryze",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Considerado pela grande maioria como o mago mais habilidoso de Runeterra, Ryze é um arquimago ancião e amargo que carrega um enorme peso. Dotado de um enorme poder arcano e de uma notável estrutura física, ele busca inca"
+  },
+  "Samira": {
+    "id": "Samira",
+    "name": "Samira",
+    "tags": [
+      "Marksman",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Samira encara a morte nos olhos com confiança inabalável, procurando diversão e adrenalina aonde quer que vá. Depois que seu lar em Shurima foi destruído quando ainda era criança, ela encontrou sua verdadeira vocação em "
+  },
+  "Sejuani": {
+    "id": "Sejuani",
+    "name": "Sejuani",
+    "tags": [
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "support",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Sejuani é a mãe de guerra Glacinata brutal e implacável da Garra do Inverno, uma das tribos mais temidas de Freljord. A sobrevivência de seu povo é uma batalha constante e desesperada contra os elementos, forçando-os a p"
+  },
+  "Senna": {
+    "id": "Senna",
+    "name": "Senna",
+    "tags": [
+      "Support",
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc",
+      "support"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Amaldiçoada desde a infância a ser perseguida pelo fenômeno sobrenatural da Névoa Negra, Senna entrou para a ordem dos Sentinelas da Luz e lutou bravamente contra seu destino, mas isso resultou em sua morte, e a alma del"
+  },
+  "Seraphine": {
+    "id": "Seraphine",
+    "name": "Seraphine",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Nascida em Piltover e filha de zaunitas, Seraphine é capaz de ouvir a alma das pessoas. O mundo canta para ela, e ela canta em resposta. Esses sons a perturbavam quando era mais jovem, mas hoje ela os usa como inspiração"
+  },
+  "Sett": {
+    "id": "Sett",
+    "name": "Sett",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Líder de parte do próspero submundo do crime em Ionia, Sett deve todo o seu sucesso à guerra contra Noxus. Mesmo estreando como um simples desafiante nas arenas de combate em Navori, ele logo conquistou notoriedade com s"
+  },
+  "Shaco": {
+    "id": "Shaco",
+    "name": "Shaco",
+    "tags": [
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Criado anos atrás como um brinquedo para um príncipe solitário, Shaco, a marionete encantada, agora se deleita com assassinatos e desordem. Corrompido por magia das trevas e pela perda de seu dono querido, o boneco que j"
+  },
+  "Shen": {
+    "id": "Shen",
+    "name": "Shen",
+    "tags": [
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "support",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Para os guerreiros ionianos sigilosos conhecidos como Kinkou, Shen, o Olho do Crepúsculo, é um líder. Ele busca permanecer livre da confusão das emoções, preconceito ou ego, caminhando pelo caminho nunca visto do julgame"
+  },
+  "Shyvana": {
+    "id": "Shyvana",
+    "name": "Shyvana",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Shyvana é uma temível guerreira meio-dragão. Embora muitas vezes pareça humanoide, ela também domina os céus como um dragão, incinerando seus inimigos com um sopro de fogo. Após salvar a vida do príncipe herdeiro Jarvan "
+  },
+  "Singed": {
+    "id": "Singed",
+    "name": "Singed",
+    "tags": [
+      "Tank",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "support"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Singed é um alquimista brilhante com moral duvidosa cujos experimentos embrulhariam o estômago até do mais brutal criminoso. Vendendo suas habilidades para quem pagar mais, ele pouco se importa com o uso que fazem de sua"
+  },
+  "Sion": {
+    "id": "Sion",
+    "name": "Sion",
+    "tags": [
+      "Tank",
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um herói de guerra de uma era passada, Sion era reverenciado em Noxus por ter estrangulado a vida de um rei demaciano com suas próprias mãos. Mas o esquecimento lhe foi negado quando foi ressuscitado para servir seu impé"
+  },
+  "Sivir": {
+    "id": "Sivir",
+    "name": "Sivir",
+    "tags": [
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Sivir é uma renomada caçadora de recompensas e capitã mercenária que manipula o comércio nos desertos de Shurima. Armada com sua lendária lâmina em cruz adornada, ela lutou e venceu incontáveis batalhas por aqueles que p"
+  },
+  "Skarner": {
+    "id": "Skarner",
+    "name": "Skarner",
+    "tags": [
+      "Tank",
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Skarner, um Brackern ancião e colossal, é reverenciado em Ixtal como um dos membros-fundadores de Yun Tal, a casta dominante. Dedicado a manter sua nação a salvo do resto do mundo, Skarner vive em sua câmara no subsolo d"
+  },
+  "Smolder": {
+    "id": "Smolder",
+    "name": "Smolder",
+    "tags": [
+      "Marksman",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Escondido entre os penhascos escarpados da fronteira noxiana e sob o olhar atento da mãe, um jovem dragão está aprendendo o que significa ser herdeiro da linhagem dos dragões imperiais de Camavor. Brincalhão e ansioso po"
+  },
+  "Sona": {
+    "id": "Sona",
+    "name": "Sona",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Sona é um dos maiores prodígios em etwahl de cordas em Demacia, falando somente através de seus acordes graciosos e de suas árias vibrantes. Seu comportamento refinado cativou os nobres, apesar de muitos suspeitarem que "
+  },
+  "Soraka": {
+    "id": "Soraka",
+    "name": "Soraka",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Uma andarilha vinda de dimensões celestiais além do Monte Targon, Soraka desistiu de sua imortalidade para proteger as raças mortais de seus instintos mais violentos. Ela pretende espalhar as virtudes da compaixão e da m"
+  },
+  "Swain": {
+    "id": "Swain",
+    "name": "Swain",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Jericho Swain é o líder visionário de Noxus, uma nação expansionista que venera apenas a força. Apesar de ter sido abatido e mutilado nas guerras ionianas, onde perdeu o braço esquerdo, ele tomou o controle do império co"
+  },
+  "Sylas": {
+    "id": "Sylas",
+    "name": "Sylas",
+    "tags": [
+      "Mage",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Criado em um dos bairros mais pobres de Demacia, Sylas de Dregbourne se tornou o símbolo do lado mais sombrio da Grande Cidade. Quando criança, sua habilidade de identificar magia chamou a atenção de importantes caçadore"
+  },
+  "Syndra": {
+    "id": "Syndra",
+    "name": "Syndra",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Syndra é uma temida maga ioniana com um poder incrível ao seu dispor. Quando criança, ela causava pavor nos anciões da aldeia com sua magia imprudente e indomada. Mandada embora para aprender a controlar seus poderes, el"
+  },
+  "TahmKench": {
+    "id": "TahmKench",
+    "name": "Tahm Kench",
+    "tags": [
+      "Tank",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Conhecido por muitos nomes ao longo da história, Tahm Kench viaja pelas águas de Runeterra alimentando seu insaciável apetite com o sofrimento alheio. Apesar de parecer particularmente encantador e orgulhoso, ele vaga pe"
+  },
+  "Taliyah": {
+    "id": "Taliyah",
+    "name": "Taliyah",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Taliyah é uma maga nômade de Shurima, dividida entre sua empolgação juvenil e suas grandes responsabilidades. Ela cruzou quase toda Valoran em uma jornada para conhecer a verdadeira natureza de seus próprios poderes, ape"
+  },
+  "Talon": {
+    "id": "Talon",
+    "name": "Talon",
+    "tags": [
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Talon é a adaga na escuridão, um assassino impiedoso capaz de atacar sem aviso e escapar antes que qualquer alarme soe. Ele construiu uma reputação perigosa nas ruas brutais de Noxus, onde foi forçado a lutar, matar e ro"
+  },
+  "Taric": {
+    "id": "Taric",
+    "name": "Taric",
+    "tags": [
+      "Support",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "support",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Taric é o Aspecto do Protetor, portando um incrível poder como o guardião da vida, do amor e da beleza de Runeterra. Punido por faltar ao cumprimento de seu dever e exilado de Demacia, sua terra natal, Taric subiu o Mont"
+  },
+  "Teemo": {
+    "id": "Teemo",
+    "name": "Teemo",
+    "tags": [
+      "Marksman",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Indiferente até aos obstáculos mais perigosos e ameaçadores, Teemo vasculha o mundo com infinito entusiasmo e animação. Um yordle com uma inabalável moral que se orgulha de seguir o Código dos Escoteiros de Bandópolis, à"
+  },
+  "Thresh": {
+    "id": "Thresh",
+    "name": "Thresh",
+    "tags": [
+      "Support",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "support",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Sádico e astuto, Thresh é um espectro ambicioso e incansável das Ilhas das Sombras. Ele já foi guardião de incontáveis segredos arcanos, mas acabou sucumbindo a poderes maiores do que a vida e a morte. Agora, Thresh vive"
+  },
+  "Tristana": {
+    "id": "Tristana",
+    "name": "Tristana",
+    "tags": [
+      "Marksman",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Apesar de muitos outros yordles focarem sua energia em descobertas, invenções ou simplesmente travessuras, Tristana sempre se inspirou nas aventuras de grandes guerreiros. Ela ouviu muito sobre Runeterra, suas facções e "
+  },
+  "Trundle": {
+    "id": "Trundle",
+    "name": "Trundle",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Trundle é um troll gigantesco e traiçoeiro com uma tendência particularmente perversa, e não há nada que ele não possa submeter a cacetadas, nem mesmo a própria Freljord. Violentamente territorial, ele persegue qualquer "
+  },
+  "Tryndamere": {
+    "id": "Tryndamere",
+    "name": "Tryndamere",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Carregado por fúria e raiva desenfreadas, Tryndamere galgou seu caminho através de Freljord, desafiando abertamente os maiores guerreiros do norte em preparo para os dias sombrios que virão. O bárbaro furioso já procurou"
+  },
+  "TwistedFate": {
+    "id": "TwistedFate",
+    "name": "Twisted Fate",
+    "tags": [
+      "Mage",
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Twisted Fate é um infame trapaceiro que apostou e encantou tudo em seu caminho por boa parte do mundo, conquistando a inimizade e admiração tanto de ricos quanto tolos. Ele raramente leva coisas a sério, saudando cada di"
+  },
+  "Twitch": {
+    "id": "Twitch",
+    "name": "Twitch",
+    "tags": [
+      "Marksman",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um rato zaunita empesteado de nascença e um apreciador da imundície por paixão, Twitch não tem medo de sujar as patas. Mirando com uma balestra embebida em químicos no centro do coração dourado de Piltover, ele jurou mos"
+  },
+  "Udyr": {
+    "id": "Udyr",
+    "name": "Udyr",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Udyr, o mais poderoso andarilho espiritual vivo, comunga com todos os espíritos de Freljord, seja compreendendo empaticamente suas necessidades, ou canalizando e transformando a energia etérea deles em seu próprio estilo"
+  },
+  "Urgot": {
+    "id": "Urgot",
+    "name": "Urgot",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Na época em que era um poderoso carrasco noxiano, Urgot foi traído pelo império para o qual havia tirado tantas vidas. Aprisionado em correntes de ferro, ele foi forçado a aprender o verdadeiro significado da força na Dr"
+  },
+  "Varus": {
+    "id": "Varus",
+    "name": "Varus",
+    "tags": [
+      "Marksman",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um dos antigos darkin, Varus era um assassino mortal que amava atormentar seus inimigos, levando-os quase à insanidade antes de disparar a flecha mortal. Ele foi aprisionado no final da Grande Guerra dos Darkin, mas fugi"
+  },
+  "Vayne": {
+    "id": "Vayne",
+    "name": "Vayne",
+    "tags": [
+      "Marksman",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "adc",
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Shauna Vayne é uma caçadora de monstros demaciana mortal e implacável que dedicou sua vida a encontrar e destruir o monstro que assassinou sua família. Armada com uma balestra em seu pulso e com um coração cheio de vinga"
+  },
+  "Veigar": {
+    "id": "Veigar",
+    "name": "Veigar",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Veigar, um mestre entusiasta da feitiçaria das trevas, aderiu a poderes dos quais poucos mortais se aproximam. Um habitante inconformado de Bandópolis, ele desejava ultrapassar as limitações da magia yordle, se voltando,"
+  },
+  "Velkoz": {
+    "id": "Velkoz",
+    "name": "Vel'Koz",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Não é claro se Vel'Koz foi a primeira criatura do Vazio a aparecer em Runeterra, mas certamente nunca houve outra que se igualasse ao seu nível de compreensão cruel e calculista. Enquanto sua raça devora ou perverte tudo"
+  },
+  "Vex": {
+    "id": "Vex",
+    "name": "Vex",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "mixed",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Em meio à escuridão das Ilhas das Sombras, uma solitária yordle se move com pesar, abrindo caminho pela névoa espectral, satisfeita em viver nas trevas. Com uma poderosa sombra no seu encalço e uma fonte inesgotável de m"
+  },
+  "Vi": {
+    "id": "Vi",
+    "name": "Vi",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Criada nas ruas impiedosas de Zaun, Vi é uma mulher temível, impulsiva e explosiva sem respeito algum pelas autoridades. Ela sempre foi uma sobrevivente astuta, tanto das confusões que causava no Ladoalto na juventude qu"
+  },
+  "Viego": {
+    "id": "Viego",
+    "name": "Viego",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Outrora regente de um reino perdido, Viego morreu há mais de um milênio, quando uma tentativa de trazer sua esposa de volta à vida culminou em uma catástrofe mágica conhecida como ''a Ruína''. Transformado em um poderoso"
+  },
+  "Viktor": {
+    "id": "Viktor",
+    "name": "Viktor",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "A evolução biomecânica de seu antigo eu, Viktor abraçou a Gloriosa Evolução e tornou-se uma espécie de messias para seus seguidores. Ele sacrificou sua própria humanidade partindo da lógica de que eliminar as emoções aca"
+  },
+  "Vladimir": {
+    "id": "Vladimir",
+    "name": "Vladimir",
+    "tags": [
+      "Mage",
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um demônio sedento pelo sangue dos mortais, Vladimir tem influenciado os acontecimentos de Noxus desde os primórdios do império. Além de ter estendido sua vida por meios não naturais, sua maestria em hemomancia o permite"
+  },
+  "Volibear": {
+    "id": "Volibear",
+    "name": "Volibear",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Para aqueles que ainda o veneram, Volibear é a forma manifestada da tempestade. Destrutivo, selvagem e implacavelmente obstinado, ele já existia antes mesmo que os mortais andassem sobre a tundra de Freljord, protegendo "
+  },
+  "Warwick": {
+    "id": "Warwick",
+    "name": "Warwick",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Warwick é um monstro que caça pelas ruas cinzentas de Zaun. Transformado por experimentos agonizantes, seu corpo agora é fundido a um sistema complexo de câmaras e bombas, um maquinário que enche suas veias com fúria quí"
+  },
+  "Xayah": {
+    "id": "Xayah",
+    "name": "Xayah",
+    "tags": [
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Mortal e precisa, Xayah é uma vastaya revolucionária que trava sua própria batalha para salvar seu povo. Ela usa sua agilidade, malícia e plumas afiadas para retalhar qualquer um que atrapalhe seu caminho. Xayah luta ao "
+  },
+  "Xerath": {
+    "id": "Xerath",
+    "name": "Xerath",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Xerath é um mago Ascendente da antiga Shurima, um ser de energia arcana que existe em meio a estilhaços de um sarcófago mágico. Por milênios, ele ficou enclausurado debaixo das areias do deserto, mas o ressurgimento de S"
+  },
+  "XinZhao": {
+    "id": "XinZhao",
+    "name": "Xin Zhao",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Xin Zhao é um guerreiro determinado, leal à dinastia Lumescudo. No passado, ele foi condenado a lutar como gladiador em Noxus, e sobreviveu à incontáveis lutas, mas depois de ser libertado por forças demacianas, ele prom"
+  },
+  "Yasuo": {
+    "id": "Yasuo",
+    "name": "Yasuo",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Yasuo, um ioniano extremamente determinado, é também um ágil espadachim que usa o próprio ar como arma para enfrentar seus inimigos. Quando jovem, ele teve seu orgulho ferido ao ser acusado injustamente do assassinato de"
+  },
+  "Yone": {
+    "id": "Yone",
+    "name": "Yone",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Em vida, ele foi Yone; meio-irmão de Yasuo e um respeitado aluno da escola de espadachins de seu vilarejo. Mas, ao morrer pelas mãos do irmão, ele se viu perseguido por uma entidade maligna do reino espiritual e foi forç"
+  },
+  "Yorick": {
+    "id": "Yorick",
+    "name": "Yorick",
+    "tags": [
+      "Fighter",
+      "Tank"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Último sobrevivente de uma ordem religiosa há muito esquecida, Yorick é abençoado e amaldiçoado pelo poder que exerce sobre os mortos. Preso nas Ilhas das Sombras, suas únicas companhias são os defuntos e espectros atorm"
+  },
+  "Yunara": {
+    "id": "Yunara",
+    "name": "Yunara",
+    "tags": [
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Com uma fé inabalável em Ionia, Yunara passou séculos isolada no Reino Espiritual treinando com Aion Er'na, uma lendária relíquia Kinkou. Apesar dos sacrifícios, o juramento de Yunara de varrer o desequilíbrio e os confl"
+  },
+  "Yuumi": {
+    "id": "Yuumi",
+    "name": "Yuumi",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Uma gata mágica de Bandópolis, Yuumi já foi a mascote de uma feiticeira yordle chamada Norra. Mas quando sua mestra desapareceu misteriosamente, Yuumi se tornou a Guardiã do Livro dos Portais de Norra, viajando à procura"
+  },
+  "Zaahen": {
+    "id": "Zaahen",
+    "name": "Zaahen",
+    "tags": [
+      "Fighter",
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid",
+      "top",
+      "jungle"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Um deus caído com poder divino e profano, Zaahen caça os outros Darkin em constante desafio à corrupção que ameaça consumi-lo. Outrora selado por livre vontade em sua glaive para evitar o jugo da loucura, ele agora se vê"
+  },
+  "Zac": {
+    "id": "Zac",
+    "name": "Zac",
+    "tags": [
+      "Tank",
+      "Fighter"
+    ],
+    "likelyRoles": [
+      "top",
+      "jungle",
+      "support"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Zac é produto de um derramamento tóxico que percorreu um tubo quimtec e se armazenou em uma caverna isolada no Sumidouro de Zaun. Apesar de suas origens humildes, Zac deixou de ser uma lama qualquer e se tornou um ser pe"
+  },
+  "Zed": {
+    "id": "Zed",
+    "name": "Zed",
+    "tags": [
+      "Assassin"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Absolutamente impiedoso e implacável, Zed é o líder da Ordem das Sombras; uma organização criada com a intenção de militarizar as tradições marciais e mágicas de Ionia para expulsar os invasores noxianos. Durante a guerr"
+  },
+  "Zeri": {
+    "id": "Zeri",
+    "name": "Zeri",
+    "tags": [
+      "Marksman"
+    ],
+    "likelyRoles": [
+      "adc"
+    ],
+    "damageProfile": "physical",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Uma jovem obstinada e vivaz da classe operária de Zaun, Zeri canaliza magia elétrica para carregar a si mesma e a uma arma personalizada. O poder volátil espelha o que ela sente, as centelhas refletindo o estilo de vida "
+  },
+  "Ziggs": {
+    "id": "Ziggs",
+    "name": "Ziggs",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "O yordle Ziggs, amante de grandes bombas e pavios curtos, é uma força explosiva da natureza. Já entediado com sua vida previsível como assistente de um inventor de Piltover, ele fez amizade com uma bombardeira louca de c"
+  },
+  "Zilean": {
+    "id": "Zilean",
+    "name": "Zilean",
+    "tags": [
+      "Support",
+      "Mage"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Outrora um poderoso mago icathiano, Zilean se obcecou com a passagem do tempo depois de testemunhar a destruição de sua terra natal pelo Vazio. Sem conseguir gastar um minuto que fosse para lamentar a perda catastrófica,"
+  },
+  "Zoe": {
+    "id": "Zoe",
+    "name": "Zoe",
+    "tags": [
+      "Mage"
+    ],
+    "likelyRoles": [
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Como a personificação da travessura, imaginação e mudança, Zoe atua como a mensageira cósmica de Targon, anunciando a chegada de grandes eventos que redefinem mundos. Sua mera presença altera a matemática arcana que gove"
+  },
+  "Zyra": {
+    "id": "Zyra",
+    "name": "Zyra",
+    "tags": [
+      "Mage",
+      "Support"
+    ],
+    "likelyRoles": [
+      "support",
+      "mid"
+    ],
+    "damageProfile": "magic",
+    "threatHints": [],
+    "weaknessHints": [],
+    "shortAdvice": "Nascida em uma antiga catástrofe mágica, Zyra é a fúria da natureza em forma física e uma sedutora criatura híbrida entre planta e humana, que faz surgir a vida a cada passo que dá. Ela vê os muitos mortais de Valoran co"
+  }
+}

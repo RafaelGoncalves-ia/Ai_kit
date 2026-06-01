@@ -1,6 +1,7 @@
 const fabricApi = window.fabric || (typeof require === "function" ? require("fabric") : null);
 const nodePath = typeof require === "function" ? require("path") : null;
 const nodeUrl = typeof require === "function" ? require("url") : null;
+const nodeFs = typeof require === "function" ? require("fs") : null;
 let electronWebUtils = null;
 try {
   electronWebUtils = typeof require === "function" ? require("electron")?.webUtils : null;
@@ -17564,6 +17565,12 @@ document.querySelectorAll('[data-view-action="center-artboard"]').forEach((eleme
     centerArtboardInViewport();
   });
 });
+document.querySelectorAll('[data-tools-action="batch-editor"]').forEach((element) => {
+  element.addEventListener("click", () => {
+    closeTopbarMenus();
+    openBatchEditor();
+  });
+});
 
 document.querySelector('[data-brand-action="new"]')?.addEventListener("click", () => {
   void createBrandKit();
@@ -18034,6 +18041,1499 @@ window.kitAPI?.onCanvasCommand?.((command = {}) => {
     }
   })();
 });
+
+const BATCH_EDITOR_DEFAULTS = {
+  cfgScale: 5,
+  denoising: 0.25,
+  steps: 20,
+  sampler: "DPM++ 2M Karras",
+  seed: -1,
+  positivePrompt: "clean game sprite, high quality, refined details, consistent style",
+  negativePrompt: "deformed, blurry, bad anatomy, distorted, text, watermark, background, changed pose, changed outfit shape, glow outside silhouette"
+};
+
+const batchEditorState = {
+  initialized: false,
+  files: [],
+  currentIndex: -1,
+  running: false,
+  automation: false,
+  pauseAfterCurrent: false,
+  cancelRequested: false,
+  startedAt: null,
+  completedDurations: [],
+  errors: [],
+  logStartedAt: null,
+  logPath: ""
+};
+
+const BATCH_EDITOR_MODES = {
+  remaster: {
+    id: "remaster",
+    name: "Remaster IA",
+    description: "Remasteriza imagens usando o pipeline SD/i2i configurado na KIT.",
+    supportedExtensions: [".png", ".jpg", ".jpeg"],
+    usesAI: true,
+    supportsAlpha: true,
+    previewSupport: true,
+    allowsAutomation: true,
+    implemented: true
+  },
+  resize: {
+    id: "resize",
+    name: "Batch Resize",
+    description: "Redimensiona imagens em lote sem usar IA.",
+    supportedExtensions: [".png", ".jpg", ".jpeg"],
+    usesAI: false,
+    supportsAlpha: true,
+    previewSupport: true,
+    allowsAutomation: true,
+    implemented: true
+  },
+  "png-cleanup": {
+    id: "png-cleanup",
+    name: "PNG Cleanup",
+    description: "Corrige halo branco, bordas e transparencia ruim em PNGs.",
+    supportedExtensions: [".png"],
+    usesAI: false,
+    supportsAlpha: true,
+    previewSupport: true,
+    allowsAutomation: true,
+    implemented: true
+  },
+  watermark: {
+    id: "watermark",
+    name: "Watermark",
+    description: "Modo futuro para marca d'agua em lote.",
+    supportedExtensions: [".png", ".jpg", ".jpeg"],
+    usesAI: false,
+    supportsAlpha: true,
+    previewSupport: true,
+    allowsAutomation: false,
+    implemented: false
+  },
+  "background-remove": {
+    id: "background-remove",
+    name: "Background Remove",
+    description: "Modo futuro para remover fundo em lote.",
+    supportedExtensions: [".png", ".jpg", ".jpeg"],
+    usesAI: false,
+    supportsAlpha: true,
+    previewSupport: true,
+    allowsAutomation: false,
+    implemented: false
+  },
+  "format-converter": {
+    id: "format-converter",
+    name: "Converter formato",
+    description: "Modo futuro para converter formatos em lote.",
+    supportedExtensions: [".png", ".jpg", ".jpeg"],
+    usesAI: false,
+    supportsAlpha: true,
+    previewSupport: true,
+    allowsAutomation: false,
+    implemented: false
+  },
+  "aspect-standardize": {
+    id: "aspect-standardize",
+    name: "Padronizacao de proporcao",
+    description: "Modo futuro para padronizar proporcoes em lote.",
+    supportedExtensions: [".png", ".jpg", ".jpeg"],
+    usesAI: false,
+    supportsAlpha: true,
+    previewSupport: true,
+    allowsAutomation: false,
+    implemented: false
+  }
+};
+
+function getBatchModeDefinition(modeId = "") {
+  return BATCH_EDITOR_MODES[modeId] || BATCH_EDITOR_MODES.remaster;
+}
+
+function ensureBatchEditorModal() {
+  let modal = document.getElementById("batchEditorModal");
+  if (modal) return modal;
+
+  modal = document.createElement("div");
+  modal.id = "batchEditorModal";
+  modal.className = "batch-editor-modal";
+  modal.hidden = true;
+  modal.innerHTML = `
+    <div class="batch-editor-window" role="dialog" aria-modal="true" aria-labelledby="batchEditorTitle">
+      <header class="batch-editor-header">
+        <div>
+          <h2 id="batchEditorTitle">Batch Editor</h2>
+          <span id="batchEditorModel">Modelo: -</span>
+        </div>
+        <button type="button" class="icon-button" data-batch-action="close" title="Fechar">x</button>
+      </header>
+      <div class="batch-editor-progress">
+        <div id="batchEditorProgressText">0/0 concluidas | 0% | tempo decorrido: 00:00:00 | inicio: - | previsto: - | erros: 0</div>
+        <div id="batchFoundCount" class="batch-editor-found-count">0 arquivos encontrados</div>
+        <div class="batch-editor-progress-bar"><span id="batchEditorProgressFill"></span></div>
+      </div>
+      <div class="batch-editor-body">
+        <aside class="batch-editor-controls">
+          <section>
+            <h3>Modo</h3>
+            <label>Processamento
+              <select id="batchMode">
+                <option value="remaster" selected>Remaster IA</option>
+                <option value="resize">Batch Resize</option>
+                <option value="png-cleanup">PNG Cleanup</option>
+                <option value="watermark">Watermark</option>
+                <option value="background-remove">Background Remove</option>
+                <option value="format-converter">Converter formato</option>
+                <option value="aspect-standardize">Padronizacao de proporcao</option>
+              </select>
+            </label>
+            <p id="batchModeDescription">Remasteriza imagens usando o pipeline SD/i2i configurado na KIT.</p>
+            <p id="batchModeUnavailable" class="batch-editor-warning" hidden>Este modo ainda nao foi implementado.</p>
+          </section>
+          <section>
+            <h3>Pastas</h3>
+            <label>Pasta origem <input id="batchOriginPath" type="text" spellcheck="false"></label>
+            <div class="batch-editor-row">
+              <button type="button" data-batch-action="select-origin">Selecionar pasta</button>
+              <button type="button" data-batch-action="open-origin">Abrir origem</button>
+            </div>
+            <label>Pasta destino <input id="batchDestinationPath" type="text" spellcheck="false"></label>
+            <div class="batch-editor-row">
+              <button type="button" data-batch-action="select-destination">Selecionar pasta</button>
+              <button type="button" data-batch-action="open-destination">Abrir destino</button>
+            </div>
+          </section>
+          <section data-batch-mode-section="shared-files">
+            <h3>Arquivos</h3>
+            <label class="batch-check"><input id="batchAllowPng" type="checkbox" checked> PNG</label>
+            <label class="batch-check"><input id="batchAllowJpg" type="checkbox" checked> JPG/JPEG</label>
+            <label class="batch-check"><input id="batchRecursive" type="checkbox" checked> Considerar subpastas</label>
+            <label class="batch-check"><input id="batchPreserveAlpha" type="checkbox" checked> Preservar transparencia PNG</label>
+            <div class="batch-editor-row">
+              <button type="button" data-batch-action="scan">Atualizar lista</button>
+            </div>
+          </section>
+          <section data-batch-mode-section="resize">
+            <h3>Batch Resize</h3>
+            <label>Metodo de resize
+              <select id="batchResizeMethod">
+                <option value="lanczos" selected>Lanczos</option>
+                <option value="bilinear">Bilinear</option>
+                <option value="nearest">Nearest</option>
+                <option value="bicubic">Bicubic</option>
+              </select>
+            </label>
+            <label>Escala
+              <select id="batchResizeScalePreset">
+                <option value="0.5" selected>0.5x</option>
+                <option value="0.25">0.25x</option>
+                <option value="custom">personalizada</option>
+              </select>
+            </label>
+            <label id="batchResizeCustomScaleRow" hidden>Escala personalizada
+              <input id="batchResizeCustomScale" type="number" min="0.01" max="16" step="0.01" value="0.5">
+            </label>
+          </section>
+          <section data-batch-mode-section="png-cleanup">
+            <h3>PNG Cleanup</h3>
+            <label class="batch-check"><input id="pngCleanupFixHalo" type="checkbox" checked> Corrigir halo branco</label>
+            <label class="batch-check"><input id="pngCleanupFixHiddenRgb" type="checkbox" checked> Corrigir RGB oculto em transparencia</label>
+            <label class="batch-check"><input id="pngCleanupSmoothAlpha" type="checkbox" checked> Suavizar bordas alpha</label>
+            <label class="batch-check"><input id="pngCleanupRemoveIslands" type="checkbox" checked> Remover pixels soltos</label>
+            <label class="batch-check"><input id="pngCleanupContractAlpha" type="checkbox" checked> Contrair alpha</label>
+            <label>Intensidade da contracao
+              <select id="pngCleanupContractPx">
+                <option value="0">0px</option>
+                <option value="1" selected>1px</option>
+                <option value="2">2px</option>
+              </select>
+            </label>
+            <label class="batch-check"><input id="pngCleanupDilateColor" type="checkbox" checked> Dilatar cor correta nas bordas</label>
+            <label>Intensidade de limpeza
+              <select id="pngCleanupIntensity">
+                <option value="light">Leve</option>
+                <option value="medium" selected>Media</option>
+                <option value="aggressive">Agressiva</option>
+              </select>
+            </label>
+            <label>Metodo de suavizacao
+              <select id="pngCleanupSmoothing">
+                <option value="gaussian">Gaussian</option>
+                <option value="bilateral">Bilateral</option>
+                <option value="feather" selected>Feather leve</option>
+              </select>
+            </label>
+            <p id="pngCleanupAggressiveWarning" class="batch-editor-warning" hidden>Modo agressivo pode remover detalhes pequenos, como fios de cabelo, maquiagem ou bordas finas.</p>
+          </section>
+          <section data-batch-mode-section="remaster">
+            <h3>Upscaling e proporcao</h3>
+            <label class="batch-check"><input id="batchUpscaleEnabled" type="checkbox" checked> Ativar upscaling</label>
+            <label>Escala
+              <select id="batchScale">
+                <option value="1">1x</option>
+                <option value="2" selected>2x</option>
+                <option value="4">4x</option>
+              </select>
+            </label>
+            <label>Proporcao
+              <select id="batchRatioMode">
+                <option value="keep" selected>Manter proporcao original</option>
+                <option value="fixed">Padronizar largura/altura</option>
+                <option value="pad">Padronizar proporcao com preenchimento</option>
+              </select>
+            </label>
+            <div class="batch-editor-row">
+              <label>Largura <input id="batchTargetWidth" type="number" min="1" step="1" value="1024"></label>
+              <label>Altura <input id="batchTargetHeight" type="number" min="1" step="1" value="1024"></label>
+            </div>
+            <label>Preenchimento JPG <input id="batchJpgPadColor" type="color" value="#ffffff"></label>
+            <p id="batchRatioHint">Manter proporcao original: nao corta, nao reenquadra e nao deforma.</p>
+          </section>
+          <section data-batch-mode-section="remaster">
+            <h3>Parametros i2i</h3>
+            <div class="batch-editor-grid">
+              <label>CFG <input id="batchCfgScale" type="number" step="0.1" value="${BATCH_EDITOR_DEFAULTS.cfgScale}"></label>
+              <label>Denoising <input id="batchDenoising" type="number" min="0" max="1" step="0.01" value="${BATCH_EDITOR_DEFAULTS.denoising}"></label>
+              <label>Steps <input id="batchSteps" type="number" min="1" step="1" value="${BATCH_EDITOR_DEFAULTS.steps}"></label>
+              <label>Seed <input id="batchSeed" type="number" step="1" value="${BATCH_EDITOR_DEFAULTS.seed}"></label>
+            </div>
+            <label>Sampler <input id="batchSampler" type="text" value="${BATCH_EDITOR_DEFAULTS.sampler}" spellcheck="false"></label>
+            <label class="batch-check"><input id="batchAppendPathPrompt" type="checkbox"> Adicionar subpastas/nome no positivo</label>
+            <label>Positive Prompt <textarea id="batchPositivePrompt" rows="3">${BATCH_EDITOR_DEFAULTS.positivePrompt}</textarea></label>
+            <label>Negative Prompt <textarea id="batchNegativePrompt" rows="3">${BATCH_EDITOR_DEFAULTS.negativePrompt}</textarea></label>
+          </section>
+          <section class="batch-editor-actions">
+            <button type="button" data-batch-action="generate">Gerar</button>
+            <button type="button" data-batch-action="next">Carregar proximo</button>
+            <button type="button" data-batch-action="auto">Ativar automacao</button>
+            <button type="button" data-batch-action="pause">Pausar</button>
+            <button type="button" data-batch-action="continue">Continuar</button>
+            <button type="button" data-batch-action="cancel">Cancelar</button>
+          </section>
+        </aside>
+        <main class="batch-editor-preview">
+          <div class="batch-editor-preview-grid">
+            <figure><figcaption>Original</figcaption><img id="batchInputPreview" alt=""></figure>
+            <figure><figcaption>Saida</figcaption><img id="batchOutputPreview" alt=""></figure>
+          </div>
+          <div class="batch-editor-paths">
+            <div>input: <strong id="batchInputName">-</strong></div>
+            <div>output: <strong id="batchOutputName">-</strong></div>
+            <div>Origem: <span id="batchInputPath">-</span></div>
+            <div>Destino: <span id="batchOutputPath">-</span></div>
+            <div id="batchEditorStatus">Pronto.</div>
+          </div>
+          <div id="batchFileList" class="batch-editor-file-list"></div>
+        </main>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  bindBatchEditorEvents(modal);
+  return modal;
+}
+
+function getBatchElement(id) {
+  return document.getElementById(id);
+}
+
+function openBatchEditor() {
+  const modal = ensureBatchEditorModal();
+  modal.hidden = false;
+  batchEditorState.initialized = true;
+  const recursiveCheckbox = getBatchElement("batchRecursive");
+  if (recursiveCheckbox && recursiveCheckbox.dataset.defaultApplied !== "true") {
+    recursiveCheckbox.checked = true;
+    recursiveCheckbox.dataset.defaultApplied = "true";
+  }
+  updateBatchEditorModelLabel();
+  updateBatchRatioHint();
+  updateBatchModeUi();
+  renderBatchFileList();
+  updateBatchProgress();
+}
+
+function closeBatchEditor() {
+  const modal = ensureBatchEditorModal();
+  modal.hidden = true;
+}
+
+function bindBatchEditorEvents(modal) {
+  modal.querySelectorAll("[data-batch-action]").forEach((button) => {
+    button.addEventListener("click", () => handleBatchEditorAction(button.dataset.batchAction));
+  });
+  getBatchElement("batchMode")?.addEventListener("change", () => {
+    updateBatchModeUi();
+    void scanBatchEditorFiles();
+  });
+  getBatchElement("batchRatioMode")?.addEventListener("change", updateBatchRatioHint);
+  getBatchElement("batchResizeScalePreset")?.addEventListener("change", updateBatchResizeScaleUi);
+  getBatchElement("pngCleanupIntensity")?.addEventListener("change", updatePngCleanupUi);
+  ["batchOriginPath", "batchDestinationPath", "batchAllowPng", "batchAllowJpg", "batchRecursive"].forEach((id) => {
+    getBatchElement(id)?.addEventListener("change", () => scanBatchEditorFiles());
+  });
+}
+
+async function handleBatchEditorAction(action = "") {
+  if (action === "close") return closeBatchEditor();
+  if (action === "select-origin") return selectBatchFolder("origin");
+  if (action === "select-destination") return selectBatchFolder("destination");
+  if (action === "open-origin") return openBatchFolder("origin");
+  if (action === "open-destination") return openBatchFolder("destination");
+  if (action === "scan") return scanBatchEditorFiles();
+  if (action === "next") return loadBatchFile(batchEditorState.currentIndex + 1);
+  if (action === "generate") return generateCurrentBatchImage({ fromAutomation: false });
+  if (action === "auto") return startBatchAutomation();
+  if (action === "pause") {
+    batchEditorState.pauseAfterCurrent = true;
+    setBatchStatus("Automacao pausa apos a imagem atual.");
+    return;
+  }
+  if (action === "continue") return continueBatchAutomation();
+  if (action === "cancel") return cancelBatchAutomation();
+}
+
+async function selectBatchFolder(kind = "origin") {
+  const target = kind === "destination" ? "batchDestinationPath" : "batchOriginPath";
+  const result = await window.kitAPI?.selectBatchEditorFolder?.({
+    title: kind === "destination" ? "Selecionar pasta destino" : "Selecionar pasta origem"
+  });
+  if (result?.path) {
+    getBatchElement(target).value = result.path;
+    await scanBatchEditorFiles();
+  }
+}
+
+function openBatchFolder(kind = "origin") {
+  const value = getBatchElement(kind === "destination" ? "batchDestinationPath" : "batchOriginPath")?.value || "";
+  if (value) window.kitAPI?.openPath?.(value);
+}
+
+function getBatchOptions() {
+  const scale = getBatchElement("batchUpscaleEnabled")?.checked === false ? 1 : Number(getBatchElement("batchScale")?.value || 1);
+  const recursiveCheckbox = getBatchElement("batchRecursive");
+  const rawOrigin = String(getBatchElement("batchOriginPath")?.value || "").trim();
+  const rawDestination = String(getBatchElement("batchDestinationPath")?.value || "").trim();
+  const modeId = getBatchElement("batchMode")?.value || "remaster";
+  const resizeScalePreset = String(getBatchElement("batchResizeScalePreset")?.value || "0.5");
+  const resizeScale = resizeScalePreset === "custom"
+    ? Math.max(0.01, Number(getBatchElement("batchResizeCustomScale")?.value || 0.5))
+    : Number(resizeScalePreset || 0.5);
+  return {
+    mode: getBatchModeDefinition(modeId).id,
+    origin: rawOrigin && nodePath ? nodePath.resolve(rawOrigin) : rawOrigin,
+    destination: rawDestination && nodePath ? nodePath.resolve(rawDestination) : rawDestination,
+    allowPng: getBatchElement("batchAllowPng")?.checked !== false,
+    allowJpg: getBatchElement("batchAllowJpg")?.checked !== false,
+    recursive: recursiveCheckbox ? recursiveCheckbox.checked !== false : true,
+    preserveAlpha: getBatchElement("batchPreserveAlpha")?.checked !== false,
+    upscaleEnabled: getBatchElement("batchUpscaleEnabled")?.checked !== false,
+    scale: [1, 2, 4].includes(scale) ? scale : 1,
+    ratioMode: getBatchElement("batchRatioMode")?.value || "keep",
+    targetWidth: Math.max(1, Number(getBatchElement("batchTargetWidth")?.value || 1024)),
+    targetHeight: Math.max(1, Number(getBatchElement("batchTargetHeight")?.value || 1024)),
+    jpgPadColor: getBatchElement("batchJpgPadColor")?.value || "#ffffff",
+    cfgScale: Number(getBatchElement("batchCfgScale")?.value || BATCH_EDITOR_DEFAULTS.cfgScale),
+    denoising: Number(getBatchElement("batchDenoising")?.value || BATCH_EDITOR_DEFAULTS.denoising),
+    steps: Math.max(1, Number(getBatchElement("batchSteps")?.value || BATCH_EDITOR_DEFAULTS.steps)),
+    sampler: String(getBatchElement("batchSampler")?.value || BATCH_EDITOR_DEFAULTS.sampler).trim(),
+    seed: Number(getBatchElement("batchSeed")?.value || -1),
+    positivePrompt: String(getBatchElement("batchPositivePrompt")?.value || "").trim(),
+    appendPathPrompt: getBatchElement("batchAppendPathPrompt")?.checked === true,
+    negativePrompt: String(getBatchElement("batchNegativePrompt")?.value || "").trim(),
+    checkpoint: sdCheckpoint?.value || "",
+    architecture: getSelectedCheckpointArchitecture(),
+    resizeMethod: getBatchElement("batchResizeMethod")?.value || "lanczos",
+    resizeScalePreset,
+    resizeScale: Number.isFinite(resizeScale) && resizeScale > 0 ? resizeScale : 0.5,
+    pngCleanup: {
+      fixHalo: getBatchElement("pngCleanupFixHalo")?.checked !== false,
+      fixHiddenRgb: getBatchElement("pngCleanupFixHiddenRgb")?.checked !== false,
+      smoothAlpha: getBatchElement("pngCleanupSmoothAlpha")?.checked !== false,
+      removeIslands: getBatchElement("pngCleanupRemoveIslands")?.checked !== false,
+      contractAlpha: getBatchElement("pngCleanupContractAlpha")?.checked !== false,
+      contractPx: Math.max(0, Math.min(2, Number(getBatchElement("pngCleanupContractPx")?.value || 1))),
+      dilateColor: getBatchElement("pngCleanupDilateColor")?.checked !== false,
+      intensity: getBatchElement("pngCleanupIntensity")?.value || "medium",
+      smoothing: getBatchElement("pngCleanupSmoothing")?.value || "feather"
+    }
+  };
+}
+
+function updateBatchResizeScaleUi() {
+  const customRow = getBatchElement("batchResizeCustomScaleRow");
+  if (customRow) {
+    customRow.hidden = getBatchElement("batchResizeScalePreset")?.value !== "custom";
+  }
+}
+
+function updateBatchModeUi() {
+  const mode = getBatchModeDefinition(getBatchElement("batchMode")?.value || "remaster");
+  document.querySelectorAll("[data-batch-mode-section]").forEach((section) => {
+    const sectionMode = section.dataset.batchModeSection;
+    section.hidden = sectionMode !== "shared-files" && sectionMode !== mode.id;
+  });
+  const description = getBatchElement("batchModeDescription");
+  if (description) {
+    description.textContent = mode.description || "";
+  }
+  const unavailable = getBatchElement("batchModeUnavailable");
+  if (unavailable) {
+    unavailable.hidden = mode.implemented !== false;
+  }
+  updateBatchResizeScaleUi();
+  updatePngCleanupUi();
+  updateBatchEditorModelLabel();
+  setBatchStatus(mode.implemented === false
+    ? "Este modo ainda nao foi implementado."
+    : mode.usesAI
+      ? `${mode.name} pronto. Este modo usa o motor SD/i2i.`
+      : `${mode.name} pronto. Este modo nao usa IA.`);
+}
+
+function updatePngCleanupUi() {
+  const warning = getBatchElement("pngCleanupAggressiveWarning");
+  if (warning) {
+    warning.hidden = getBatchElement("pngCleanupIntensity")?.value !== "aggressive";
+  }
+}
+
+function updateBatchRatioHint() {
+  const mode = getBatchElement("batchRatioMode")?.value || "keep";
+  const hint = getBatchElement("batchRatioHint");
+  if (!hint) return;
+  hint.textContent = mode === "fixed"
+    ? "Padronizar largura/altura: resize controlado, pode deformar se a proporcao for diferente."
+    : mode === "pad"
+      ? "Padronizar proporcao com preenchimento: mantem proporcao, adiciona transparencia no PNG e cor no JPG."
+      : "Manter proporcao original: nao corta, nao reenquadra e nao deforma.";
+}
+
+function updateBatchEditorModelLabel() {
+  const label = getBatchElement("batchEditorModel");
+  if (!label) return;
+  const mode = getBatchModeDefinition(getBatchElement("batchMode")?.value || "remaster");
+  if (!mode.usesAI) {
+    label.textContent = `Modo: ${mode.name} - IA desligada`;
+    return;
+  }
+  const selected = sdCheckpoint?.selectedOptions?.[0]?.textContent || sdCheckpoint?.value || "";
+  label.textContent = `Modelo: ${selected || "nenhum modelo selecionado no motor SD"}`;
+}
+
+function isValidBatchImageExtension(ext = "", options = {}) {
+  const normalizedExt = String(ext || "").toLowerCase();
+  return (options.allowPng && normalizedExt === ".png") ||
+    (options.allowJpg && (normalizedExt === ".jpg" || normalizedExt === ".jpeg"));
+}
+
+function isBatchPathInside(childPath = "", parentPath = "") {
+  if (!nodePath || !childPath || !parentPath) return false;
+  const relative = nodePath.relative(nodePath.resolve(parentPath), nodePath.resolve(childPath));
+  return relative === "" || (!relative.startsWith("..") && !nodePath.isAbsolute(relative));
+}
+
+function scanDirectoryForBatchFiles(originDir, options) {
+  if (!nodeFs || !nodePath || !originDir || !nodeFs.existsSync(originDir)) return [];
+  const root = nodePath.resolve(originDir);
+  const destinationRoot = options.destination ? nodePath.resolve(options.destination) : "";
+  const pendingDirs = [root];
+  const files = [];
+
+  while (pendingDirs.length) {
+    const currentDir = pendingDirs.shift();
+    let entries = [];
+    try {
+      entries = nodeFs.readdirSync(currentDir, { withFileTypes: true });
+    } catch (err) {
+      console.warn("[Batch Editor] Falha ao varrer pasta:", currentDir, err.message || err);
+      continue;
+    }
+
+    entries.forEach((entry) => {
+      const sourcePath = nodePath.resolve(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        if (options.recursive) {
+          pendingDirs.push(sourcePath);
+        }
+        return;
+      }
+
+      if (!entry.isFile()) return;
+      const ext = nodePath.extname(entry.name).toLowerCase();
+      if (!isValidBatchImageExtension(ext, options)) return;
+
+      const relativePath = options.recursive
+        ? nodePath.relative(root, sourcePath)
+        : entry.name;
+      const outputPath = destinationRoot
+        ? nodePath.join(destinationRoot, relativePath)
+        : relativePath;
+
+      files.push({
+        id: `batch-file-${files.length}`,
+        sourcePath,
+        inputPath: sourcePath,
+        relativePath,
+        outputPath,
+        fileName: entry.name,
+        name: entry.name,
+        ext,
+        status: "pendente",
+        progress: 0,
+        error: ""
+      });
+    });
+  }
+
+  files.sort((a, b) => String(a.relativePath).localeCompare(String(b.relativePath), "pt-BR", { sensitivity: "base" }));
+  return files;
+}
+
+async function scanBatchEditorFiles() {
+  const options = getBatchOptions();
+  if (!options.origin) {
+    batchEditorState.files = [];
+    batchEditorState.currentIndex = -1;
+    renderBatchFileList();
+    updateBatchPreview(null);
+    updateBatchProgress();
+    setBatchStatus("Selecione uma pasta origem.");
+    return;
+  }
+
+  setBatchStatus("Varrendo pasta origem...");
+  let scannedFiles = [];
+  try {
+    const mode = getBatchModeDefinition(options.mode);
+    const allowPng = options.allowPng && mode.supportedExtensions.includes(".png");
+    const allowJpg = options.allowJpg && (mode.supportedExtensions.includes(".jpg") || mode.supportedExtensions.includes(".jpeg"));
+    if (typeof window.kitAPI?.scanBatchEditorFiles === "function") {
+      const result = await window.kitAPI.scanBatchEditorFiles({
+        origin: options.origin,
+        destination: options.destination,
+        recursive: options.recursive,
+        allowPng,
+        allowJpg
+      });
+      scannedFiles = Array.isArray(result?.files) ? result.files : [];
+    } else {
+      if (!nodeFs?.existsSync(options.origin)) {
+        throw new Error("Pasta origem nao encontrada.");
+      }
+      scannedFiles = scanDirectoryForBatchFiles(options.origin, {
+        ...options,
+        allowPng,
+        allowJpg
+      });
+    }
+  } catch (err) {
+    batchEditorState.files = [];
+    batchEditorState.currentIndex = -1;
+    renderBatchFileList();
+    updateBatchPreview(null);
+    updateBatchProgress();
+    setBatchStatus(`Erro ao varrer pasta: ${err.message || err}`);
+    return;
+  }
+
+  batchEditorState.files = scannedFiles.map((item, index) => {
+    const sourcePath = item.sourcePath || item.inputPath || "";
+    const relativePath = item.relativePath || (nodePath ? nodePath.basename(sourcePath) : item.fileName || item.name || "");
+    const outputPath = item.outputPath || (nodePath && options.destination ? nodePath.join(options.destination, relativePath) : relativePath);
+    const fileName = item.fileName || item.name || (nodePath ? nodePath.basename(sourcePath) : relativePath);
+    return {
+      ...item,
+      id: `batch-file-${index}`,
+      sourcePath,
+      inputPath: sourcePath,
+      relativePath,
+      outputPath,
+      fileName,
+      name: fileName,
+      ext: item.ext || (nodePath ? nodePath.extname(fileName).toLowerCase() : ""),
+      status: "pendente",
+      progress: 0,
+      error: ""
+    };
+  });
+  batchEditorState.currentIndex = batchEditorState.files.length ? 0 : -1;
+  batchEditorState.startedAt = null;
+  batchEditorState.completedDurations = [];
+  batchEditorState.errors = [];
+  batchEditorState.logStartedAt = null;
+  batchEditorState.logPath = "";
+  renderBatchFileList();
+  updateBatchProgress();
+  if (batchEditorState.currentIndex >= 0) {
+    await loadBatchFile(batchEditorState.currentIndex);
+    setBatchStatus(`${batchEditorState.files.length} arquivo${batchEditorState.files.length === 1 ? "" : "s"} encontrado${batchEditorState.files.length === 1 ? "" : "s"}.`);
+  } else {
+    updateBatchPreview(null);
+    setBatchStatus("Nenhum arquivo valido encontrado.");
+  }
+}
+
+function renderBatchFileList() {
+  const list = getBatchElement("batchFileList");
+  if (!list) return;
+  if (!batchEditorState.files.length) {
+    list.innerHTML = `<div class="batch-editor-empty">Nenhum arquivo encontrado.</div>`;
+    return;
+  }
+  list.innerHTML = "";
+  batchEditorState.files.forEach((file, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `batch-editor-file is-${file.status}`;
+    button.textContent = `${String(file.relativePath || file.fileName || file.name).replace(/\\/g, "/")} (${file.status}${file.progress ? ` ${file.progress}%` : ""})`;
+    button.addEventListener("click", () => loadBatchFile(index));
+    list.appendChild(button);
+  });
+}
+
+async function loadBatchFile(index = 0) {
+  if (index < 0 || index >= batchEditorState.files.length) {
+    setBatchStatus("Fim da lista.");
+    return null;
+  }
+  batchEditorState.currentIndex = index;
+  const file = batchEditorState.files[index];
+  if (file.status !== "ok") {
+    file.status = "carregado";
+  }
+  file.progress = 0;
+  renderBatchFileList();
+  updateBatchPreview(file);
+  setBatchStatus(`Carregado: ${file.fileName || file.name}`);
+  return file;
+}
+
+function updateBatchPreview(file, outputPath = "") {
+  const inputPreview = getBatchElement("batchInputPreview");
+  const outputPreview = getBatchElement("batchOutputPreview");
+  const inputName = getBatchElement("batchInputName");
+  const outputName = getBatchElement("batchOutputName");
+  const inputPath = getBatchElement("batchInputPath");
+  const outputPathElement = getBatchElement("batchOutputPath");
+  if (!file) {
+    if (inputPreview) inputPreview.removeAttribute("src");
+    if (outputPreview) outputPreview.removeAttribute("src");
+    if (inputName) inputName.textContent = "-";
+    if (outputName) outputName.textContent = "-";
+    if (inputPath) inputPath.textContent = "-";
+    if (outputPathElement) outputPathElement.textContent = "-";
+    return;
+  }
+  if (inputPreview) inputPreview.src = toImageUrl(file.sourcePath || file.inputPath);
+  if (outputPreview) {
+    if (outputPath) {
+      outputPreview.src = `${toImageUrl(outputPath)}?t=${Date.now()}`;
+    } else {
+      outputPreview.removeAttribute("src");
+    }
+  }
+  if (inputName) inputName.textContent = file.fileName || file.name;
+  if (outputName) outputName.textContent = nodePath ? nodePath.basename(file.outputPath) : (file.fileName || file.name);
+  if (inputPath) inputPath.textContent = file.sourcePath || file.inputPath;
+  if (outputPathElement) outputPathElement.textContent = file.outputPath;
+}
+
+function setBatchStatus(message = "") {
+  const status = getBatchElement("batchEditorStatus");
+  if (status) status.textContent = message || "Pronto.";
+}
+
+function formatBatchDuration(ms = 0) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = String(Math.floor(total / 3600)).padStart(2, "0");
+  const m = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
+  const s = String(total % 60).padStart(2, "0");
+  return `${h}:${m}:${s}`;
+}
+
+function formatBatchClock(date = null) {
+  if (!date) return "-";
+  return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function updateBatchProgress() {
+  const total = batchEditorState.files.length;
+  const completed = batchEditorState.files.filter((item) => item.status === "ok").length;
+  const errors = batchEditorState.files.filter((item) => item.status === "erro").length;
+  const percent = total ? Math.round((completed / total) * 100) : 0;
+  const elapsed = batchEditorState.startedAt ? Date.now() - batchEditorState.startedAt.getTime() : 0;
+  const avg = batchEditorState.completedDurations.length
+    ? batchEditorState.completedDurations.reduce((sum, item) => sum + item, 0) / batchEditorState.completedDurations.length
+    : 0;
+  const remaining = Math.max(0, total - completed - errors);
+  const eta = avg && batchEditorState.startedAt ? new Date(Date.now() + avg * remaining) : null;
+  const text = getBatchElement("batchEditorProgressText");
+  const fill = getBatchElement("batchEditorProgressFill");
+  const foundCount = getBatchElement("batchFoundCount");
+  if (text) {
+    text.textContent = `${completed}/${total} concluidas | ${percent}% | tempo decorrido: ${formatBatchDuration(elapsed)} | inicio: ${formatBatchClock(batchEditorState.startedAt)} | previsto: ${formatBatchClock(eta)} | erros: ${errors}`;
+  }
+  if (foundCount) {
+    foundCount.textContent = `${total} arquivo${total === 1 ? "" : "s"} encontrado${total === 1 ? "" : "s"}`;
+  }
+  if (fill) fill.style.width = `${percent}%`;
+}
+
+function makeCanvas(width, height) {
+  const canvasElement = document.createElement("canvas");
+  canvasElement.width = Math.max(1, Math.round(width));
+  canvasElement.height = Math.max(1, Math.round(height));
+  return canvasElement;
+}
+
+function resolveBatchTargetSize(image, options) {
+  const sourceWidth = image.naturalWidth || image.width || 1;
+  const sourceHeight = image.naturalHeight || image.height || 1;
+  if (options.ratioMode === "fixed" || options.ratioMode === "pad") {
+    return { width: options.targetWidth, height: options.targetHeight };
+  }
+  const scale = options.upscaleEnabled ? options.scale : 1;
+  return {
+    width: Math.max(1, Math.round(sourceWidth * scale)),
+    height: Math.max(1, Math.round(sourceHeight * scale))
+  };
+}
+
+function drawBatchPreparedCanvas(image, options, alphaOnly = false) {
+  const size = resolveBatchTargetSize(image, options);
+  const canvasElement = makeCanvas(size.width, size.height);
+  const ctx = canvasElement.getContext("2d");
+  ctx.clearRect(0, 0, size.width, size.height);
+  if (!alphaOnly && options.ratioMode === "pad") {
+    ctx.fillStyle = options.jpgPadColor || "#ffffff";
+    ctx.fillRect(0, 0, size.width, size.height);
+  }
+  if (options.ratioMode === "pad") {
+    const sourceWidth = image.naturalWidth || image.width || 1;
+    const sourceHeight = image.naturalHeight || image.height || 1;
+    const fit = Math.min(size.width / sourceWidth, size.height / sourceHeight);
+    const drawWidth = Math.max(1, Math.round(sourceWidth * fit));
+    const drawHeight = Math.max(1, Math.round(sourceHeight * fit));
+    const x = Math.round((size.width - drawWidth) / 2);
+    const y = Math.round((size.height - drawHeight) / 2);
+    ctx.drawImage(image, x, y, drawWidth, drawHeight);
+  } else {
+    ctx.drawImage(image, 0, 0, size.width, size.height);
+  }
+  return canvasElement;
+}
+
+function forceCanvasOpaqueRgb(canvasElement, fill = "#ffffff") {
+  const output = makeCanvas(canvasElement.width, canvasElement.height);
+  const ctx = output.getContext("2d");
+  ctx.fillStyle = fill;
+  ctx.fillRect(0, 0, output.width, output.height);
+  ctx.drawImage(canvasElement, 0, 0);
+  return output;
+}
+
+function extractAlphaCanvas(image, options) {
+  const sourceCanvas = drawBatchPreparedCanvas(image, options, true);
+  const ctx = sourceCanvas.getContext("2d");
+  const imageData = ctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+  for (let i = 0; i < imageData.data.length; i += 4) {
+    const alpha = imageData.data[i + 3];
+    imageData.data[i] = alpha;
+    imageData.data[i + 1] = alpha;
+    imageData.data[i + 2] = alpha;
+    imageData.data[i + 3] = 255;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return sourceCanvas;
+}
+
+function applyAlphaToCanvas(rgbImage, alphaCanvas, width, height) {
+  const output = makeCanvas(width, height);
+  const ctx = output.getContext("2d");
+  ctx.drawImage(rgbImage, 0, 0, width, height);
+  const result = ctx.getImageData(0, 0, width, height);
+  const alphaCtx = alphaCanvas.getContext("2d");
+  const alphaData = alphaCtx.getImageData(0, 0, width, height).data;
+  for (let i = 0; i < result.data.length; i += 4) {
+    result.data[i + 3] = alphaData[i];
+  }
+  ctx.putImageData(result, 0, 0);
+  return output;
+}
+
+function normalizeBatchPathPromptToken(value = "") {
+  return String(value || "")
+    .replace(/\.[^.\\/]+$/u, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getBatchPathPromptTags(file = {}) {
+  const relativePath = String(file.relativePath || file.fileName || file.name || "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+|\/+$/g, "");
+  if (!relativePath) return [];
+
+  const seen = new Set();
+  return relativePath
+    .split("/")
+    .map(normalizeBatchPathPromptToken)
+    .filter(Boolean)
+    .filter((token) => {
+      const key = token.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function buildBatchPositivePromptForFile(basePrompt = "", file = {}, options = {}) {
+  const prompt = String(basePrompt || "").trim();
+  if (!options.appendPathPrompt) {
+    return prompt;
+  }
+  const pathPrompt = getBatchPathPromptTags(file).join(", ");
+  if (!pathPrompt) {
+    return prompt;
+  }
+  return prompt ? `${prompt}, ${pathPrompt}` : pathPrompt;
+}
+
+async function generateCurrentBatchImage({ fromAutomation = false } = {}) {
+  const options = getBatchOptions();
+  const mode = getBatchModeDefinition(options.mode);
+  if (mode.implemented === false) {
+    setBatchStatus("Este modo ainda nao foi implementado.");
+    return null;
+  }
+  if (mode.id === "resize") {
+    return generateCurrentBatchResizeImage({ fromAutomation, options });
+  }
+  if (mode.id === "png-cleanup") {
+    return generateCurrentPngCleanupImage({ fromAutomation, options });
+  }
+  return generateCurrentBatchRemasterImage({ fromAutomation, options });
+}
+
+function configureBatchResizeContext(ctx, method = "lanczos") {
+  const normalizedMethod = String(method || "lanczos").toLowerCase();
+  if (normalizedMethod === "nearest") {
+    ctx.imageSmoothingEnabled = false;
+    return;
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = normalizedMethod === "bilinear"
+    ? "low"
+    : normalizedMethod === "bicubic"
+      ? "medium"
+      : "high";
+}
+
+function createBatchResizeCanvas(image, options = {}, extension = ".png") {
+  const sourceWidth = Math.max(1, Number(image.naturalWidth || image.width || 1));
+  const sourceHeight = Math.max(1, Number(image.naturalHeight || image.height || 1));
+  const scale = Math.max(0.01, Number(options.resizeScale || 0.5));
+  const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+  const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+  const output = makeCanvas(targetWidth, targetHeight);
+  const ctx = output.getContext("2d");
+  configureBatchResizeContext(ctx, options.resizeMethod);
+  if (extension !== ".png" || options.preserveAlpha === false) {
+    ctx.fillStyle = options.jpgPadColor || "#ffffff";
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+  } else {
+    ctx.clearRect(0, 0, targetWidth, targetHeight);
+  }
+  ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+  return output;
+}
+
+async function generateCurrentBatchResizeImage({ fromAutomation = false, options = getBatchOptions() } = {}) {
+  const file = batchEditorState.files[batchEditorState.currentIndex];
+  if (!file) {
+    setBatchStatus("Nenhuma imagem carregada.");
+    return null;
+  }
+  if (!options.destination) {
+    setBatchStatus("Selecione uma pasta destino.");
+    return null;
+  }
+  if (isBatchPathInside(file.outputPath, options.origin)) {
+    setBatchStatus("Escolha uma pasta destino fora da pasta origem para nao modificar os arquivos originais.");
+    return null;
+  }
+
+  const started = Date.now();
+  if (!batchEditorState.startedAt) {
+    batchEditorState.startedAt = new Date();
+    batchEditorState.logStartedAt = batchEditorState.startedAt.toISOString();
+  }
+  file.status = "processando";
+  file.progress = 10;
+  renderBatchFileList();
+  updateBatchProgress();
+  setBatchStatus(`Redimensionando ${file.fileName || file.name}...`);
+
+  try {
+    const sourcePath = file.sourcePath || file.inputPath;
+    const sourceImage = await loadImageElement(toImageUrl(sourcePath));
+    const extension = file.ext || nodePath.extname(sourcePath).toLowerCase();
+    file.progress = 45;
+    renderBatchFileList();
+
+    const outputCanvas = createBatchResizeCanvas(sourceImage, options, extension);
+    const isJpeg = [".jpg", ".jpeg"].includes(extension);
+    const dataUrl = outputCanvas.toDataURL(isJpeg ? "image/jpeg" : "image/png", 0.95);
+    await window.kitAPI?.saveBatchEditorImage?.({
+      dataUrl,
+      targetPath: file.outputPath
+    });
+
+    file.status = "ok";
+    file.progress = 100;
+    file.error = "";
+    batchEditorState.completedDurations.push(Date.now() - started);
+    updateBatchPreview(file, file.outputPath);
+    setBatchStatus(`Resize salvo: ${file.outputPath}`);
+  } catch (err) {
+    file.status = "erro";
+    file.error = err.message || String(err);
+    batchEditorState.errors.push({ file: file.sourcePath || file.inputPath, error: file.error, at: new Date().toISOString() });
+    setBatchStatus(`Erro no resize de ${file.fileName || file.name}: ${file.error}`);
+  } finally {
+    renderBatchFileList();
+    updateBatchProgress();
+    await saveBatchEditorStateLog(false).catch(() => null);
+  }
+  return file;
+}
+
+function getPngCleanupPreset(settings = {}) {
+  const intensity = settings.intensity || "medium";
+  if (intensity === "light") {
+    return { islandArea: 3, alphaThreshold: 12, haloThreshold: 226, smoothPasses: 1 };
+  }
+  if (intensity === "aggressive") {
+    return { islandArea: 14, alphaThreshold: 24, haloThreshold: 196, smoothPasses: 2 };
+  }
+  return { islandArea: 7, alphaThreshold: 18, haloThreshold: 212, smoothPasses: 1 };
+}
+
+function cloneUint8(data) {
+  return new Uint8ClampedArray(data);
+}
+
+function getPixelIndex(x, y, width) {
+  return (y * width + x) * 4;
+}
+
+function removePngAlphaIslands(data, width, height, settings = {}) {
+  const preset = getPngCleanupPreset(settings);
+  const threshold = preset.alphaThreshold;
+  const visited = new Uint8Array(width * height);
+  const components = [];
+  const queue = [];
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const pos = y * width + x;
+      if (visited[pos] || data[pos * 4 + 3] <= threshold) continue;
+      visited[pos] = 1;
+      queue.length = 0;
+      queue.push(pos);
+      const pixels = [];
+      while (queue.length) {
+        const current = queue.pop();
+        pixels.push(current);
+        const cx = current % width;
+        const cy = Math.floor(current / width);
+        const neighbors = [
+          [cx - 1, cy],
+          [cx + 1, cy],
+          [cx, cy - 1],
+          [cx, cy + 1]
+        ];
+        neighbors.forEach(([nx, ny]) => {
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) return;
+          const npos = ny * width + nx;
+          if (visited[npos] || data[npos * 4 + 3] <= threshold) return;
+          visited[npos] = 1;
+          queue.push(npos);
+        });
+      }
+      components.push(pixels);
+    }
+  }
+
+  if (!components.length) return;
+  const largestSize = Math.max(...components.map((component) => component.length));
+  components.forEach((component) => {
+    if (component.length === largestSize || component.length > preset.islandArea) return;
+    component.forEach((pos) => {
+      data[pos * 4 + 3] = 0;
+    });
+  });
+}
+
+function contractPngAlpha(data, width, height, px = 1) {
+  const radius = Math.max(0, Math.min(2, Number(px || 0)));
+  if (!radius) return;
+  let alpha = new Uint8ClampedArray(width * height);
+  for (let i = 0; i < alpha.length; i += 1) {
+    alpha[i] = data[i * 4 + 3];
+  }
+  for (let pass = 0; pass < radius; pass += 1) {
+    const next = new Uint8ClampedArray(alpha);
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const pos = y * width + x;
+        if (alpha[pos] <= 0) continue;
+        let minNeighbor = alpha[pos];
+        for (let yy = -1; yy <= 1; yy += 1) {
+          for (let xx = -1; xx <= 1; xx += 1) {
+            const nx = x + xx;
+            const ny = y + yy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+              minNeighbor = 0;
+              continue;
+            }
+            minNeighbor = Math.min(minNeighbor, alpha[ny * width + nx]);
+          }
+        }
+        next[pos] = minNeighbor;
+      }
+    }
+    alpha = next;
+  }
+  for (let i = 0; i < alpha.length; i += 1) {
+    data[i * 4 + 3] = alpha[i];
+  }
+}
+
+function smoothPngAlpha(data, width, height, settings = {}) {
+  const preset = getPngCleanupPreset(settings);
+  const threshold = preset.alphaThreshold;
+  const smoothing = settings.smoothing || "feather";
+  for (let pass = 0; pass < preset.smoothPasses; pass += 1) {
+    const source = cloneUint8(data);
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const index = getPixelIndex(x, y, width);
+        const alpha = source[index + 3];
+        if (alpha <= threshold || alpha >= 245) continue;
+        let sum = 0;
+        let weight = 0;
+        for (let yy = -1; yy <= 1; yy += 1) {
+          for (let xx = -1; xx <= 1; xx += 1) {
+            const neighborAlpha = source[getPixelIndex(x + xx, y + yy, width) + 3];
+            if (smoothing === "bilateral" && Math.abs(neighborAlpha - alpha) > 70) {
+              continue;
+            }
+            const w = smoothing === "feather"
+              ? (xx === 0 && yy === 0 ? 2 : 1)
+              : (xx === 0 && yy === 0 ? 4 : (Math.abs(xx) + Math.abs(yy) === 1 ? 2 : 1));
+            sum += neighborAlpha * w;
+            weight += w;
+          }
+        }
+        data[index + 3] = Math.round(sum / Math.max(1, weight));
+      }
+    }
+  }
+}
+
+function findOpaqueNeighborColor(data, width, height, x, y, radius = 3) {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let count = 0;
+  for (let dist = 1; dist <= radius; dist += 1) {
+    for (let yy = -dist; yy <= dist; yy += 1) {
+      for (let xx = -dist; xx <= dist; xx += 1) {
+        if (Math.abs(xx) !== dist && Math.abs(yy) !== dist) continue;
+        const nx = x + xx;
+        const ny = y + yy;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+        const index = getPixelIndex(nx, ny, width);
+        const alpha = data[index + 3];
+        if (alpha < 160) continue;
+        r += data[index];
+        g += data[index + 1];
+        b += data[index + 2];
+        count += 1;
+      }
+    }
+    if (count) {
+      return [Math.round(r / count), Math.round(g / count), Math.round(b / count)];
+    }
+  }
+  return null;
+}
+
+function cleanupPngRgbAndHalo(data, width, height, settings = {}) {
+  const preset = getPngCleanupPreset(settings);
+  const source = cloneUint8(data);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = getPixelIndex(x, y, width);
+      const alpha = data[index + 3];
+      const rgbAvg = (data[index] + data[index + 1] + data[index + 2]) / 3;
+      const shouldReplaceHiddenRgb = settings.fixHiddenRgb && alpha < 8;
+      const shouldFixHalo = settings.fixHalo && alpha > 0 && alpha < 245 && rgbAvg >= preset.haloThreshold;
+      const shouldDilate = settings.dilateColor && alpha < 245;
+      if (!shouldReplaceHiddenRgb && !shouldFixHalo && !shouldDilate) continue;
+      const color = findOpaqueNeighborColor(source, width, height, x, y, settings.intensity === "aggressive" ? 5 : 3);
+      if (!color) continue;
+      if (shouldFixHalo && alpha > 0) {
+        const blend = settings.intensity === "aggressive" ? 0.82 : 0.66;
+        data[index] = Math.round(data[index] * (1 - blend) + color[0] * blend);
+        data[index + 1] = Math.round(data[index + 1] * (1 - blend) + color[1] * blend);
+        data[index + 2] = Math.round(data[index + 2] * (1 - blend) + color[2] * blend);
+      } else {
+        data[index] = color[0];
+        data[index + 1] = color[1];
+        data[index + 2] = color[2];
+      }
+    }
+  }
+}
+
+function createPngCleanupCanvas(image, options = {}) {
+  const width = Math.max(1, Number(image.naturalWidth || image.width || 1));
+  const height = Math.max(1, Number(image.naturalHeight || image.height || 1));
+  const output = makeCanvas(width, height);
+  const ctx = output.getContext("2d");
+  ctx.clearRect(0, 0, width, height);
+  ctx.drawImage(image, 0, 0, width, height);
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const settings = options.pngCleanup || {};
+
+  if (settings.removeIslands) {
+    removePngAlphaIslands(data, width, height, settings);
+  }
+  if (settings.contractAlpha) {
+    contractPngAlpha(data, width, height, settings.contractPx);
+  }
+  if (settings.smoothAlpha) {
+    smoothPngAlpha(data, width, height, settings);
+  }
+  if (settings.fixHiddenRgb || settings.fixHalo || settings.dilateColor) {
+    cleanupPngRgbAndHalo(data, width, height, settings);
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  return output;
+}
+
+async function generateCurrentPngCleanupImage({ fromAutomation = false, options = getBatchOptions() } = {}) {
+  const file = batchEditorState.files[batchEditorState.currentIndex];
+  if (!file) {
+    setBatchStatus("Nenhuma imagem carregada.");
+    return null;
+  }
+  if (!options.destination) {
+    setBatchStatus("Selecione uma pasta destino.");
+    return null;
+  }
+  if ((file.ext || "").toLowerCase() !== ".png") {
+    file.status = "pulado";
+    file.error = "PNG Cleanup aceita apenas PNG.";
+    renderBatchFileList();
+    setBatchStatus(`${file.fileName || file.name} nao e PNG.`);
+    return file;
+  }
+  if (!options.preserveAlpha) {
+    setBatchStatus("PNG Cleanup depende de PNG RGBA e preservacao de transparencia ativada.");
+    return null;
+  }
+  if (isBatchPathInside(file.outputPath, options.origin)) {
+    setBatchStatus("Escolha uma pasta destino fora da pasta origem para nao modificar os arquivos originais.");
+    return null;
+  }
+
+  const started = Date.now();
+  if (!batchEditorState.startedAt) {
+    batchEditorState.startedAt = new Date();
+    batchEditorState.logStartedAt = batchEditorState.startedAt.toISOString();
+  }
+  file.status = "processando";
+  file.progress = 10;
+  renderBatchFileList();
+  updateBatchProgress();
+  setBatchStatus(`Limpando PNG ${file.fileName || file.name}...`);
+
+  try {
+    const sourcePath = file.sourcePath || file.inputPath;
+    const sourceImage = await loadImageElement(toImageUrl(sourcePath));
+    file.progress = 55;
+    renderBatchFileList();
+    const outputCanvas = createPngCleanupCanvas(sourceImage, options);
+    await window.kitAPI?.saveBatchEditorImage?.({
+      dataUrl: outputCanvas.toDataURL("image/png"),
+      targetPath: file.outputPath
+    });
+    file.status = "ok";
+    file.progress = 100;
+    file.error = "";
+    batchEditorState.completedDurations.push(Date.now() - started);
+    updateBatchPreview(file, file.outputPath);
+    setBatchStatus(`PNG limpo salvo: ${file.outputPath}`);
+  } catch (err) {
+    file.status = "erro";
+    file.error = err.message || String(err);
+    batchEditorState.errors.push({ file: file.sourcePath || file.inputPath, error: file.error, at: new Date().toISOString() });
+    setBatchStatus(`Erro no PNG Cleanup de ${file.fileName || file.name}: ${file.error}`);
+  } finally {
+    renderBatchFileList();
+    updateBatchProgress();
+    await saveBatchEditorStateLog(false).catch(() => null);
+  }
+  return file;
+}
+
+async function generateCurrentBatchRemasterImage({ fromAutomation = false, options = getBatchOptions() } = {}) {
+  const file = batchEditorState.files[batchEditorState.currentIndex];
+  if (!file) {
+    setBatchStatus("Nenhuma imagem carregada.");
+    return null;
+  }
+  if (!options.destination) {
+    setBatchStatus("Selecione uma pasta destino.");
+    return null;
+  }
+  if (isBatchPathInside(file.outputPath, options.origin)) {
+    setBatchStatus("Escolha uma pasta destino fora da pasta origem para nao modificar os arquivos originais.");
+    return null;
+  }
+  if (!options.checkpoint) {
+    setBatchStatus("Selecione um modelo SD no painel de imagem do Canvas antes de gerar.");
+    return null;
+  }
+
+  await startStableDiffusionWorker();
+  const started = Date.now();
+  if (!batchEditorState.startedAt) {
+    batchEditorState.startedAt = new Date();
+    batchEditorState.logStartedAt = batchEditorState.startedAt.toISOString();
+  }
+  file.status = "processando";
+  file.progress = 10;
+  renderBatchFileList();
+  updateBatchProgress();
+  setBatchStatus(`Processando ${file.fileName || file.name}...`);
+
+  try {
+    const sourcePath = file.sourcePath || file.inputPath;
+    const sourceImage = await loadImageElement(toImageUrl(sourcePath));
+    const extension = file.ext || nodePath.extname(sourcePath).toLowerCase();
+    const isPng = extension === ".png";
+    const targetSize = resolveBatchTargetSize(sourceImage, options);
+    const prepared = drawBatchPreparedCanvas(sourceImage, options, false);
+    const rgbCanvas = isPng && options.preserveAlpha ? forceCanvasOpaqueRgb(prepared, "#ffffff") : prepared;
+    const alphaCanvas = isPng && options.preserveAlpha ? extractAlphaCanvas(sourceImage, options) : null;
+
+    file.progress = 25;
+    renderBatchFileList();
+    const temp = await window.kitAPI?.saveCanvasI2ITempPng?.({
+      dataUrl: rgbCanvas.toDataURL("image/png"),
+      name: file.fileName || file.name,
+      width: targetSize.width,
+      height: targetSize.height
+    });
+    if (!temp?.filePath) {
+      throw new Error("Nao foi possivel criar imagem temporaria RGB.");
+    }
+
+    file.progress = 45;
+    renderBatchFileList();
+    startStableDiffusionProgressPolling();
+    const positivePrompt = buildBatchPositivePromptForFile(options.positivePrompt, file, options);
+    const result = normalizeStableImageResponse(await window.kitAPI?.img2imgStableDiffusionImage?.({
+      mode: "img2img",
+      prompt: positivePrompt,
+      negative_prompt: options.negativePrompt,
+      checkpoint: options.checkpoint,
+      architecture: options.architecture,
+      sampler: options.sampler,
+      scheduler: sdScheduler?.value || "DPMSolverMultistepScheduler",
+      steps: options.steps,
+      cfg_scale: options.cfgScale,
+      seed: options.seed,
+      denoising_strength: options.denoising,
+      width: targetSize.width,
+      height: targetSize.height,
+      initImagePath: temp.filePath,
+      image_path: temp.filePath,
+      source: "canvas_batch_editor"
+    }));
+    stopStableDiffusionProgressPolling();
+    if (!result?.file) {
+      throw new Error("O motor SD nao retornou arquivo de saida.");
+    }
+
+    file.progress = 80;
+    renderBatchFileList();
+    const resultImage = await loadImageElement(toImageUrl(result.file));
+    const outputCanvas = isPng && options.preserveAlpha && alphaCanvas
+      ? applyAlphaToCanvas(resultImage, alphaCanvas, targetSize.width, targetSize.height)
+      : drawBatchPreparedCanvas(resultImage, { ...options, ratioMode: "fixed", targetWidth: targetSize.width, targetHeight: targetSize.height }, false);
+    const isJpeg = [".jpg", ".jpeg"].includes(extension);
+    const dataUrl = outputCanvas.toDataURL(isJpeg ? "image/jpeg" : "image/png", 0.95);
+    await window.kitAPI?.saveBatchEditorImage?.({
+      dataUrl,
+      targetPath: file.outputPath
+    });
+
+    file.status = "ok";
+    file.progress = 100;
+    file.error = "";
+    batchEditorState.completedDurations.push(Date.now() - started);
+    updateBatchPreview(file, file.outputPath);
+    setBatchStatus(`Salvo: ${file.outputPath}`);
+  } catch (err) {
+    stopStableDiffusionProgressPolling();
+    file.status = "erro";
+    file.error = err.message || String(err);
+    batchEditorState.errors.push({ file: file.sourcePath || file.inputPath, error: file.error, at: new Date().toISOString() });
+    setBatchStatus(`Erro em ${file.fileName || file.name}: ${file.error}`);
+    if (fromAutomation && /\b(worker|stable diffusion|sd|motor|backend|503|indisponivel)\b/i.test(file.error)) {
+      batchEditorState.pauseAfterCurrent = true;
+      batchEditorState.automation = false;
+    }
+  } finally {
+    renderBatchFileList();
+    updateBatchProgress();
+    await saveBatchEditorStateLog(false).catch(() => null);
+  }
+  return file;
+}
+
+async function startBatchAutomation() {
+  if (batchEditorState.running) return;
+  const mode = getBatchModeDefinition(getBatchOptions().mode);
+  if (mode.implemented === false) {
+    setBatchStatus("Este modo ainda nao foi implementado.");
+    return;
+  }
+  batchEditorState.automation = true;
+  batchEditorState.running = true;
+  batchEditorState.pauseAfterCurrent = false;
+  batchEditorState.cancelRequested = false;
+  if (batchEditorState.currentIndex < 0 && batchEditorState.files.length) {
+    await loadBatchFile(0);
+  }
+  await runBatchAutomationLoop();
+}
+
+async function continueBatchAutomation() {
+  const mode = getBatchModeDefinition(getBatchOptions().mode);
+  if (mode.implemented === false) {
+    setBatchStatus("Este modo ainda nao foi implementado.");
+    return;
+  }
+  batchEditorState.pauseAfterCurrent = false;
+  batchEditorState.cancelRequested = false;
+  batchEditorState.automation = true;
+  if (!batchEditorState.running) {
+    batchEditorState.running = true;
+    await runBatchAutomationLoop();
+  }
+}
+
+async function cancelBatchAutomation() {
+  batchEditorState.cancelRequested = true;
+  batchEditorState.automation = false;
+  setBatchStatus("Cancelando apos a imagem atual...");
+  await saveBatchEditorStateLog(true).catch(() => null);
+}
+
+async function runBatchAutomationLoop() {
+  try {
+    while (batchEditorState.automation && !batchEditorState.cancelRequested) {
+      const index = batchEditorState.currentIndex < 0
+        ? batchEditorState.files.findIndex((item) => item.status === "pendente")
+        : batchEditorState.currentIndex;
+      if (index < 0 || index >= batchEditorState.files.length) break;
+      const file = batchEditorState.files[index];
+      if (!["ok", "processando"].includes(file.status)) {
+        await loadBatchFile(index);
+        await generateCurrentBatchImage({ fromAutomation: true });
+      }
+      if (batchEditorState.pauseAfterCurrent || batchEditorState.cancelRequested) break;
+      const nextIndex = batchEditorState.files.findIndex((item, itemIndex) => itemIndex > index && ["pendente", "carregado", "erro"].includes(item.status));
+      if (nextIndex < 0) break;
+      await loadBatchFile(nextIndex);
+    }
+  } finally {
+    batchEditorState.running = false;
+    batchEditorState.automation = false;
+    setBatchStatus(batchEditorState.cancelRequested ? "Lote cancelado com seguranca." : batchEditorState.pauseAfterCurrent ? "Lote pausado." : "Lote finalizado.");
+    await saveBatchEditorStateLog(true).catch(() => null);
+  }
+}
+
+async function saveBatchEditorStateLog(final = false) {
+  const options = getBatchOptions();
+  if (!options.destination) return null;
+  const completed = batchEditorState.files.filter((item) => item.status === "ok").length;
+  const errors = batchEditorState.files.filter((item) => item.status === "erro").length;
+  const skipped = batchEditorState.files.filter((item) => ["pulado", "nao suportado"].includes(item.status)).length;
+  const mode = getBatchModeDefinition(options.mode);
+  const avg = batchEditorState.completedDurations.length
+    ? batchEditorState.completedDurations.reduce((sum, item) => sum + item, 0) / batchEditorState.completedDurations.length
+    : 0;
+  const payload = {
+    startedAt: batchEditorState.logStartedAt || null,
+    finishedAt: final ? new Date().toISOString() : null,
+    origin: options.origin,
+    destination: options.destination,
+    mode: options.mode,
+    total: batchEditorState.files.length,
+    processed: completed,
+    errors,
+    skipped,
+    averageMsPerImage: Math.round(avg),
+    model: mode.usesAI ? options.checkpoint : "",
+    parameters: {
+      cfgScale: options.cfgScale,
+      denoisingStrength: options.denoising,
+      steps: options.steps,
+      sampler: options.sampler,
+      seed: options.seed,
+      upscaling: options.upscaleEnabled,
+      scale: options.scale,
+      ratioMode: options.ratioMode,
+      resizeMethod: options.resizeMethod,
+      resizeScale: options.resizeScale,
+      pngCleanup: options.pngCleanup,
+      preserveAlpha: options.preserveAlpha
+    },
+    positivePrompt: options.positivePrompt,
+    appendPathPrompt: options.appendPathPrompt,
+    negativePrompt: options.negativePrompt,
+    files: batchEditorState.files.map((item) => ({
+      input: item.sourcePath || item.inputPath,
+      relativePath: item.relativePath,
+      output: item.outputPath,
+      fileName: item.fileName || item.name,
+      ext: item.ext || "",
+      status: item.status,
+      error: item.error || ""
+    }))
+  };
+  const saved = await window.kitAPI?.saveBatchEditorLog?.({
+    targetDir: options.destination,
+    filePath: batchEditorState.logPath || "",
+    text: JSON.stringify(payload, null, 2)
+  });
+  if (saved?.filePath && !batchEditorState.logPath) {
+    batchEditorState.logPath = saved.filePath;
+  }
+  return saved;
+}
 
 async function bootstrapCanvasModule() {
   initFabricCanvas();

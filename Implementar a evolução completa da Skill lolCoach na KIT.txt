@@ -1,0 +1,1199 @@
+Implementar a evolução completa da Skill lolCoach na KIT: base local em camadas, contexto de sessão, conhecimento tático de partida e motor lógico de theorycraft.
+Objetivo:
+Transformar a lolCoach em uma Skill consultiva de League of Legends que funcione offline após atualização manual, usando Data Dragon local, conhecimento tático próprio, contexto ativo da conversa e motor de inferência combinatória. A Skill não deve depender de winrate, meta externo, Riot API, LCU API, OCR, overlay ou leitura automática da partida nesta etapa.
+==================================================
+1.	ESCOPO GERAL
+==================================================
+A Skill deve:
+•	usar Data Dragon somente para atualizar dados estáticos oficiais;
+•	manter cache local em camadas;
+•	nunca consultar internet durante perguntas comuns;
+•	manter conhecimento tático próprio em knowledge/;
+•	ativar automaticamente quando a conversa estiver no tema LoL;
+•	manter contexto manual de partida;
+•	responder com base em inferência lógica, não em estatística externa;
+•	respeitar a personalidade atual da KIT;
+•	não implementar persona própria;
+•	operar apenas como copiloto consultivo.
+Não implementar nesta etapa:
+•	Riot API;
+•	LCU API;
+•	OCR;
+•	overlay;
+•	leitura de memória;
+•	automação;
+•	captura de tela;
+•	leitura de minimapa;
+•	ações dentro do jogo.
+==================================================
+2. ESTRUTURA OBRIGATÓRIA
+Criar/manter:
+backend/skills/lolCoach/
+lolCoach.skill.js
+lolCoachUpdater.js
+lolCoachService.js
+lolCoachAnalyzer.js
+lolCoachContextRouter.js
+lolTheoryEngine.js
+lolDamageModel.js
+lolVulnerabilityScanner.js
+lolBuildPathInferer.js
+data/
+manifest.json
+raw/
+  champion.json
+  item.json
+  runesReforged.json
+  summoner.json
+
+normalized/
+  flash/
+    champions_flash.json
+    items_flash.json
+    champion_aliases.json
+    item_aliases.json
+
+  compact/
+    champions_compact.json
+    items_compact.json
+    matchup_compact.json
+
+  detailed/
+    champions_detailed.json
+    items_detailed.json
+    runes_detailed.json
+    spells_detailed.json
+
+knowledge/
+  champion_archetypes.json
+  lane_rules.json
+  phase_rules.json
+  matchup_rules.json
+  item_decision_rules.json
+  team_comp_rules.json
+  win_condition_rules.json
+  rune_decision_rules.json
+  mechanic_matrix.json
+  damage_laws.json
+  class_vulnerability_rules.json
+  build_path_rules.json
+  hybrid_champion_rules.json
+  theorycraft_rules.json
+==================================================
+3. ATUALIZAÇÃO MANUAL VIA DATA DRAGON
+A Skill só pode baixar dados externos quando o usuário der comando explícito:
+•	"Kit, atualizar dados do LoL"
+•	"Kit, atualizar base do LoL"
+•	"Kit, atualizar campeões e itens do LoL"
+Fontes oficiais:
+Versões:
+https://ddragon.leagueoflegends.com/api/versions.json
+Campeões:
+https://ddragon.leagueoflegends.com/cdn/{version}/data/pt_BR/champion.json
+Itens:
+https://ddragon.leagueoflegends.com/cdn/{version}/data/pt_BR/item.json
+Runas:
+https://ddragon.leagueoflegends.com/cdn/{version}/data/pt_BR/runesReforged.json
+Spells:
+https://ddragon.leagueoflegends.com/cdn/{version}/data/pt_BR/summoner.json
+Regras do lolCoachUpdater.js:
+•	criar diretórios necessários;
+•	buscar versão mais recente;
+•	comparar com data/manifest.json;
+•	se já estiver atualizado, retornar already_updated;
+•	atualizar em pasta temporária:
+data/.tmp_update/
+•	baixar raw para:
+data/.tmp_update/raw/
+•	gerar normalized para:
+data/.tmp_update/normalized/
+•	validar arquivos mínimos antes de substituir:
+o	champion.json
+o	item.json
+o	champions_flash.json
+o	items_flash.json
+o	champions_detailed.json
+o	items_detailed.json
+•	somente após sucesso substituir:
+o	raw/
+o	normalized/
+o	manifest.json
+•	nunca apagar, mover ou sobrescrever knowledge/;
+•	se falhar, manter base anterior intacta.
+Manifest obrigatório:
+{
+"skill": "lolCoach",
+"schemaVersion": 1,
+"locale": "pt_BR",
+"patch": "...",
+"lastUpdate": "...",
+"source": "riot-datadragon",
+"offlineReady": true
+}
+Se schemaVersion for incompatível, a Skill deve informar que a base precisa ser regenerada.
+==================================================
+4. NORMALIZAÇÃO HTML
+Implementar sanitização robusta para textos da Riot.
+Não usar apenas:
+replace(/<[^>]*>/g, '')
+A função deve:
+•	converter , , em quebra ou espaço;
+•	converter , , , , , em espaço/quebra;
+•	remover tags proprietárias:
+o	mainText
+o	stats
+o	attention
+o	passive
+o	active
+o	rarityGeneric
+o	speed
+o	scaleLevel
+•	decodificar:
+o	 
+o	&
+o	<
+o	>
+o	"
+o	'
+•	normalizar espaços duplicados;
+•	preservar legibilidade.
+Exemplo:
+Entrada:
+Ganha 40 de DanoAo atacar...
+Saída:
+Ganha 40 de Dano. Ao atacar...
+==================================================
+5. CAMADAS DE DADOS
+Gerar três camadas:
+1.	flash
+•	ultraleve;
+•	carregada em RAM;
+•	usada em modo rápido, partida, urgência ou respostas curtas.
+2.	compact
+•	intermediária;
+•	usada em conversa normal.
+3.	detailed
+•	completa;
+•	usada para lore, estudo, explicações longas e consulta detalhada.
+Campeões detailed:
+•	id
+•	key
+•	name
+•	title
+•	tags
+•	partype
+•	stats
+•	passive
+•	spells
+•	lore
+•	blurb
+Itens detailed:
+•	id
+•	name
+•	description
+•	plaintext
+•	gold
+•	tags
+•	stats
+•	maps
+•	into
+•	from
+Campeões compact:
+•	id
+•	name
+•	title
+•	tags
+•	partype
+•	shortDescription
+•	passiveName
+•	spellNames
+Itens compact:
+•	id
+•	name
+•	plaintext
+•	tags
+•	goldTotal
+•	stats
+Campeões flash:
+•	id
+•	name
+•	tags
+•	likelyRoles
+•	damageProfile
+•	threatHints
+•	weaknessHints
+•	shortAdvice
+Itens flash:
+•	id
+•	name
+•	tags
+•	goldTotal
+•	quickUse
+•	countersHints
+==================================================
+6. KNOWLEDGE NÃO SOBRESCRITO
+data/knowledge/ contém conhecimento tático local.
+Nunca sobrescrever em atualização do Data Dragon.
+Criar arquivos vazios se não existirem:
+•	champion_archetypes.json
+•	lane_rules.json
+•	phase_rules.json
+•	matchup_rules.json
+•	item_decision_rules.json
+•	team_comp_rules.json
+•	win_condition_rules.json
+•	rune_decision_rules.json
+•	mechanic_matrix.json
+•	damage_laws.json
+•	class_vulnerability_rules.json
+•	build_path_rules.json
+•	hybrid_champion_rules.json
+•	theorycraft_rules.json
+Durante geração de flash/compact, enriquecer dados com knowledge quando existir.
+Exemplo:
+champions_flash[championId] = {
+...riotChampionFlashData,
+...(championArchetypes[championId] || {}),
+...(matchupRules[championId] || {}),
+...(roleRules[championId] || {}),
+...(threatRules[championId] || {})
+}
+items_flash[itemId] = {
+...riotItemFlashData,
+...(itemDecisionRules[itemId] || {})
+}
+Se knowledge estiver vazio, gerar normalmente apenas com Data Dragon.
+==================================================
+7. ALIASES ROBUSTOS
+Implementar:
+normalizeAlias(input)
+Regras:
+•	lower-case;
+•	remover acentos;
+•	remover apóstrofos;
+•	remover pontos;
+•	remover hífens;
+•	remover espaços;
+•	remover caracteres especiais;
+•	manter apenas letras e números.
+Exemplos:
+•	"Cho'Gath" -> "chogath"
+•	"cho gath" -> "chogath"
+•	"K'Sante" -> "ksante"
+•	"Dr. Mundo" -> "drmundo"
+•	"Gume do Infinito" -> "gumedoinfinito"
+champion_aliases.json deve mapear:
+{
+"chogath": "Chogath",
+"ksante": "KSante",
+"drmundo": "DrMundo",
+"wukong": "MonkeyKing",
+"monkeyking": "MonkeyKing"
+}
+item_aliases.json deve usar a mesma lógica, apontando para o ID oficial do item.
+resolveChampionAlias(name):
+1.	normalizar entrada;
+2.	buscar match exato;
+3.	tentar busca parcial segura;
+4.	se houver múltiplos candidatos, retornar baixa confiança.
+==================================================
+8. SESSION THEME SYSTEM
+Implementar suporte a tema ativo de conversa.
+Objetivo:
+Quando o usuário iniciar uma conversa sobre LoL, a Skill deve permanecer ativa no contexto da sessão, sem exigir que o usuário repita “no LoL” toda hora.
+Criar/usar:
+•	TopicDetector
+•	SessionThemeManager
+•	ActiveEntityTracker
+Quando o usuário disser:
+•	"vamos jogar lol"
+•	"vou jogar lol"
+•	"partida de lol"
+•	"estou no LoL"
+Ativar:
+{
+"theme": "league_of_legends",
+"sticky": true,
+"activeSkills": ["lolCoach"]
+}
+Regras:
+•	não salvar em memória longa;
+•	contexto é temporário da conversa atual;
+•	reduzir confiança com troca forte de assunto;
+•	remover tema após timeout ou mudança clara de domínio;
+•	permitir múltiplos temas, com prioridade.
+Se theme === "league_of_legends":
+•	ativar lolCoach automaticamente;
+•	usar aliases/contexto persistente;
+•	interpretar perguntas curtas como:
+o	"qual build?"
+o	"qual runa?"
+o	"quem countera?"
+o	"qual lore?"
+o	"qual forma?"
+o	"qual meu foco?"
+==================================================
+9. MANUAL MATCH CONTEXT
+Permitir criação manual de contexto de partida.
+Exemplo:
+"Partida nova. Estou de Kayn jungle. Inimigos: Jinx, Lux, Ahri, Lee Sin e Lulu."
+Atualizar ActiveEntityTracker:
+{
+"currentGame": "lol",
+"playerChampion": "Kayn",
+"lane": "jungle",
+"enemyChampions": ["Jinx", "Lux", "Ahri", "Lee Sin", "Lulu"],
+"allyChampions": [],
+"gamePhase": null,
+"gameTime": null
+}
+Perguntas posteriores devem usar esse contexto:
+•	"qual build?"
+•	"qual forma?"
+•	"qual runa?"
+•	"qual minha condição de vitória?"
+•	"como jogo essa lane?"
+•	"qual meu foco?"
+Se faltar campeão atual em pergunta de build:
+•	pedir contexto ou retornar baixa confiança.
+Se faltar lane em pergunta de counter:
+•	pedir contexto ou retornar baixa confiança.
+==================================================
+10. CONTEXT ROUTER
+Implementar lolCoachContextRouter.js.
+Exportar:
+selectContextLayer({ mode, inGame, intent, urgency })
+Regras:
+Se:
+•	inGame === true
+•	mode === "fast"
+•	urgency === "high"
+Usar:
+flash
+Intents rápidos:
+•	item_against_champion
+•	counter_pick
+•	quick_build
+•	anti_heal
+•	anti_tank
+•	anti_shield
+•	armor
+•	magic_resist
+•	tenacity
+•	rune_suggestion
+•	hybrid_path_selection
+Usar:
+•	flash se fast/inGame/high;
+•	compact caso contrário.
+Intents médios:
+•	explain_champion
+•	explain_item
+•	matchup_explanation
+•	lane_strategy
+•	phase_advice
+•	team_comp_analysis
+•	win_condition
+Usar:
+compact
+Intents detalhados:
+•	lore_detailed
+•	deep_analysis
+•	study_mode
+•	theorycraft_analysis
+•	offmeta_build_analysis
+Usar:
+detailed + matchKnowledge/theoryContext filtrado.
+Fallback:
+compact
+==================================================
+11. MATCH KNOWLEDGE
+Criar conhecimento de partida em knowledge/.
+Arquivos:
+1.	champion_archetypes.json
+Define identidade tática dos campeões.
+Campos:
+•	id
+•	damageType
+•	class
+•	primaryRoles
+•	secondaryRoles
+•	allowedStats
+•	forbiddenStats
+•	tradingPattern
+•	powerSpikes
+•	strengths
+•	weaknesses
+•	wants
+•	avoids
+Exemplo:
+{
+"Vex": {
+"id": "Vex",
+"damageType": "AP",
+"class": ["mage", "burst", "anti_mobility"],
+"primaryRoles": ["mid"],
+"secondaryRoles": [],
+"allowedStats": ["ability_power", "magic_pen", "ability_haste", "mana"],
+"forbiddenStats": ["attack_damage", "attack_speed", "critical_strike", "lethality"],
+"tradingPattern": "short_burst",
+"powerSpikes": ["level_6", "lost_chapter", "first_ap_item", "shadowflame_or_zhonyas"],
+"strengths": ["punishes_dash", "burst", "fear_cc", "roam_follow"],
+"weaknesses": ["long_cooldowns", "vulnerable_without_fear", "weak_extended_trades"],
+"wants": ["short_trades", "enemy_dash_commit", "vision_before_roam"],
+"avoids": ["extended_melee_trade", "wasting_fear", "overpushing_without_vision"]
+}
+}
+2.	lane_rules.json
+Para:
+•	top
+•	jungle
+•	mid
+•	adc
+•	support
+Campos:
+•	lane
+•	goals
+•	commonThreats
+•	wavePrinciples
+•	visionPrinciples
+•	roamRules
+•	commonMistakes
+•	importantTimers
+3.	phase_rules.json
+Fases:
+•	early
+•	mid
+•	late
+Campos:
+•	timeRange
+•	mainGoals
+•	commonRisks
+•	itemPriorityLogic
+•	objectivePriority
+•	responseStyle
+4.	matchup_rules.json
+Regras específicas entre campeões.
+Exemplo:
+{
+"Vex": {
+"Yasuo": {
+"lane": "mid",
+"difficulty": "favorable_if_disciplined",
+"why": ["Vex pune dashes", "Yasuo sofre contra medo bem guardado"],
+"playPattern": ["guardar passiva/medo", "trocas curtas", "não lutar estendido"],
+"avoid": ["gastar medo sem necessidade", "ficar no melee range"],
+"items": ["lost_chapter_item", "zhonyas_if_threatened", "magic_pen"],
+"runes": ["electrocute", "taste_of_blood"],
+"shortAdvice": "Guarde o medo para punir o dash do Yasuo. Troca curta, wave controlada e Zhonyas se ele ficar forte."
+}
+}
+}
+5.	item_decision_rules.json
+Regras:
+•	anti_heal
+•	anti_shield
+•	anti_tank
+•	armor
+•	magic_resist
+•	burst_survival
+•	mana_needed
+•	snowball_damage
+•	utility
+•	tenacity
+•	movement_speed
+Campos:
+•	trigger
+•	usefulAgainst
+•	recommendedStats
+•	examples
+•	avoidWhen
+•	explanation
+6.	team_comp_rules.json
+Composições:
+•	full_ad
+•	full_ap
+•	mixed_damage
+•	heavy_engage
+•	poke_comp
+•	pick_comp
+•	split_push
+•	scaling_comp
+•	early_game_comp
+•	protect_the_carry
+Campos:
+•	detectionHints
+•	threats
+•	counterplay
+•	itemLogic
+•	championPreference
+7.	win_condition_rules.json
+Regras:
+•	play_for_scaling
+•	snowball_lane
+•	protect_adc
+•	avoid_teamfight
+•	force_objectives
+•	split_push
+•	pick_before_objective
+•	front_to_back
+Campos:
+•	whenApplies
+•	howToPlay
+•	commonMistakes
+•	shortAdvice
+8.	rune_decision_rules.json
+Runas:
+•	electrocute
+•	comet
+•	aery
+•	first_strike
+•	conqueror
+•	grasp
+•	aftershock
+•	guardian
+•	lethal_tempo
+Campos:
+•	archetype
+•	goodWhen
+•	badWhen
+•	examples
+•	explanation
+==================================================
+12. THEORY ENGINE
+Implementar:
+•	lolTheoryEngine.js
+•	lolDamageModel.js
+•	lolVulnerabilityScanner.js
+•	lolBuildPathInferer.js
+Objetivo:
+Criar motor de inferência combinatória que use leis mecânicas do jogo, arquétipos, vulnerabilidades e restrições do campeão para deduzir caminhos de build e estratégia sem usar winrate.
+==================================================
+13. mechanic_matrix.json
+Criar regras gerais de funcionamento.
+Não basear em campeões específicos.
+Incluir:
+•	physical_damage_vs_armor
+•	magic_damage_vs_magic_resist
+•	lethality_vs_low_armor
+•	percent_penetration_vs_high_resistance
+•	max_health_damage_vs_tanks
+•	flat_damage_vs_squishy
+•	burst_window
+•	extended_fight
+•	cooldown_dependency
+•	anti_heal_value
+•	anti_shield_value
+•	on_hit_value
+•	crit_scaling
+•	ability_haste_value
+•	mana_dependency
+•	survivability_vs_burst
+•	mobility_vs_skillshot
+•	hard_cc_vs_mobile_champions
+Formato:
+{
+"id": "lethality_vs_low_armor",
+"description": "Letalidade plana ganha valor contra alvos com baixa armadura.",
+"goodAgainst": ["marksman", "mage", "assassin", "enchanter"],
+"badAgainst": ["tank", "juggernaut"],
+"preferredStats": ["lethality", "attack_damage", "ability_haste"],
+"avoidStats": ["health_stack"],
+"logic": "Quanto menor a armadura efetiva do alvo, mais eficiente fica a penetração plana.",
+"confidence": "rules_based"
+}
+==================================================
+14. damage_laws.json
+Criar fórmulas aproximadas.
+Não precisa simular perfeitamente o LoL.
+É guia tático.
+Obrigatório:
+{
+"effective_physical_damage": {
+"formula": "damageMultiplier = 100 / (100 + armor)",
+"type": "approximation"
+},
+"effective_magic_damage": {
+"formula": "damageMultiplier = 100 / (100 + magicResist)",
+"type": "approximation"
+},
+"armor_after_lethality": {
+"formula": "effectiveArmor = max(0, armor - lethality)",
+"type": "approximation"
+},
+"resistance_after_percent_pen": {
+"formula": "effectiveResistance = resistance * (1 - percentPen)",
+"type": "approximation"
+},
+"max_health_damage_value": {
+"logic": "Ganha valor contra campeões com muita vida máxima.",
+"type": "heuristic"
+},
+"flat_burst_value": {
+"logic": "Ganha valor contra alvos frágeis.",
+"type": "heuristic"
+}
+}
+==================================================
+15. class_vulnerability_rules.json
+Classes:
+•	marksman
+•	mage
+•	assassin
+•	enchanter
+•	tank
+•	juggernaut
+•	fighter
+•	skirmisher
+•	diver
+•	support_tank
+•	artillery_mage
+•	battle_mage
+Campos:
+•	typicalDurability
+•	commonWeaknesses
+•	commonThreats
+•	vulnerableTo
+•	resistsAgainst
+•	preferredCounterStats
+O scanner deve aceitar múltiplas classes por campeão e somar pesos.
+Exemplo:
+Yasuo = skirmisher + melee + critical_strike + physical_threat + mobile
+==================================================
+16. hybrid_champion_rules.json
+Criar regras para campeões com caminhos mutáveis.
+Exemplos:
+•	Kayn
+•	Varus
+•	Kai'Sa
+•	Udyr
+•	Volibear
+•	Shyvana
+•	Twitch
+•	Katarina
+•	Ezreal
+Exemplo:
+{
+"Kayn": {
+"paths": {
+"shadow_assassin": {
+"goodAgainst": ["squishy_comp", "low_cc", "low_armor"],
+"preferredStats": ["lethality", "attack_damage", "ability_haste"],
+"avoidStats": ["health_stack", "slow_scaling_defense"],
+"playPattern": "burst_and_escape"
+},
+"rhaast": {
+"goodAgainst": ["tank_comp", "bruiser_comp", "extended_fight"],
+"preferredStats": ["health", "ability_haste", "armor_pen", "sustain"],
+"avoidStats": ["pure_lethality_against_tanks"],
+"playPattern": "extended_fight_drain"
+}
+}
+}
+}
+==================================================
+17. lolVulnerabilityScanner.js
+Entrada:
+{
+enemyChampions: [],
+allyChampions: [],
+playerChampion: "",
+lane: "",
+gamePhase: ""
+}
+Saída:
+{
+enemyProfile: {
+squishyCount,
+tankCount,
+bruiserCount,
+magicThreatCount,
+physicalThreatCount,
+ccThreatLevel,
+mobilityLevel,
+sustainLevel,
+shieldLevel,
+engageLevel,
+pokeLevel
+},
+triggeredStrategies: [],
+warnings: [],
+confidence
+}
+Regras:
+•	3 ou mais alvos frágeis:
+ativar frontloaded_burst
+•	2 ou mais tanks/juggernauts:
+ativar anti_tank_efficiency
+•	muito sustain:
+ativar anti_heal_priority
+•	muitos escudos:
+ativar anti_shield_priority
+•	muito engage:
+ativar survive_initial_engage
+•	muito poke:
+ativar sustain_or_engage_window
+•	muita mobilidade/dash:
+ativar hard_cc_or_anti_mobility
+==================================================
+18. lolDamageModel.js
+Implementar funções aproximadas:
+•	calculatePhysicalMultiplier(armor)
+•	calculateMagicMultiplier(magicResist)
+•	applyLethality(armor, lethality)
+•	applyPercentPen(resistance, percentPen)
+•	estimateFlatBurstValue(targetProfile)
+•	estimatePercentDamageValue(targetProfile)
+•	compareDamagePath(pathA, pathB, targetProfile)
+A função deve retornar valores aproximados e warnings de baixa confiança quando faltarem números reais.
+==================================================
+19. lolBuildPathInferer.js
+Cruzar:
+•	champion_archetypes
+•	allowedStats
+•	forbiddenStats
+•	vulnerability scan
+•	mechanic_matrix
+•	item_decision_rules
+•	build_path_rules
+•	hybrid_champion_rules
+Retornar:
+{
+recommendedPath,
+rejectedPaths,
+reasoning,
+requiredStats,
+forbiddenStats,
+confidence,
+warnings
+}
+Regras:
+•	se campeão tiver paths híbridos, escolher maior compatibilidade;
+•	bloquear stats proibidos como recomendação competitiva;
+•	permitir off-meta apenas se usuário pedir explicitamente;
+•	marcar baixa confiança em off-meta incompatível.
+Exemplo Kayn contra 4 squishies:
+{
+"recommendedPath": "shadow_assassin_burst",
+"requiredStats": ["lethality", "attack_damage", "ability_haste"],
+"rejectedPaths": [
+{
+"path": "bruiser_sustain",
+"reason": "Dilui o burst contra alvos frágeis."
+}
+],
+"reasoning": [
+"O time inimigo possui 4 alvos frágeis.",
+"Letalidade ganha valor contra baixa armadura.",
+"Kayn Azul maximiza dano frontal e execução rápida."
+]
+}
+==================================================
+20. lolTheoryEngine.js
+Ponto central do motor combinatório.
+Se intent for:
+•	theorycraft_analysis
+•	burst_maximization
+•	anti_tank_inference
+•	vulnerability_scan
+•	hybrid_path_selection
+•	offmeta_build_analysis
+Executar:
+•	vulnerability scan;
+•	damage model;
+•	build path inference;
+•	validação de arquétipo;
+•	geração de theoryContext.
+Retornar:
+{
+playerChampion,
+enemyChampions,
+detectedEnemyProfile,
+triggeredStrategies,
+recommendedPath,
+rejectedPaths,
+requiredStats,
+forbiddenStats,
+reasoning,
+warnings,
+confidence
+}
+Não gerar texto final com persona.
+==================================================
+21. lolCoachService.js
+Responsabilidades:
+•	carregar cache em RAM;
+•	recarregar cache após update;
+•	resolver aliases;
+•	acessar knowledge;
+•	montar contexto runtime;
+•	chamar Match Knowledge;
+•	chamar Theory Engine quando necessário.
+Carregar no boot:
+•	manifest
+•	flash/champions_flash.json
+•	flash/items_flash.json
+•	flash/champion_aliases.json
+•	flash/item_aliases.json
+•	knowledge/*.json
+compact:
+•	carregar sob demanda.
+detailed:
+•	carregar apenas quando necessário.
+Funções obrigatórias:
+•	isReady()
+•	getStatus()
+•	updateData()
+•	reloadCache()
+•	loadFlashCache()
+•	loadKnowledgeCache()
+•	clearRuntimeCache()
+•	findChampion(name, layer)
+•	findItem(name, layer)
+•	resolveChampionAlias(name)
+•	resolveItemAlias(name)
+•	getChampionArchetype(championId)
+•	getLaneRules(lane)
+•	getPhaseRules(gameTimeOrPhase)
+•	getMatchupRule(playerChampion, enemyChampion, lane)
+•	getItemDecisionContext(queryMeta)
+•	getTeamCompContext(enemyChampions, allyChampions)
+•	getWinConditionContext(queryMeta)
+•	getRuneDecisionContext(playerChampion, enemyChampion, lane)
+•	runVulnerabilityScan(queryMeta)
+•	inferBuildPath(queryMeta)
+•	runTheorycraftAnalysis(queryMeta)
+•	buildMatchKnowledgeContext(queryMeta)
+•	buildTheoryContext(queryMeta)
+•	getContextForQuery(queryMeta)
+•	buildRuntimeContext(queryMeta)
+Após updateData():
+•	se status for updated, already_updated ou success:
+o	chamar reloadCache()
+Se reload falhar:
+•	não invalidar atualização;
+•	retornar aviso controlado.
+==================================================
+22. buildRuntimeContext()
+Nunca mandar knowledge inteiro para o LLM.
+Selecionar somente nós relevantes.
+Retornar:
+{
+"skill": "lolCoach",
+"layer": "flash" | "compact" | "detailed",
+"intent": "...",
+"entities": {...},
+"contextText": "...",
+"matchKnowledge": {...},
+"theoryContext": {...},
+"responseConstraints": {...},
+"sourcePatch": "...",
+"personalityPolicy": "use_current_kit_route_personality"
+}
+Constraints:
+flash:
+{
+"maxSentences": 2,
+"preferShortAnswer": true,
+"avoidLongExplanation": true
+}
+compact:
+{
+"maxSentences": 6,
+"preferShortAnswer": false
+}
+detailed:
+{
+"allowLongAnswer": true
+}
+==================================================
+23. lolCoachAnalyzer.js
+Detectar intents:
+•	update_database
+•	counter_pick
+•	item_against_champion
+•	quick_build
+•	explain_champion
+•	explain_item
+•	matchup_explanation
+•	anti_heal
+•	anti_tank
+•	anti_shield
+•	armor
+•	magic_resist
+•	tenacity
+•	lore_detailed
+•	deep_analysis
+•	study_mode
+•	rune_suggestion
+•	team_comp_analysis
+•	win_condition
+•	lane_strategy
+•	wave_management
+•	phase_advice
+•	theorycraft_analysis
+•	burst_maximization
+•	anti_tank_inference
+•	vulnerability_scan
+•	hybrid_path_selection
+•	offmeta_build_analysis
+Detectar entidades:
+•	championNames
+•	itemNames
+•	lane
+•	playerChampion
+•	enemyChampions
+•	allyChampions
+•	gamePhase
+•	gameTime
+•	intendedStyle
+Usar ActiveEntityTracker quando pergunta for curta:
+•	"qual build?"
+•	"qual runa?"
+•	"qual forma?"
+•	"como jogo essa lane?"
+•	"qual minha condição de vitória?"
+•	"qual item faço?"
+Gatilhos de teoria:
+•	teoria
+•	theorycraft
+•	combinação improvável
+•	sinergia oculta
+•	maior dano explosivo
+•	matemática
+•	dano máximo
+•	build criminosa
+•	build absurda
+•	fora do meta
+•	caminho alternativo
+•	derreter
+•	explodir alvo
+•	burst máximo
+Regras de urgência:
+Palavras:
+•	"rápido"
+•	"agora"
+•	"na partida"
+•	"durante o jogo"
+•	"loja"
+•	"fight"
+•	"pick"
+•	"ban"
+=> urgency high ou inGame true.
+Regras detailed:
+Palavras:
+•	"história"
+•	"lore"
+•	"me explica completo"
+•	"detalhado"
+=> detailed.
+==================================================
+24. VALIDAÇÃO TÁTICA OBRIGATÓRIA
+A Skill não pode responder builds, counters ou runas apenas por probabilidade do LLM.
+O Service deve validar:
+•	tipo de dano do campeão;
+•	função do campeão;
+•	stats compatíveis;
+•	itens compatíveis;
+•	runas compatíveis;
+•	lanes válidas.
+Exemplos:
+Vex:
+•	AP mage;
+•	nunca sugerir como competitivo:
+o	AD;
+o	crítico;
+o	letalidade;
+o	velocidade de ataque.
+Yasuo/Yone:
+•	AD melee crit/skirmisher;
+•	considerar armadura, anti-burst, controle, spacing.
+Sona:
+•	suporte/enchanter;
+•	não sugerir como counter mid genérico de Yone sem contexto.
+Counter sem lane:
+•	pedir lane ou retornar baixa confiança.
+Build sem campeão:
+•	pedir campeão ou retornar baixa confiança.
+Off-meta:
+•	se usuário pedir explicitamente, permitir análise experimental;
+•	marcar baixa confiança;
+•	separar:
+o	recomendação segura;
+o	teoria experimental;
+o	risco da build.
+==================================================
+25. lolCoach.skill.js
+Triggers:
+•	lol
+•	league of legends
+•	campeão
+•	champion
+•	item contra
+•	build contra
+•	counter
+•	runa
+•	build
+•	partida nova
+•	estou de
+•	time inimigo
+•	inimigos são
+•	atualizar dados do lol
+•	atualizar base do lol
+•	atualizar campeões e itens do lol
+Fluxo:
+Se atualização:
+•	chamar service.updateData()
+Se pergunta comum:
+•	chamar analyzer;
+•	montar queryMeta;
+•	chamar service.buildRuntimeContext();
+•	retornar runtimeContext para o fluxo principal da KIT.
+Não chamar Ollama diretamente se o LLM estiver centralizado fora das Skills.
+Se Skills puderem chamar LLM:
+•	ainda respeitar persona/configuração da rota principal.
+Nunca transformar pergunta comum em Agent.
+==================================================
+26. PERSONALIDADE E ROTAS
+A Skill não implementa personalidade própria.
+Não hardcodar:
+•	sarcasmo;
+•	humor;
+•	xingamento;
+•	tom ácido;
+•	frases prontas da KIT;
+•	humilhação;
+•	resposta estilizada.
+A Skill retorna dados técnicos.
+A personalidade vem do fluxo principal:
+•	RealtimeRoute;
+•	TaskRoute;
+•	AgentRoute apenas se houver tarefa autônoma real.
+Payload deve conter:
+personalityPolicy: "use_current_kit_route_personality"
+==================================================
+27. ANTI-BAN E FAIR PLAY
+A Skill deve funcionar apenas como copiloto consultivo.
+Proibido:
+•	ler memória do jogo;
+•	injetar DLL;
+•	usar hooks;
+•	modificar arquivos do jogo;
+•	automatizar mouse;
+•	automatizar teclado;
+•	automatizar spells;
+•	automatizar compra de itens;
+•	automatizar movimentação;
+•	criar scripts;
+•	criar macros;
+•	orbwalker;
+•	auto-dodge;
+•	auto-smite;
+•	auto-combo;
+•	usar dados ocultos;
+•	contornar anti-cheat;
+•	scraping de processos internos;
+•	overlay invasivo que interaja com o jogo.
+Permitido:
+•	Data Dragon oficial;
+•	arquivos locais da Skill;
+•	perguntas manuais do usuário;
+•	contexto manual de partida informado pelo usuário.
+A Skill deve ser somente leitura e consultiva.
+==================================================
+28. STATUS MESSAGES
+Sem base:
+"Base do LoL ainda não existe. Use: Kit, atualizar dados do LoL."
+Base pronta:
+"Base do LoL pronta. Patch atual: {patch}. Última atualização: {lastUpdate}."
+Atualizado:
+"Base do LoL atualizada para o patch {patch}."
+Já atualizado:
+"Base do LoL já está atualizada. Patch atual: {patch}."
+Erro com base antiga:
+"Não consegui atualizar agora. Mantive a última base local válida: {patch}."
+Erro sem base:
+"Não consegui atualizar a base do LoL e ainda não existe uma base local válida."
+Reload falhou:
+"Base atualizada no disco, mas falhou ao recarregar cache em RAM. Reinicie a KIT ou tente recarregar a Skill."
+==================================================
+29. CRITÉRIOS DE ACEITE
+1.	Ao iniciar sem base local:
+•	Skill informa que precisa atualizar.
+2.	Ao comando:
+"Kit, atualizar dados do LoL"
+•	baixa Data Dragon;
+•	gera raw/;
+•	gera flash/;
+•	gera compact/;
+•	gera detailed/;
+•	preserva knowledge/.
+3.	Perguntas comuns:
+•	não fazem request externo.
+4.	Usuário diz:
+"vamos jogar lol"
+•	ativa SessionTheme league_of_legends.
+5.	Após isso:
+"qual build?"
+•	ativa lolCoach automaticamente se houver contexto suficiente.
+6.	Usuário diz:
+"Partida nova. Estou de Kayn jungle. Inimigos: Jinx, Lux, Ahri, Lee Sin e Lulu."
+•	salva Match Context manual.
+7.	Pergunta:
+"qual forma e build?"
+•	usa contexto ativo.
+8.	Kayn contra Jinx, Lux, Ahri, Lee Sin e Lulu:
+•	scanner detecta vários alvos frágeis;
+•	ativa frontloaded_burst;
+•	recomenda shadow_assassin;
+•	sugere letalidade/dano/haste;
+•	rejeita Rhaast por baixa eficiência nesse cenário.
+9.	Kayn contra Sion, Ornn, Sejuani, Swain e Lulu:
+•	scanner detecta frontline/tank/sustain;
+•	ativa anti_tank_efficiency;
+•	recomenda Rhaast;
+•	sugere sustain/haste/penetração;
+•	rejeita letalidade pura.
+10.	Vex contra Yasuo mid:
+•	reconhece Vex como AP mage;
+•	reconhece Yasuo como AD melee/skirmisher;
+•	usa matchup rule;
+•	sugere AP/magic pen/Zhonyas situacional;
+•	nunca sugere AD/crítico/letalidade como competitivo.
+11.	Pergunta:
+"qual personagem é bom contra Yone?"
+sem lane:
+•	pede lane ou responde com baixa confiança.
+12.	Pergunta:
+"quero tank suporte no bot"
+•	sugere suportes tanks reais;
+•	não usa Sejuani/Malphite como padrão sem avisar off-meta.
+13.	Pergunta:
+"qual lore da Vex?"
+•	usa detailed;
+•	não usa theoryEngine.
+14.	Pergunta:
+"Quero teoria de maior burst com Vex contra 4 bonecos frágeis."
+•	detecta theorycraft_analysis;
+•	valida Vex como AP mage;
+•	bloqueia AD/crítico/letalidade como competitivo;
+•	sugere AP burst/magic pen/haste;
+•	separa recomendação segura de teoria experimental.
+15.	Pergunta:
+"Quero build criminosa de Vex AD."
+•	detecta colisão com forbiddenStats;
+•	marca baixa confiança;
+•	classifica como experimental;
+•	não apresenta como recomendação competitiva.
+16.	Atualização:
+•	recarrega cache em RAM sem reiniciar app.
+17.	Atualização parcial:
+•	nunca corrompe base atual.
+18.	Resposta final:
+•	respeita personalidade da KIT;
+•	Skill não hardcoda tom/persona.
+19.	Fair play:
+•	nenhuma automação;
+•	nenhuma leitura invasiva;
+•	nenhuma interação com o processo do jogo.
+
+

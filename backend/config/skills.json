@@ -7,5 +7,6 @@
   "needs": true,
   "runtime": true,
   "web-update": true,
-  "tts-queue": true
+  "tts-queue": true,
+  "lolCoach": true
 }

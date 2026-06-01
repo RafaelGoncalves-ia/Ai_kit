@@ -1,0 +1,52 @@
+{
+  "lethality_vs_low_armor": {
+    "id": "lethality_vs_low_armor",
+    "description": "Flat armor penetration gains value against low armor targets.",
+    "goodAgainst": ["marksman", "mage", "assassin", "enchanter"],
+    "badAgainst": ["tank", "juggernaut"],
+    "preferredStats": ["lethality", "attack_damage", "ability_haste"],
+    "avoidStats": ["health_stack"],
+    "logic": "Lower effective armor makes flat penetration more efficient.",
+    "confidence": "rules_based"
+  },
+  "percent_penetration_vs_high_resistance": {
+    "id": "percent_penetration_vs_high_resistance",
+    "description": "Percent penetration gains value against high resistance targets.",
+    "goodAgainst": ["tank", "juggernaut", "support_tank"],
+    "badAgainst": ["low_resistance_squishy"],
+    "preferredStats": ["armor_pen", "magic_pen", "percent_pen"],
+    "avoidStats": ["pure_flat_pen"],
+    "logic": "The more resistance the target buys, the more percent penetration removes.",
+    "confidence": "rules_based"
+  },
+  "hard_cc_vs_mobile_champions": {
+    "id": "hard_cc_vs_mobile_champions",
+    "description": "Reliable crowd control gains value against dash-heavy champions.",
+    "goodAgainst": ["mobile", "skirmisher", "assassin"],
+    "badAgainst": [],
+    "preferredStats": ["ability_haste", "survivability"],
+    "avoidStats": [],
+    "logic": "Mobile champions lose much of their threat when movement windows are interrupted.",
+    "confidence": "rules_based"
+  },
+  "anti_heal_value": {
+    "id": "anti_heal_value",
+    "description": "Healing reduction gains value when enemy sustain changes fight outcome.",
+    "goodAgainst": ["sustain", "drain_tank", "enchanter"],
+    "badAgainst": ["low_healing_comp"],
+    "preferredStats": ["grievous_wounds"],
+    "avoidStats": [],
+    "logic": "Buy it when healing is a real fight variable.",
+    "confidence": "rules_based"
+  },
+  "survivability_vs_burst": {
+    "id": "survivability_vs_burst",
+    "description": "Stasis, armor, MR, health or shields gain value when one engage decides the fight.",
+    "goodAgainst": ["assassin", "burst", "heavy_engage"],
+    "badAgainst": ["low_threat_scaling"],
+    "preferredStats": ["stasis", "health", "armor", "magic_resist"],
+    "avoidStats": ["greedy_damage_only"],
+    "logic": "If you die before casting, extra damage has no value.",
+    "confidence": "rules_based"
+  }
+}
